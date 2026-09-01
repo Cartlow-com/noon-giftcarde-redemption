@@ -4,7 +4,12 @@
   "version": "0.1.0",
   "description": "Automate Noon.com login and workflows from a side panel.",
   "permissions": ["storage", "tabs", "sidePanel"],
-  "host_permissions": ["https://www.noon.com/*", "https://account.noon.com/*"],
+  "host_permissions": [
+    "https://www.noon.com/*",
+    "https://account.noon.com/*",
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*"
+  ],
   "action": {
     "default_title": "Noon Automation — open side panel"
   },
@@ -17,7 +22,12 @@
   "content_scripts": [
     {
       "matches": ["https://www.noon.com/*", "https://account.noon.com/*"],
-      "js": ["mouse.js", "content.js"],
+      "js": ["mouse.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://www.noon.com/*", "https://account.noon.com/*"],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
   ]

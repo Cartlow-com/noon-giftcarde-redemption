@@ -7,8 +7,19 @@ body,
 #root {
   height: 100%;
   min-height: 100%;
+  width: 100%;
+  min-width: 520px;
+  box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: inherit;
 }
 
 body {
   @apply bg-bg text-slate-100 font-sans text-sm antialiased;
+  margin: 0;
+  overflow-x: hidden;
 }

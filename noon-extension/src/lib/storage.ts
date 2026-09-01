@@ -3,6 +3,7 @@ export interface NoonCredentials {
   password: string;
   giftCardNumber: string;
   giftCardPin: string;
+  productUrl: string;
 }
 
 const CREDS_KEY = "noon_credentials";
@@ -17,6 +18,7 @@ export function getStoredCredentials(): Promise<NoonCredentials> {
         giftCardNumber:
           typeof stored?.giftCardNumber === "string" ? stored.giftCardNumber : "",
         giftCardPin: typeof stored?.giftCardPin === "string" ? stored.giftCardPin : "",
+        productUrl: typeof stored?.productUrl === "string" ? stored.productUrl : "",
       });
     });
   });

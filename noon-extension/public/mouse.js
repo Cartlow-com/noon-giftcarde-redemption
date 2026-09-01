@@ -1,30 +1,30 @@
 /**
- * Visible ghost cursor — arrow default, I-beam on inputs.
+ * Ghost cursor in Shadow DOM — isolated from page CSS, always on top.
  */
 (function () {
-  const CURSOR_ID = "noon-ghost-cursor";
-  const RING_ID = "noon-ghost-click-ring";
-  const STYLE_ID = "noon-ghost-cursor-styles";
+  const HOST_ID = "noon-ghost-cursor-host";
 
   const SVG = {
     default:
       '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
-      '<path fill="#fff" stroke="#111" stroke-width="1.2" d="M4 2l2 18 4-6 5 7 3-2-5-7h7z"/>' +
+      '<path fill="#FEEE00" stroke="#111" stroke-width="1.5" d="M4 2l2 18 4-6 5 7 3-2-5-7h7z"/>' +
       "</svg>",
     text:
       '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
-      '<path fill="#fff" stroke="#111" stroke-width="1.4" stroke-linecap="round" d="M12 3v18M8 3h8M8 21h8"/>' +
+      '<path fill="#FEEE00" stroke="#111" stroke-width="1.5" stroke-linecap="round" d="M12 3v18M8 3h8M8 21h8"/>' +
       "</svg>",
   };
 
   const HOTSPOT = {
-    default: { x: 4, y: 4 },
+    default: { x: 5, y: 5 },
     text: { x: 12, y: 12 },
   };
 
+  let hostEl = null;
+  let shadowRoot = null;
   let cursorEl = null;
   let iconEl = null;
-  let pos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  let pos = { x: Math.round(window.innerWidth / 2), y: Math.round(window.innerHeight / 2) };
   let visible = false;
   let cursorMode = "default";
 
@@ -38,51 +38,72 @@
     }
   }
 
-  function injectStyles() {
-    if (document.getElementById(STYLE_ID)) return;
+  function injectHost() {
+    if (hostEl && document.documentElement.contains(hostEl)) {
+      document.documentElement.appendChild(hostEl);
+      return;
+    }
+
+    hostEl = document.createElement("div");
+    hostEl.id = HOST_ID;
+    hostEl.setAttribute("aria-hidden", "true");
+    hostEl.style.cssText =
+      "all:initial!important;position:fixed!important;top:0!important;left:0!important;" +
+      "width:0!important;height:0!important;overflow:visible!important;" +
+      "z-index:2147483647!important;pointer-events:none!important;margin:0!important;padding:0!important;";
+
+    shadowRoot = hostEl.attachShadow({ mode: "open" });
+
     const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = `
-      #${CURSOR_ID} {
-        position: fixed;
-        top: 0;
-        left: 0;
-        pointer-events: none;
-        z-index: 2147483646;
-        transition: opacity 0.4s ease;
-        filter: drop-shadow(0 2px 6px rgba(0,0,0,0.45));
-        will-change: transform;
-      }
-      #${CURSOR_ID}.noon-cursor-hidden { opacity: 0; }
-      #${CURSOR_ID}.noon-cursor-click { transform: scale(0.82); }
-      #${CURSOR_ID} .noon-cursor-icon {
-        display: block;
-        width: 28px;
-        height: 28px;
-        transition: width 0.12s ease, height 0.12s ease;
-      }
-      #${CURSOR_ID}.noon-mode-text .noon-cursor-icon {
-        width: 22px;
-        height: 24px;
-      }
-      #${RING_ID} {
-        position: fixed;
-        width: 36px;
-        height: 36px;
-        border: 2px solid rgba(254, 238, 0, 0.85);
-        border-radius: 50%;
-        pointer-events: none;
-        z-index: 2147483645;
-        transform: translate(-50%, -50%) scale(0.4);
-        opacity: 0;
-        animation: noon-click-ring 0.45s ease-out forwards;
-      }
-      @keyframes noon-click-ring {
-        0% { opacity: 0.9; transform: translate(-50%, -50%) scale(0.4); }
-        100% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
-      }
-    `;
-    document.documentElement.appendChild(style);
+    style.textContent =
+      ".cursor{position:fixed;left:0;top:0;pointer-events:none;opacity:1;visibility:visible;" +
+      "filter:drop-shadow(0 3px 10px rgba(0,0,0,0.7));will-change:left,top;}" +
+      ".cursor.hidden{opacity:0!important;visibility:hidden!important;}" +
+      ".cursor.click .icon{transform:scale(0.82);}" +
+      ".icon{display:block;width:40px;height:40px;transition:transform 0.08s ease;}" +
+      ".cursor.text .icon{width:30px;height:32px;}" +
+      ".ring{position:fixed;width:44px;height:44px;border:3px solid #FEEE00;border-radius:50%;" +
+      "pointer-events:none;transform:translate(-50%,-50%) scale(0.4);opacity:0;" +
+      "animation:noon-ring 0.45s ease-out forwards;}" +
+      "@keyframes noon-ring{" +
+      "0%{opacity:0.95;transform:translate(-50%,-50%) scale(0.4);}" +
+      "100%{opacity:0;transform:translate(-50%,-50%) scale(1.8);}}";
+
+    shadowRoot.appendChild(style);
+
+    cursorEl = document.createElement("div");
+    cursorEl.className = "cursor default";
+    iconEl = document.createElement("div");
+    iconEl.className = "icon";
+    iconEl.innerHTML = SVG.default;
+    cursorEl.appendChild(iconEl);
+    shadowRoot.appendChild(cursorEl);
+
+    document.documentElement.appendChild(hostEl);
+  }
+
+  function ensureVisible() {
+    visible = true;
+    injectHost();
+    cursorEl.classList.remove("hidden");
+    applyPosition(pos.x, pos.y);
+  }
+
+  function applyPosition(x, y) {
+    if (!cursorEl) return;
+    const hs = HOTSPOT[cursorMode] || HOTSPOT.default;
+    cursorEl.style.left = Math.round(x - hs.x) + "px";
+    cursorEl.style.top = Math.round(y - hs.y) + "px";
+  }
+
+  function setCursorMode(mode) {
+    const next = mode === "text" ? "text" : "default";
+    if (cursorMode === next && iconEl) return;
+    cursorMode = next;
+    ensureVisible();
+    cursorEl.className = "cursor " + cursorMode;
+    if (iconEl) iconEl.innerHTML = SVG[cursorMode];
+    applyPosition(pos.x, pos.y);
   }
 
   function cursorModeForElement(el) {
@@ -99,30 +120,6 @@
     return "default";
   }
 
-  function getElementAtPoint(x, y) {
-    const stack = document.elementsFromPoint(x, y);
-    for (let i = 0; i < stack.length; i++) {
-      const el = stack[i];
-      if (el.closest && el.closest("#" + CURSOR_ID)) continue;
-      return el;
-    }
-    return null;
-  }
-
-  function getCursorModeAtPoint(x, y) {
-    const hit = getElementAtPoint(x, y);
-    if (!hit) return "default";
-
-    let node = hit;
-    while (node && node !== document.documentElement) {
-      if (!(node instanceof Element)) break;
-      const mode = cursorModeForElement(node);
-      if (mode === "text") return "text";
-      node = node.parentElement;
-    }
-    return "default";
-  }
-
   function setNativeValue(el, value) {
     const proto =
       el instanceof HTMLTextAreaElement
@@ -133,56 +130,6 @@
       setter.set.call(el, value);
     } else if ("value" in el) {
       el.value = value;
-    }
-  }
-
-  function setCursorMode(mode) {
-    const next = mode === "text" ? "text" : "default";
-    if (cursorMode === next && iconEl) return;
-    cursorMode = next;
-    const el = ensureCursor();
-    el.classList.remove("noon-mode-default", "noon-mode-text");
-    el.classList.add("noon-mode-" + cursorMode);
-    if (iconEl) iconEl.innerHTML = SVG[cursorMode];
-    applyTransform(pos.x, pos.y);
-  }
-
-  function applyTransform(x, y) {
-    const hs = HOTSPOT[cursorMode] || HOTSPOT.default;
-    if (!cursorEl) return;
-    const clickScale = cursorEl.classList.contains("noon-cursor-click") ? " scale(0.82)" : "";
-    cursorEl.style.transform =
-      "translate(" + (x - hs.x) + "px, " + (y - hs.y) + "px)" + clickScale;
-  }
-
-  function ensureCursor() {
-    injectStyles();
-    if (!cursorEl) {
-      cursorEl = document.createElement("div");
-      cursorEl.id = CURSOR_ID;
-      iconEl = document.createElement("div");
-      iconEl.className = "noon-cursor-icon";
-      cursorEl.appendChild(iconEl);
-      setCursorMode("default");
-    }
-    const root = document.body || document.documentElement;
-    if (!root.contains(cursorEl)) {
-      root.appendChild(cursorEl);
-    }
-    applyTransform(pos.x, pos.y);
-    return cursorEl;
-  }
-
-  function setPosition(x, y, updateHover) {
-    if (updateHover !== false) {
-      setCursorMode(getCursorModeAtPoint(x, y));
-    }
-    pos = { x, y };
-    ensureCursor();
-    applyTransform(x, y);
-    if (!visible) {
-      visible = true;
-      cursorEl.classList.remove("noon-cursor-hidden");
     }
   }
 
@@ -212,16 +159,22 @@
     el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
     const rect = el.getBoundingClientRect();
     return {
-      x: rect.left + rect.width / 2 + randomBetween(-3, 3),
-      y: rect.top + rect.height / 2 + randomBetween(-3, 3),
+      x: rect.left + rect.width / 2 + randomBetween(-2, 2),
+      y: rect.top + rect.height / 2 + randomBetween(-2, 2),
     };
   }
 
+  function setPosition(x, y) {
+    ensureVisible();
+    pos = { x, y };
+    applyPosition(x, y);
+  }
+
   async function moveTo(x, y, durationMs) {
-    ensureCursor();
+    ensureVisible();
     const from = { ...pos };
     const duration =
-      durationMs ?? Math.min(900, Math.max(350, distance(from.x, from.y, x, y) * 1.2));
+      durationMs ?? Math.min(900, Math.max(350, Math.hypot(x - from.x, y - from.y) * 1.2));
     const start = performance.now();
 
     return new Promise(function (resolve, reject) {
@@ -234,52 +187,41 @@
         }
         const t = Math.min(1, (now - start) / duration);
         const eased = easeOutCubic(t);
-        const cx = from.x + (x - from.x) * eased;
-        const cy = from.y + (y - from.y) * eased;
-        setPosition(cx, cy);
-        if (t < 1) {
-          requestAnimationFrame(frame);
-        } else {
-          resolve();
-        }
+        setPosition(from.x + (x - from.x) * eased, from.y + (y - from.y) * eased);
+        if (t < 1) requestAnimationFrame(frame);
+        else resolve();
       }
       requestAnimationFrame(frame);
     });
   }
 
-  function distance(x1, y1, x2, y2) {
-    return Math.hypot(x2 - x1, y2 - y1);
-  }
-
   async function moveToElement(el) {
+    ensureVisible();
     setCursorMode(cursorModeForElement(el));
     await delay(120);
     checkAbort();
     const target = elementCenter(el);
     await moveTo(target.x, target.y);
-    setCursorMode(cursorModeForElement(el));
-    await delay(randomBetween(80, 180));
+    await delay(randomBetween(80, 160));
   }
 
   function showClickRing(x, y) {
+    if (!shadowRoot) return;
     const ring = document.createElement("div");
-    ring.id = RING_ID;
+    ring.className = "ring";
     ring.style.left = x + "px";
     ring.style.top = y + "px";
-    document.body.appendChild(ring);
+    shadowRoot.appendChild(ring);
     setTimeout(function () {
       ring.remove();
     }, 500);
   }
 
   async function clickPulse() {
-    const el = ensureCursor();
-    el.classList.add("noon-cursor-click");
-    applyTransform(pos.x, pos.y);
-    showClickRing(pos.x, pos.y);
+    ensureVisible();
+    cursorEl.classList.add("click");
     await delay(90);
-    el.classList.remove("noon-cursor-click");
-    applyTransform(pos.x, pos.y);
+    cursorEl.classList.remove("click");
     await delay(60);
   }
 
@@ -301,7 +243,7 @@
     ["pointerdown", "mousedown"].forEach(function (type) {
       el.dispatchEvent(new MouseEvent(type, opts));
     });
-    ["pointerup", "mouseup", "click"].forEach(function (type) {
+    ["pointerup", "mouseup"].forEach(function (type) {
       el.dispatchEvent(new MouseEvent(type, opts));
     });
     try {
@@ -310,16 +252,19 @@
   }
 
   async function humanClick(el, options) {
+    ensureVisible();
     const skipMove = options && options.skipMove;
     setCursorMode("default");
     if (!skipMove) await moveToElement(el);
     const center = elementCenter(el);
+    showClickRing(center.x, center.y);
     await clickPulse();
     dispatchPointerClick(el, center.x, center.y);
-    await delay(randomBetween(120, 220));
+    await delay(randomBetween(120, 200));
   }
 
   async function humanType(el, text, options) {
+    ensureVisible();
     const masked = options && options.masked;
     const skipMove = options && options.skipMove;
 
@@ -342,7 +287,6 @@
       const char = text[i];
       current += char;
       setNativeValue(el, current);
-
       el.dispatchEvent(
         new InputEvent("input", {
           bubbles: true,
@@ -350,35 +294,29 @@
           inputType: "insertText",
         }),
       );
-
       await delay(randomBetween(35, 90));
     }
 
     el.dispatchEvent(new Event("change", { bubbles: true }));
-    el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "Unidentified" }));
-
-    await delay(masked ? 200 : randomBetween(150, 300));
+    await delay(masked ? 200 : randomBetween(150, 280));
   }
 
   async function hide() {
     if (!cursorEl) return;
-    cursorEl.classList.add("noon-cursor-hidden");
+    cursorEl.classList.add("hidden");
     visible = false;
-    await delay(400);
+    await delay(150);
   }
 
   async function show() {
     visible = true;
-    ensureCursor();
+    ensureVisible();
     setCursorMode("default");
-    const cx = window.innerWidth / 2;
-    const cy = window.innerHeight / 2;
-    pos = { x: cx, y: cy };
-    if (cursorEl) {
-      cursorEl.classList.remove("noon-cursor-hidden");
-      cursorEl.style.opacity = "1";
-    }
-    applyTransform(cx, cy);
+    pos = {
+      x: Math.round(window.innerWidth / 2),
+      y: Math.round(window.innerHeight / 2),
+    };
+    applyPosition(pos.x, pos.y);
   }
 
   window.__noonGhostMouse = {
@@ -391,5 +329,6 @@
     delay: delay,
     setCursorMode: setCursorMode,
     cursorModeForElement: cursorModeForElement,
+    ensureVisible: ensureVisible,
   };
 })();

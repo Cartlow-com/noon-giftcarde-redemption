@@ -1,0 +1,335 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  checkBackendHealth,
+  deleteBatch,
+  listBatches,
+  uploadBatchCsv,
+  type BatchSummary,
+} from "../../lib/api";
+import { getApiBaseUrl, setApiBaseUrl } from "../../lib/config";
+import type { RuntimeMessage } from "../../types";
+import BatchCard from "./BatchCard";
+import BatchActivityPanel from "./BatchActivityPanel";
+import {
+  activityFromBatchMessage,
+  type ActivityEntry,
+} from "./activityTypes";
+
+export default function BatchesPanel() {
+  const [apiBase, setApiBase] = useState("http://127.0.0.1:8000");
+  const [batches, setBatches] = useState<BatchSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [runningBatchId, setRunningBatchId] = useState<string | null>(null);
+  const [focusBatchId, setFocusBatchId] = useState<string | null>(null);
+  const [online, setOnline] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [stopping, setStopping] = useState(false);
+  const [placeOrderConfirm, setPlaceOrderConfirm] = useState<{
+    message: string;
+    rowNumber?: number;
+    productUrl?: string;
+  } | null>(null);
+  const runningBatchIdRef = useRef<string | null>(null);
+  runningBatchIdRef.current = runningBatchId;
+  const [listVersion, setListVersion] = useState(0);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const healthy = await checkBackendHealth();
+      setOnline(healthy);
+      if (!healthy) {
+        setError("Backend unreachable — start server at " + apiBase);
+        return;
+      }
+      const data = await listBatches();
+      setBatches(data);
+      setListVersion((v) => v + 1);
+    } catch (err) {
+      setOnline(false);
+      setError(err instanceof Error ? err.message : "Failed to load batches");
+    } finally {
+      setLoading(false);
+    }
+  }, [apiBase]);
+
+  useEffect(() => {
+    getApiBaseUrl().then(setApiBase);
+  }, []);
+
+  useEffect(() => {
+    if (apiBase) refresh();
+  }, [apiBase, refresh]);
+
+  function pushActivity(msg: Parameters<typeof activityFromBatchMessage>[0]) {
+    setActivity((prev) => {
+      const withoutActive =
+        msg.status === "active"
+          ? prev.map((e) => (e.status === "active" ? { ...e, status: "info" as const } : e))
+          : prev;
+      return [...withoutActive.slice(-49), activityFromBatchMessage(msg)];
+    });
+  }
+
+  useEffect(() => {
+    function onBatchMessage(msg: RuntimeMessage) {
+      if (msg.type === "BATCH_PROGRESS") {
+        pushActivity(msg);
+        refresh();
+      }
+      if (msg.type === "BATCH_ROW_DONE") {
+        pushActivity(msg);
+        refresh();
+      }
+      if (msg.type === "BATCH_COMPLETE") {
+        setRunningBatchId(null);
+        setStopping(false);
+        setMessage(msg.message);
+        pushActivity(msg);
+        refresh();
+      }
+      if (msg.type === "BATCH_ERROR") {
+        setRunningBatchId(null);
+        setStopping(false);
+        setPlaceOrderConfirm(null);
+        setError(msg.error);
+        pushActivity({ type: "BATCH_ERROR", message: msg.error });
+        refresh();
+      }
+      if (
+        msg.type === "CART_AWAITING_CONFIRM" &&
+        (msg.batchMode || runningBatchIdRef.current)
+      ) {
+        setPlaceOrderConfirm({
+          message: msg.message,
+          rowNumber: msg.rowNumber,
+          productUrl: msg.productUrl,
+        });
+        pushActivity({
+          type: "BATCH_PROGRESS",
+          message: msg.message,
+          stage: "order",
+          status: "active",
+          rowNumber: msg.rowNumber,
+          detail: msg.productUrl,
+        });
+      }
+    }
+
+    const listener = (msg: unknown) => {
+      if (msg && typeof msg === "object" && "type" in msg) {
+        onBatchMessage(msg as RuntimeMessage);
+      }
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => chrome.runtime.onMessage.removeListener(listener);
+  }, [refresh]);
+
+  function startSelectedRows(batchId: string, rowIds: string[]) {
+    if (rowIds.length === 0) return;
+    setRunningBatchId(batchId);
+    setStopping(false);
+    setError(null);
+    setActivity([
+      activityFromBatchMessage({
+        type: "BATCH_PROGRESS",
+        message: `Starting ${rowIds.length} selected row(s)…`,
+        stage: "system",
+        status: "info",
+      }),
+    ]);
+    chrome.runtime.sendMessage(
+      { type: "START_BATCH_RUN", batchId, rowIds } satisfies RuntimeMessage,
+      (response: { ok?: boolean; error?: string } | undefined) => {
+        if (chrome.runtime.lastError || (response && response.ok === false)) {
+          setRunningBatchId(null);
+          setError(
+            chrome.runtime.lastError?.message || response?.error || "Failed to start batch",
+          );
+        }
+      },
+    );
+  }
+
+  function stopBatchRun() {
+    setStopping(true);
+    setPlaceOrderConfirm(null);
+    chrome.runtime.sendMessage({ type: "STOP_BATCH_RUN" } satisfies RuntimeMessage);
+  }
+
+  function handlePlaceOrderConfirm(confirmed: boolean) {
+    setPlaceOrderConfirm(null);
+    pushActivity({
+      type: "BATCH_PROGRESS",
+      message: confirmed ? "User confirmed Place Order" : "User skipped Place Order",
+      stage: "order",
+      status: "info",
+    });
+    chrome.runtime.sendMessage({
+      type: "CONFIRM_PLACE_ORDER",
+      confirmed,
+    } satisfies RuntimeMessage);
+  }
+
+  async function handleSaveApiBase(e: React.FormEvent) {
+    e.preventDefault();
+    await setApiBaseUrl(apiBase);
+    setMessage("API URL saved");
+    refresh();
+  }
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setUploading(true);
+    setError(null);
+    setMessage(null);
+    setActivity([]);
+    try {
+      const batch = await uploadBatchCsv(file);
+      setMessage(`Saved ${batch.total_rows} rows to database — select rows and click Start`);
+      setFocusBatchId(batch.id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(batchId: string) {
+    if (!confirm("Delete this batch and all rows?")) return;
+    try {
+      await deleteBatch(batchId);
+      if (focusBatchId === batchId) setFocusBatchId(null);
+      setMessage("Batch deleted");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <form onSubmit={handleSaveApiBase} className="space-y-2">
+        <label className="block text-xs text-slate-400" htmlFor="apiBase">
+          Backend API URL
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="apiBase"
+            type="url"
+            value={apiBase}
+            onChange={(e) => setApiBase(e.target.value)}
+            className="flex-1 px-2 py-1.5 rounded border border-slate-600 bg-surface text-slate-100 text-xs focus:border-noon focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="px-3 py-1.5 rounded border border-slate-600 text-xs text-slate-200"
+          >
+            Save
+          </button>
+        </div>
+        {online === true && <p className="text-[10px] text-green-300">Backend connected</p>}
+        {online === false && <p className="text-[10px] text-red-300">Backend offline</p>}
+      </form>
+
+      <div className="rounded-lg border border-dashed border-slate-600 p-4 text-center">
+        <p className="text-xs text-slate-400 mb-2">
+          Upload CSV — rows saved to database. Select rows, then click Start.
+        </p>
+        <label className="inline-block px-4 py-2 rounded bg-noon text-slate-900 text-sm font-semibold cursor-pointer hover:brightness-95">
+          {uploading ? "Saving…" : "Choose CSV"}
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            disabled={uploading || !!runningBatchId}
+            onChange={handleUpload}
+          />
+        </label>
+      </div>
+
+      {(runningBatchId || stopping) && (
+        <BatchActivityPanel
+          entries={activity}
+          running={!!runningBatchId}
+          stopping={stopping}
+          onStop={stopBatchRun}
+        />
+      )}
+
+      {placeOrderConfirm && (
+        <div className="p-3 rounded-lg border border-noon/40 bg-noon/10">
+          <p className="text-sm text-slate-100 mb-1">{placeOrderConfirm.message}</p>
+          {placeOrderConfirm.productUrl && (
+            <p className="text-[10px] text-slate-400 font-mono break-all mb-3">
+              {placeOrderConfirm.productUrl}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handlePlaceOrderConfirm(true)}
+              className="flex-1 px-3 py-2 rounded bg-noon text-slate-900 font-semibold text-sm"
+            >
+              Place Order
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePlaceOrderConfirm(false)}
+              className="flex-1 px-3 py-2 rounded border border-slate-500 text-slate-200 text-sm"
+            >
+              Skip
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activity.length > 0 && !runningBatchId && !stopping && (
+        <BatchActivityPanel entries={activity} running={false} stopping={false} onStop={stopBatchRun} />
+      )}
+
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-200">Batches</h2>
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={loading}
+          className="text-xs text-noon hover:underline disabled:opacity-50"
+        >
+          {loading ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+
+      {message && (
+        <p className="p-2 rounded text-xs bg-green-500/15 text-green-200">{message}</p>
+      )}
+      {error && <p className="p-2 rounded text-xs bg-red-500/15 text-red-200">{error}</p>}
+
+      {batches.length === 0 && !loading && (
+        <p className="text-xs text-slate-500 text-center py-4">No batches yet</p>
+      )}
+
+      <div className="space-y-3">
+        {batches.map((batch) => (
+          <BatchCard
+            key={batch.id}
+            batch={batch}
+            running={runningBatchId === batch.id}
+            listVersion={listVersion}
+            autoExpand={batch.id === focusBatchId}
+            onDelete={handleDelete}
+            onStart={startSelectedRows}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
