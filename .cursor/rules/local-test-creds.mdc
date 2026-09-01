@@ -1,0 +1,15 @@
+---
+description: Local backend AI/E2E testing credentials and scripts
+alwaysApply: true
+---
+
+# Local test credentials
+
+For live API tests against **local backend** (`http://127.0.0.1:8000`):
+
+1. Creds file: `postsiva-backend/test_creds.json` (gitignored — never commit)
+2. Start server: `cd postsiva-backend && PYTHONPATH=. uv run python -m uvicorn app.app:app --host 127.0.0.1 --port 8000 --reload`
+3. Refresh workspace + WordPress connection IDs: `uv run python scripts/refresh_test_creds.py`
+4. Run E2E: `uv run python scripts/test_wordpress_blog_lifecycle_live.py`
+
+Scripts load creds via `scripts/load_test_creds.py`. See `docs/context/paths.md` → Local backend AI / E2E testing.

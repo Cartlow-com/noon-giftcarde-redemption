@@ -1,0 +1,65 @@
+---
+globs: */frontend/**/*.{ts,tsx}
+alwaysApply: false
+---
+# Frontend UI architecture
+
+## Separation of concerns
+
+- **Route / page files (`app/**/page.tsx`, layouts):** Thin. Compose feature entry components; avoid business logic and large JSX trees here.
+- **Data, effects, navigation, forms state:** Custom hooks in `src/features/<area>/hooks/` (or colocated `use*.ts` next to the feature). No presentational markup in hooks beyond what is needed for testing.
+- **UI / presentation:** Components in `src/features/<area>/components/` (or `components/ui/` for primitives). Prefer **props in, events/callbacks out**. No `fetch`, router, or heavy orchestration inside dumb views.
+- **Orchestration:** A small “screen” or “container” component may wire `const state = useThing()` → `<ThingView {...state} />`. Keep that file mostly wiring, not mixed low-level logic + huge markup.
+
+When a file grows, **split by concern** (hook vs view vs subcomponents), not by arbitrary line chunks.
+
+## File size (hard guideline)
+
+- **Target maximum ~250 lines per source file** (imports + code + comments). If approaching the limit, extract hooks, subcomponents, types, or constants into dedicated files before merging more behavior.
+- **Exceptions (do not force-split blindly):** vendored copies, auto-generated types, and tiny barrel `index.ts` files. Still avoid piling unrelated logic into generated or barrel files.
+
+## Screen-by-screen delivery
+
+- Implement and stabilize **one wireframe / route at a time** so each screen can be tested in isolation before moving on.
+- Prefer feature folders that map to a screen or flow so ownership stays clear.
+
+## Frontend flow map (living doc)
+
+- **`docs/ui/frontend-flow-map.md`** holds **one** Mermaid diagram of overall navigation / route zones for the shipped `frontend/app/` tree.
+- **Whenever you add, remove, rename, or split a route** (`app/**/page.tsx` / layouts) or introduce a **new primary entry flow**, update that file **in the same change** (or immediately after) so the diagram and changelog stay accurate.
+
+## API integration tracker
+
+- **`docs/ui/api-integration.md`** — per-area **sequence + per-route + end-to-end** Mermaid when wiring HTTP (Auth is the template). Required on API tasks; see `.cursor/rules/agent-workflow-v3.mdc` § Mermaid flow diagrams.
+
+## TanStack Query (server data)
+
+- **Reads:** `useQuery` + key factory in `src/features/<area>/queries/` — not `useEffect` + `fetch`. Imperative paths (auth redirect) use `queryClient.fetchQuery` with the **same** `*QueryOptions`.
+- **Writes:** `useMutation` + `invalidateQueries` on the matching key. No custom `Map` caches.
+- **Pattern:** `docs/context/preferences.md` § TanStack Query caching; reference `employer/queries/onboarding-step.query.ts`.
+
+## Examples
+
+```tsx
+// ❌ BAD — page owns fetch + 200 lines of JSX
+export default function Page() {
+  const [data, setData] = useState(null);
+  useEffect(() => { fetch('/api/...').then(...); }, []);
+  return ( <div>... huge tree ...</div> );
+}
+```
+
+```tsx
+// ✅ GOOD — page composes feature screen
+import { JobSearchScreen } from '@/features/jobs/components/JobSearchScreen';
+export default function Page() {
+  return <JobSearchScreen />;
+}
+```
+
+```tsx
+// ✅ GOOD — hook holds logic; view is props-only
+// useJobSearch.ts — data + handlers
+// JobSearchView.tsx — layout + presentation from props only
+// JobSearchScreen.tsx — return <JobSearchView {...useJobSearch()} />;
+```
