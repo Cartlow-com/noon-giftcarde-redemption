@@ -155,12 +155,22 @@
     checkAbort();
   }
 
-  function elementCenter(el) {
-    el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+  function scrollElementIntoView(el) {
+    try {
+      el.scrollIntoView({ block: "center", inline: "center", behavior: "auto" });
+    } catch (_) {
+      el.scrollIntoView(true);
+    }
+  }
+
+  function elementCenter(el, doScroll) {
+    if (doScroll !== false) {
+      scrollElementIntoView(el);
+    }
     const rect = el.getBoundingClientRect();
     return {
-      x: rect.left + rect.width / 2 + randomBetween(-2, 2),
-      y: rect.top + rect.height / 2 + randomBetween(-2, 2),
+      x: rect.left + rect.width / 2 + randomBetween(-1, 1),
+      y: rect.top + rect.height / 2 + randomBetween(-1, 1),
     };
   }
 
@@ -198,11 +208,14 @@
   async function moveToElement(el) {
     ensureVisible();
     setCursorMode(cursorModeForElement(el));
+    await delay(80);
+    checkAbort();
+    scrollElementIntoView(el);
     await delay(120);
     checkAbort();
-    const target = elementCenter(el);
+    const target = elementCenter(el, false);
     await moveTo(target.x, target.y);
-    await delay(randomBetween(80, 160));
+    await delay(randomBetween(60, 120));
   }
 
   function showClickRing(x, y) {
@@ -255,8 +268,15 @@
     ensureVisible();
     const skipMove = options && options.skipMove;
     setCursorMode("default");
-    if (!skipMove) await moveToElement(el);
-    const center = elementCenter(el);
+    scrollElementIntoView(el);
+    await delay(120);
+    checkAbort();
+    const center = elementCenter(el, false);
+    if (!skipMove) {
+      await moveTo(center.x, center.y);
+    } else {
+      setPosition(center.x, center.y);
+    }
     showClickRing(center.x, center.y);
     await clickPulse();
     dispatchPointerClick(el, center.x, center.y);

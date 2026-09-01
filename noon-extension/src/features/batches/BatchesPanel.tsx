@@ -27,6 +27,7 @@ export default function BatchesPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [stopping, setStopping] = useState(false);
+  const [placeOrderEnabled, setPlaceOrderEnabled] = useState(true);
   const [placeOrderConfirm, setPlaceOrderConfirm] = useState<{
     message: string;
     rowNumber?: number;
@@ -143,7 +144,12 @@ export default function BatchesPanel() {
       }),
     ]);
     chrome.runtime.sendMessage(
-      { type: "START_BATCH_RUN", batchId, rowIds } satisfies RuntimeMessage,
+      {
+        type: "START_BATCH_RUN",
+        batchId,
+        rowIds,
+        placeOrder: placeOrderEnabled,
+      } satisfies RuntimeMessage,
       (response: { ok?: boolean; error?: string } | undefined) => {
         if (chrome.runtime.lastError || (response && response.ok === false)) {
           setRunningBatchId(null);
@@ -239,6 +245,22 @@ export default function BatchesPanel() {
         {online === true && <p className="text-[10px] text-green-300">Backend connected</p>}
         {online === false && <p className="text-[10px] text-red-300">Backend offline</p>}
       </form>
+
+      <label className="flex items-start gap-2 rounded-lg border border-slate-600 bg-surface/40 px-3 py-2 text-xs text-slate-300 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 accent-[#FEEE00]"
+          checked={placeOrderEnabled}
+          disabled={!!runningBatchId}
+          onChange={(e) => setPlaceOrderEnabled(e.target.checked)}
+        />
+        <span>
+          <span className="text-slate-100 font-medium">Place order at checkout</span>
+          <span className="block text-[10px] text-slate-400 mt-0.5">
+            Applies to all rows in the run. Uncheck to stop at checkout without submitting.
+          </span>
+        </span>
+      </label>
 
       <div className="rounded-lg border border-dashed border-slate-600 p-4 text-center">
         <p className="text-xs text-slate-400 mb-2">

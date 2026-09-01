@@ -569,10 +569,17 @@
       productUrl: data.productUrl || existing?.productUrl || "",
       email: data.email || existing?.email || "",
       password: data.password || existing?.password || "",
-      cartPhase: data.cartPhase || existing?.cartPhase || "",
+      cartPhase:
+        data.cartPhase !== undefined && data.cartPhase !== null
+          ? data.cartPhase
+          : existing?.cartPhase || "",
       batchMode: batchMode,
       rowNumber:
         data.rowNumber != null ? data.rowNumber : existing?.rowNumber ?? null,
+      batchPlaceOrder:
+        data.batchPlaceOrder != null
+          ? !!data.batchPlaceOrder
+          : existing?.batchPlaceOrder ?? null,
     });
   }
 
@@ -584,6 +591,9 @@
         rowNumber: s.rowNumber,
         productUrl: s.productUrl,
       };
+      if (s.batchPlaceOrder != null) {
+        batchPlaceOrderPref = !!s.batchPlaceOrder;
+      }
     }
   }
 
@@ -1175,6 +1185,7 @@
 
   let batchFlowMode = false;
   let batchCartContext = null;
+  let batchPlaceOrderPref = null;
 
   async function runGiftCardRedemption(payload) {
     payload.giftCardNumber = normalizeGiftCardDigits(payload.giftCardNumber);
@@ -1760,6 +1771,33 @@
     return location.href.indexOf("/cart") !== -1;
   }
 
+  function isOnTargetProductPage(productUrl) {
+    const base = (productUrl || "").trim().split("?")[0];
+    if (!base || !isOnProductPage()) return false;
+    return location.href.split("?")[0] === base;
+  }
+
+  function isCartEmpty() {
+    if (!isOnCartPage()) return false;
+    const text = normalizeText(document.body.textContent).toLowerCase();
+    if (text.indexOf("shopping cart is empty") !== -1) return true;
+    if (text.indexOf("your cart is empty") !== -1) return true;
+    if (text.indexOf("cart is empty") !== -1) return true;
+    return false;
+  }
+
+  async function goToProductPage(productUrl) {
+    const normalizedUrl = (productUrl || "").trim();
+    logStep("Opening product page…");
+    const existing = await loadFlowState();
+    await persistCartState({
+      productUrl: normalizedUrl,
+      cartPhase: existing?.cartPhase || "",
+    });
+    location.href = normalizedUrl;
+    return true;
+  }
+
   function isOnCheckoutPage() {
     return location.href.indexOf("/checkout") !== -1;
   }
@@ -1803,58 +1841,98 @@
 
   function findAddToCartButton() {
     const header = document.querySelector("header");
-    const buyArea =
-      document.querySelector(
-        "[class*='BuyBox' i], [class*='buyBox' i], [class*='ProductActions' i], [class*='productActions' i], [class*='atc' i]",
-      ) || document.body;
-
-    const scopes = [buyArea, document.body];
+    const scopes = [
+      findProductBuyArea(),
+      document.querySelector("main"),
+      document.body,
+    ];
+    let best = null;
+    let bestLen = Infinity;
     for (let s = 0; s < scopes.length; s++) {
-      const buttons = scopes[s].querySelectorAll("button, [role='button']");
-      for (let i = 0; i < buttons.length; i++) {
-        const btn = buttons[i];
-        if (!isVisible(btn)) continue;
-        if (header && header.contains(btn)) continue;
-        const t = normalizeText(btn.textContent).toLowerCase();
-        if (t === "add to cart") return btn;
+      const scope = scopes[s];
+      if (!scope) continue;
+      const nodes = scope.querySelectorAll("button, [role='button'], a, div, span");
+      for (let i = 0; i < nodes.length; i++) {
+        const el = nodes[i];
+        if (!isVisible(el)) continue;
+        if (header && header.contains(el)) continue;
+        const t = normalizeText(el.textContent).toLowerCase();
+        if (t.length > 36) continue;
+        if (t !== "add to cart" && t.indexOf("add to cart") === -1) continue;
+        const clickable =
+          el.closest("button, a, [role='button']") ||
+          (["button", "a"].indexOf(el.tagName.toLowerCase()) !== -1 ? el : null) ||
+          el;
+        if (header && header.contains(clickable)) continue;
+        if (t.length < bestLen) {
+          best = clickable;
+          bestLen = t.length;
+        }
       }
     }
-    return null;
+    return best;
+  }
+
+  function isAddToCartVisible() {
+    return !!findAddToCartButton();
+  }
+
+  function hasExplicitInYourCartBadge() {
+    const buyArea = findProductBuyArea();
+    const nodes = buyArea.querySelectorAll("span, div, p, label, h2, h3, button");
+    for (let i = 0; i < nodes.length; i++) {
+      const el = nodes[i];
+      if (!isVisible(el)) continue;
+      const t = normalizeText(el.textContent).toLowerCase();
+      if (t.length > 24) continue;
+      if (t === "in your cart" || t.indexOf("in your cart") === 0) return true;
+    }
+    return false;
+  }
+
+  function hasProductQuantityRemoveControls() {
+    const buyArea = findProductBuyArea();
+    const buyText = normalizeText(buyArea.textContent).toLowerCase();
+    if (buyText.indexOf("add to cart") !== -1) return false;
+    const hasQty = buyArea.querySelector(
+      "input[type='number'], [class*='quantity' i], [class*='qty' i]",
+    );
+    if (!hasQty) return false;
+    return !!buyArea.querySelector(
+      "[class*='trash' i], [class*='delete' i], [class*='remove' i], [aria-label*='remove' i], [aria-label*='delete' i]",
+    );
   }
 
   function isItemAddedToCart() {
     if (findViewCartButton()) return true;
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
-    let node = walker.currentNode;
-    while (node) {
-      if (node instanceof Element && isVisible(node)) {
-        const t = normalizeText(node.textContent).toLowerCase();
-        if (t === "added to cart" || t.indexOf("added to cart") !== -1) return true;
-        if (t.length <= 32 && t.indexOf("in your cart") !== -1) return true;
-      }
-      node = walker.nextNode();
+    if (hasExplicitInYourCartBadge()) return true;
+    const buyArea = findProductBuyArea();
+    const nodes = buyArea.querySelectorAll("span, div, p, label, button");
+    for (let i = 0; i < nodes.length; i++) {
+      const el = nodes[i];
+      if (!isVisible(el)) continue;
+      const t = normalizeText(el.textContent).toLowerCase();
+      if (t.length > 40) continue;
+      if (t.indexOf("added to cart") !== -1) return true;
     }
     return false;
   }
 
-  function isProductInCartOnPage() {
+  function isThisProductInCart() {
     if (!isOnProductPage()) return false;
-    if (getHeaderCartCount() > 0) return true;
-    if (isItemAddedToCart()) return true;
-    const buyArea =
+    return !isAddToCartVisible();
+  }
+
+  function findProductBuyArea() {
+    return (
       document.querySelector(
         "[class*='BuyBox' i], [class*='buyBox' i], [class*='ProductActions' i], [class*='productActions' i], [class*='atc' i]",
-      ) || document.body;
-    if (buyArea && !findAddToCartButton()) {
-      const text = normalizeText(buyArea.textContent).toLowerCase();
-      if (
-        buyArea.querySelector("input[type='number'], [class*='quantity' i], [class*='qty' i]") ||
-        text.indexOf("in your cart") !== -1
-      ) {
-        return true;
-      }
-    }
-    return false;
+      ) || document.body
+    );
+  }
+
+  function isProductInCartOnPage() {
+    return isThisProductInCart();
   }
 
   function findCartNavElement() {
@@ -1889,24 +1967,22 @@
   function getHeaderCartCount() {
     const cartEl = findCartNavElement();
     if (!cartEl) return 0;
-    const container =
-      cartEl.closest("a, button, li, div") || cartEl.parentElement || cartEl;
-    const scope = container.parentElement || container;
-    const text = normalizeText(scope.textContent || cartEl.textContent);
-    const matches = text.match(/\b(\d{1,2})\b/g);
-    if (matches) {
-      for (let i = 0; i < matches.length; i++) {
-        const n = parseInt(matches[i], 10);
-        if (n > 0 && n < 100) return n;
-      }
-    }
-    const badge = scope.querySelector(
-      "[class*='badge' i], [class*='count' i], [class*='Count' i], span, div",
+    const container = cartEl.closest("a, button, li") || cartEl;
+    const badges = container.querySelectorAll(
+      "[class*='badge' i], [class*='count' i], [class*='Count' i], [class*='indicator' i], span, div",
     );
-    if (badge && isVisible(badge)) {
-      const n = parseInt(normalizeText(badge.textContent), 10);
-      if (!isNaN(n) && n > 0) return n;
+    for (let i = 0; i < badges.length; i++) {
+      const badge = badges[i];
+      if (!isVisible(badge)) continue;
+      const raw = normalizeText(badge.textContent);
+      if (!/^\d{1,2}$/.test(raw)) continue;
+      const n = parseInt(raw, 10);
+      if (n > 0) return n;
     }
+    const cartText = normalizeText(container.textContent);
+    const cartOnly = cartText.replace(/cart/gi, "").trim();
+    const match = cartOnly.match(/^(\d{1,2})$/);
+    if (match) return parseInt(match[1], 10);
     return 0;
   }
 
@@ -1915,10 +1991,7 @@
   }
 
   function isItemAlreadyInCart() {
-    if (getHeaderCartCount() > 0) return true;
-    if (isItemAddedToCart()) return true;
-    if (isProductInCartOnPage()) return true;
-    return false;
+    return isThisProductInCart();
   }
 
   function getCartPageUrl() {
@@ -1927,7 +2000,7 @@
   }
 
   async function openCartFromProductPage() {
-    logStep("Item already in cart — opening cart…");
+    logStep("Opening cart page…");
     const cartLink = findHeaderCartLink();
     if (cartLink) {
       await mouse().click(cartLink);
@@ -1945,30 +2018,44 @@
   }
 
   async function handleProductPageStep(productUrl) {
-    const phase = await getCartPhase();
-    if (phase === "added" || isItemAlreadyInCart()) {
-      if (isOnCartPage()) return false;
-      const opened = await openCartFromProductPage();
-      return !!(opened && opened.navigated);
-    }
-    await waitForProductPageReady();
-    if (isItemAlreadyInCart()) {
-      const opened = await openCartFromProductPage();
-      return !!(opened && opened.navigated);
-    }
-    logStep("Clicking Add to Cart…");
-    const btn = findAddToCartButton();
-    if (!btn) throw new Error("Add to Cart button not found");
-    await mouse().click(btn);
-    await setCartPhase("added");
-    await pause(0.8);
+    logStep("Waiting for product page…");
     await waitFor(function () {
-      return isItemAddedToCart() || getHeaderCartCount() > 0;
-    }, 10000, 200);
-    return false;
+      return isOnProductPage();
+    }, 15000, 200);
+    await pause(0.8);
+
+    let addBtn = findAddToCartButton();
+    if (!addBtn) {
+      addBtn = await waitFor(function () {
+        return findAddToCartButton();
+      }, 8000, 300);
+    }
+
+    if (addBtn) {
+      await setCartPhase("");
+      logStep("Add to Cart visible — clicking Add to Cart…");
+      await mouse().click(addBtn);
+      await setCartPhase("added");
+      await pause(1);
+      return false;
+    }
+
+    logStep("Add to Cart not on page — item already in cart, opening cart…");
+    if (isOnCartPage()) return false;
+    const opened = await openCartFromProductPage();
+    return !!(opened && opened.navigated);
   }
 
   function findViewCartButton() {
+    const dialogScopes = document.querySelectorAll(
+      '[role="dialog"], [aria-modal="true"], [class*="modal" i], [class*="Modal" i], [class*="drawer" i], [class*="Drawer" i]',
+    );
+    for (let i = 0; i < dialogScopes.length; i++) {
+      const scope = dialogScopes[i];
+      if (!isVisible(scope)) continue;
+      const btn = findButtonByTextMatch(["view cart"], scope);
+      if (btn && isVisible(btn)) return btn;
+    }
     return (
       findButtonByTextMatch(["view cart"]) ||
       findClickableByText("VIEW CART") ||
@@ -1976,16 +2063,23 @@
     );
   }
 
+  async function clickViewCartButton() {
+    logStep("Clicking View Cart…");
+    const btn = await waitFor(function () {
+      return findViewCartButton();
+    }, 10000, 200);
+    if (!btn) throw new Error("View Cart not found");
+    await mouse().click(btn);
+    await setCartPhase("viewed_cart");
+    await pause(1);
+  }
+
   async function waitForProductPageReady() {
     await pause(0.03);
     logStep("Waiting for product page…");
-    await waitFor(
-      function () {
-        return isOnProductPage() && (findAddToCartButton() || isItemAlreadyInCart());
-      },
-      15000,
-      200,
-    );
+    await waitFor(function () {
+      return isOnProductPage();
+    }, 15000, 200);
     logStep("Product page ready");
   }
 
@@ -2059,7 +2153,15 @@
   }
 
   function isAddedToCartDrawerOpen() {
-    return !!findViewCartButton();
+    if (findViewCartButton()) return true;
+    const dialogs = document.querySelectorAll('[role="dialog"], [aria-modal="true"]');
+    for (let i = 0; i < dialogs.length; i++) {
+      const el = dialogs[i];
+      if (!isVisible(el)) continue;
+      const t = normalizeText(el.textContent).toLowerCase();
+      if (t.indexOf("added to cart") !== -1 && t.indexOf("view cart") !== -1) return true;
+    }
+    return false;
   }
 
   function isNoonOnePopupOpen() {
@@ -2262,6 +2364,23 @@
   async function waitForPlaceOrderConfirmation(message) {
     await restoreBatchCartContextFromState();
     const ctx = batchCartContext;
+    const state = await loadFlowState();
+    const autoPlace =
+      batchPlaceOrderPref != null
+        ? batchPlaceOrderPref
+        : state && state.batchPlaceOrder != null
+          ? !!state.batchPlaceOrder
+          : null;
+
+    if (batchFlowMode && autoPlace !== null) {
+      logStep(
+        autoPlace
+          ? "Place order enabled for batch — proceeding"
+          : "Place order disabled for batch — skipping checkout submit",
+      );
+      return autoPlace;
+    }
+
     const prompt =
       batchFlowMode && ctx
         ? `Row ${ctx.rowNumber}: ready to place order. Place order or skip?`
@@ -2286,6 +2405,21 @@
     for (let attempt = 0; attempt < 15; attempt++) {
       flow().check();
       await enableCursor();
+
+      const phase = await getCartPhase();
+      const onTargetProduct = isOnTargetProductPage(normalizedUrl);
+      const pastProductStep =
+        phase === "added" || phase === "viewed_cart" || phase === "checkout";
+
+      if (
+        !onTargetProduct &&
+        !pastProductStep &&
+        !isOnCartPage() &&
+        !isOnCheckoutPage()
+      ) {
+        return goToProductPage(normalizedUrl);
+      }
+
       const state = detectCartState();
       logStep("Cart step: " + state);
 
@@ -2298,6 +2432,7 @@
         );
         if (!confirmed) {
           logStep("Place order skipped by user");
+          await disableCursor();
           return { orderSkipped: true };
         }
 
@@ -2329,6 +2464,12 @@
 
       if (state === "CART_PAGE") {
         await waitForCartPageReady();
+        if (isCartEmpty()) {
+          return goToProductPage(normalizedUrl);
+        }
+        if (!pastProductStep) {
+          await setCartPhase("viewed_cart");
+        }
         logStep("Clicking Checkout…");
         const btn = findCheckoutButton();
         if (!btn) throw new Error("Checkout button not found");
@@ -2340,29 +2481,22 @@
 
       if (state === "ADDED_DRAWER") {
         const phase = await getCartPhase();
-        if (isOnProductPage() && isItemAlreadyInCart()) {
-          const navigated = await handleProductPageStep(normalizedUrl);
-          if (navigated) return true;
-          continue;
-        }
         if (phase === "viewed_cart") {
           await waitFor(function () {
             return isOnCartPage();
           }, 8000, 200);
           continue;
         }
-        logStep("Clicking View Cart…");
-        const btn = await waitFor(function () {
-          return findViewCartButton();
-        }, 8000, 200);
-        if (!btn) throw new Error("View Cart not found");
-        await mouse().click(btn);
-        await setCartPhase("viewed_cart");
-        await pause(1);
+        await clickViewCartButton();
         continue;
       }
 
       if (state === "PRODUCT_PAGE") {
+        const phase = await getCartPhase();
+        if (phase === "added") {
+          await clickViewCartButton();
+          continue;
+        }
         const navigated = await handleProductPageStep(normalizedUrl);
         if (navigated) return true;
         continue;
@@ -2372,13 +2506,8 @@
         if (state === "NOT_LOGGED_IN") {
           throw new Error("Must be logged in for cart flow");
         }
-        const base = normalizedUrl.split("?")[0];
-        const current = location.href.split("?")[0];
-        if (current !== base) {
-          logStep("Opening product page…");
-          await persistCartState({ productUrl: normalizedUrl });
-          location.href = normalizedUrl;
-          return true;
+        if (!onTargetProduct) {
+          return goToProductPage(normalizedUrl);
         }
         if (isOnProductPage()) {
           const navigated = await handleProductPageStep(normalizedUrl);
@@ -2498,6 +2627,7 @@
   async function runBatchCart(payload) {
     if (!payload.productUrl) throw new Error("Product URL is required");
     batchFlowMode = true;
+    batchPlaceOrderPref = payload.placeOrder !== false;
     batchCartContext = {
       rowNumber: payload.rowNumber,
       productUrl: payload.productUrl,
@@ -2511,6 +2641,8 @@
       password: payload.password,
       batchMode: true,
       rowNumber: payload.rowNumber,
+      cartPhase: "",
+      batchPlaceOrder: batchPlaceOrderPref,
     });
     try {
       await enableCursor();
@@ -2534,6 +2666,7 @@
     } finally {
       batchFlowMode = false;
       batchCartContext = null;
+      batchPlaceOrderPref = null;
       flow().running = false;
     }
   }
@@ -2712,6 +2845,7 @@
             password: message.password,
             productUrl: message.productUrl,
             rowNumber: message.rowNumber,
+            placeOrder: message.placeOrder,
           });
           sendResponse(result);
         } catch (error) {

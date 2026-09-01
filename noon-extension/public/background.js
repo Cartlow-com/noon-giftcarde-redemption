@@ -177,6 +177,7 @@ async function sendBatchCartToTab(tabId, payload, attempts = 3) {
       password: payload.password,
       productUrl: payload.productUrl,
       rowNumber: payload.rowNumber,
+      placeOrder: payload.placeOrder,
     },
     attempts,
   );
@@ -260,9 +261,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         activeLoginTabId ??
         (await chrome.tabs.query({ url: NOON_URL_PATTERN }))[0]?.id;
       if (tabId != null) {
-        try {
-          await chrome.tabs.sendMessage(tabId, message);
-        } catch (_) {}
+        for (let i = 0; i < 4; i++) {
+          try {
+            await chrome.tabs.sendMessage(tabId, message);
+            break;
+          } catch (_) {
+            await delay(250);
+          }
+        }
       }
       sendResponse({ ok: true });
     })();
@@ -341,7 +347,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "START_BATCH_RUN") {
     (async () => {
       try {
-        await runSelectedRows(message.batchId, message.rowIds || []);
+        await runSelectedRows(
+          message.batchId,
+          message.rowIds || [],
+          message.placeOrder,
+        );
         sendResponse({ ok: true });
       } catch (error) {
         sendResponse({

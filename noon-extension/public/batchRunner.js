@@ -4,6 +4,7 @@ let batchRunCancelled = false;
 let batchRunActive = false;
 let currentBatchRow = null;
 let sessionEmail = null;
+let batchPlaceOrder = true;
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
@@ -71,6 +72,36 @@ async function recoverNoonTab(tabId) {
       await delay(600);
     } catch (_) {}
   }
+}
+
+async function resetTabForNewRow(tabId, rowNumber) {
+  if (tabId == null) return;
+  sessionEmail = null;
+  emitBatch({
+    type: "BATCH_PROGRESS",
+    stage: "system",
+    status: "info",
+    message: rowNumber
+      ? `Row ${rowNumber}: resetting browser for new row…`
+      : "Resetting browser for new row…",
+  });
+  await chrome.storage.local.remove([
+    "noon_flow_done",
+    "noon_flow_result",
+    "noon_flow_state",
+    "noon_cursor_active",
+  ]);
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "CLEAR_BATCH_FLOW" });
+  } catch (_) {}
+  try {
+    await chrome.tabs.update(tabId, { url: NOON_HOME });
+    await waitForTabComplete(tabId);
+    await delay(700);
+    await hardRefreshTab(tabId);
+    await waitForTabComplete(tabId);
+    await delay(900);
+  } catch (_) {}
 }
 
 async function runFlowStep(tabId, runFn) {
@@ -271,7 +302,7 @@ function stageRedeemDone(status) {
 }
 
 function stageOrderDone(status) {
-  return status === "success" || status === "skipped";
+  return status === "success";
 }
 
 async function syncSessionForRow(row, tabId, previousEmail) {
@@ -286,10 +317,11 @@ async function syncSessionForRow(row, tabId, previousEmail) {
     return row;
   }
 
-  if (previousEmail !== rowEmail) {
+  if (previousEmail != null && previousEmail !== rowEmail) {
     return ensureRowAccount(tabId, row, previousEmail);
   }
 
+  await navigateTabToProfile(tabId);
   return row;
 }
 
@@ -346,6 +378,7 @@ async function processBatchRow(row, tabId) {
     );
     await patchStage(row.id, { login_status: "running", status: "in_progress" });
     try {
+      await navigateTabToProfile(tabId);
       const result = await runFlowStep(tabId, function () {
         return sendBatchLoginToTab(tabId, {
           email: row.email,
@@ -357,6 +390,7 @@ async function processBatchRow(row, tabId) {
         login_at: now,
         login_error: null,
       });
+      sessionEmail = normalizeEmail(row.email);
       if (result && result.skipped) {
         emitStageProgress(
           row,
@@ -384,6 +418,7 @@ async function processBatchRow(row, tabId) {
       return;
     }
   } else {
+    sessionEmail = normalizeEmail(row.email);
     emitStageProgress(
       row,
       "login",
@@ -470,14 +505,21 @@ async function processBatchRow(row, tabId) {
   if (!stageOrderDone(row.purchase_status)) {
     throwIfCancelled();
     const product = shortUrl(row.product_url);
+    const orderRetry = row.purchase_status === "skipped";
     emitStageProgress(
       row,
       "order",
       "active",
-      `Row ${rowNum}: purchasing item`,
+      orderRetry
+        ? `Row ${rowNum}: re-running order (previously skipped)`
+        : `Row ${rowNum}: purchasing item`,
       row.product_url,
     );
-    await patchStage(row.id, { purchase_status: "running" });
+    await patchStage(row.id, {
+      purchase_status: "running",
+      purchase_error: null,
+      status: "in_progress",
+    });
     try {
       const result = await runFlowStep(tabId, function () {
         return sendBatchCartToTab(tabId, {
@@ -485,6 +527,7 @@ async function processBatchRow(row, tabId) {
           password: row.password,
           productUrl: row.product_url,
           rowNumber: rowNum,
+          placeOrder: batchPlaceOrder,
         });
       });
       if (result && result.orderSkipped) {
@@ -526,9 +569,7 @@ async function processBatchRow(row, tabId) {
     row,
     "order",
     "skipped",
-    row.purchase_status === "skipped"
-      ? `Row ${rowNum}: place order already skipped — skipping`
-      : `Row ${rowNum}: order already successful — skipping`,
+    `Row ${rowNum}: order already successful — skipping`,
     shortUrl(row.product_url),
   );
   await patchStage(row.id, { status: "completed" });
@@ -542,7 +583,7 @@ async function processBatchRow(row, tabId) {
   });
 }
 
-async function runSelectedRows(batchId, rowIds) {
+async function runSelectedRows(batchId, rowIds, placeOrder) {
   if (!rowIds || rowIds.length === 0) {
     throw new Error("No rows selected");
   }
@@ -551,8 +592,14 @@ async function runSelectedRows(batchId, rowIds) {
   batchRunActive = true;
   currentBatchRow = null;
   sessionEmail = null;
+  batchPlaceOrder = placeOrder !== false;
   await chrome.storage.local.set({
-    [BATCH_RUN_KEY]: { batchId: batchId, rowIds: rowIds, active: true },
+    [BATCH_RUN_KEY]: {
+      batchId: batchId,
+      rowIds: rowIds,
+      active: true,
+      placeOrder: batchPlaceOrder,
+    },
   });
 
   emitBatch({
@@ -560,13 +607,16 @@ async function runSelectedRows(batchId, rowIds) {
     batchId: batchId,
     stage: "system",
     status: "info",
-    message: `Starting ${rowIds.length} selected row(s)…`,
+    message: batchPlaceOrder
+      ? `Starting ${rowIds.length} selected row(s) — place order enabled`
+      : `Starting ${rowIds.length} selected row(s) — place order disabled (skip at checkout)`,
   });
 
   let processed = 0;
 
-  for (const rowId of rowIds) {
+  for (let i = 0; i < rowIds.length; i++) {
     if (batchRunCancelled) break;
+    const rowId = rowIds[i];
 
     let row;
     try {
@@ -586,7 +636,11 @@ async function runSelectedRows(batchId, rowIds) {
 
     const tabId = await getOrCreateNoonTab();
     activeLoginTabId = tabId;
-    await recoverNoonTab(tabId);
+    if (i > 0) {
+      await resetTabForNewRow(tabId, row.row_number);
+    } else {
+      await recoverNoonTab(tabId);
+    }
     await processBatchRow(row, tabId);
     activeLoginTabId = null;
     currentBatchRow = null;

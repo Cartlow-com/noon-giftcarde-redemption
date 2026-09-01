@@ -43,7 +43,7 @@ export type RuntimeMessage =
       rowNumber?: number;
       productUrl?: string;
     }
-  | { type: "START_BATCH_RUN"; batchId: string; rowIds: string[] }
+  | { type: "START_BATCH_RUN"; batchId: string; rowIds: string[]; placeOrder?: boolean }
   | { type: "STOP_BATCH_RUN" }
   | { type: "OPEN_WIDE_WINDOW" }
   | {
