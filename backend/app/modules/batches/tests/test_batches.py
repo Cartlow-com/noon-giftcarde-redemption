@@ -112,3 +112,23 @@ def test_already_redeemed_not_failed(client) -> None:
     assert body["redeem_status"] == "already_redeemed"
     assert body["status"] == "in_progress"
     assert body["status"] != "failed"
+
+
+def test_payment_issue_marks_partial(client) -> None:
+    upload = _upload_csv(client, SAMPLE_CSV)
+    batch_id = upload.json()["batch"]["id"]
+    row_id = client.get(f"/batches/{batch_id}/rows").json()["rows"][0]["id"]
+
+    patched = client.patch(
+        f"/batches/rows/{row_id}",
+        json={
+            "login_status": "success",
+            "redeem_status": "success",
+            "purchase_status": "payment_issue",
+            "purchase_error": "Insufficient credits — Select Payment Method required",
+        },
+    )
+    assert patched.status_code == 200
+    body = patched.json()
+    assert body["purchase_status"] == "payment_issue"
+    assert body["status"] == "partial"

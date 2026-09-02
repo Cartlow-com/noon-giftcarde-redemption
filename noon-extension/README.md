@@ -10,7 +10,11 @@ npm install
 
 ## Build
 
+Set backend URL in `.env` (copy from `.env.example`), then build:
+
 ```bash
+cp .env.example .env
+# edit .env — set VITE_API_BASE_URL to your deployed backend (not localhost)
 npm run build
 ```
 

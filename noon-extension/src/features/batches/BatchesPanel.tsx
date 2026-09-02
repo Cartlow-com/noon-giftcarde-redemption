@@ -6,7 +6,6 @@ import {
   uploadBatchCsv,
   type BatchSummary,
 } from "../../lib/api";
-import { getApiBaseUrl, setApiBaseUrl } from "../../lib/config";
 import type { RuntimeMessage } from "../../types";
 import BatchCard from "./BatchCard";
 import BatchActivityPanel from "./BatchActivityPanel";
@@ -16,7 +15,6 @@ import {
 } from "./activityTypes";
 
 export default function BatchesPanel() {
-  const [apiBase, setApiBase] = useState("http://127.0.0.1:8000");
   const [batches, setBatches] = useState<BatchSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -44,7 +42,7 @@ export default function BatchesPanel() {
       const healthy = await checkBackendHealth();
       setOnline(healthy);
       if (!healthy) {
-        setError("Backend unreachable — start server at " + apiBase);
+        setError("Backend unreachable — check VITE_API_BASE_URL in noon-extension/.env and rebuild");
         return;
       }
       const data = await listBatches();
@@ -56,15 +54,11 @@ export default function BatchesPanel() {
     } finally {
       setLoading(false);
     }
-  }, [apiBase]);
-
-  useEffect(() => {
-    getApiBaseUrl().then(setApiBase);
   }, []);
 
   useEffect(() => {
-    if (apiBase) refresh();
-  }, [apiBase, refresh]);
+    refresh();
+  }, [refresh]);
 
   function pushActivity(msg: Parameters<typeof activityFromBatchMessage>[0]) {
     setActivity((prev) => {
@@ -181,13 +175,6 @@ export default function BatchesPanel() {
     } satisfies RuntimeMessage);
   }
 
-  async function handleSaveApiBase(e: React.FormEvent) {
-    e.preventDefault();
-    await setApiBaseUrl(apiBase);
-    setMessage("API URL saved");
-    refresh();
-  }
-
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -223,28 +210,12 @@ export default function BatchesPanel() {
 
   return (
     <div className="space-y-4">
-      <form onSubmit={handleSaveApiBase} className="space-y-2">
-        <label className="block text-xs text-slate-400" htmlFor="apiBase">
-          Backend API URL
-        </label>
-        <div className="flex gap-2">
-          <input
-            id="apiBase"
-            type="url"
-            value={apiBase}
-            onChange={(e) => setApiBase(e.target.value)}
-            className="flex-1 px-2 py-1.5 rounded border border-slate-600 bg-surface text-slate-100 text-xs focus:border-noon focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="px-3 py-1.5 rounded border border-slate-600 text-xs text-slate-200"
-          >
-            Save
-          </button>
-        </div>
-        {online === true && <p className="text-[10px] text-green-300">Backend connected</p>}
-        {online === false && <p className="text-[10px] text-red-300">Backend offline</p>}
-      </form>
+      {online === true && (
+        <p className="text-[10px] text-green-300">Backend connected</p>
+      )}
+      {online === false && (
+        <p className="text-[10px] text-red-300">Backend offline</p>
+      )}
 
       <label className="flex items-start gap-2 rounded-lg border border-slate-600 bg-surface/40 px-3 py-2 text-xs text-slate-300 cursor-pointer">
         <input

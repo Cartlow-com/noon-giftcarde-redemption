@@ -1282,6 +1282,14 @@
     if (state.flowType === "cart") {
       await restoreBatchCartContextFromState(state);
       const cartResult = await runCartFlow(state.productUrl);
+      if (cartResult && cartResult.paymentIssue) {
+        await disableCursor();
+        await markFlowComplete({ ok: true, paymentIssue: true });
+        await clearFlowState();
+        batchFlowMode = false;
+        batchCartContext = null;
+        return;
+      }
       if (cartResult && cartResult.orderSkipped) {
         await disableCursor();
         await markFlowComplete({ ok: true, orderSkipped: true });
@@ -2349,6 +2357,26 @@
     return null;
   }
 
+  function findSelectPaymentMethodButton() {
+    const buttons = document.querySelectorAll("button, [role='button']");
+    for (let i = 0; i < buttons.length; i++) {
+      const btn = buttons[i];
+      if (!isVisible(btn)) continue;
+      const t = normalizeText(btn.textContent).toUpperCase();
+      if (
+        t === "SELECT PAYMENT METHOD" ||
+        t.indexOf("SELECT PAYMENT METHOD") === 0
+      ) {
+        return btn;
+      }
+    }
+    return null;
+  }
+
+  function hasCheckoutPaymentIssue() {
+    return !!findSelectPaymentMethodButton() && !findPlaceOrderButton();
+  }
+
   function detectCartState() {
     if (isOnCheckoutPage()) return "CHECKOUT_PAGE";
     if (isNoonOnePopupOpen()) return "NOON_ONE_POPUP";
@@ -2427,6 +2455,14 @@
         await waitForCheckoutPageReady();
         await ensureUseMyCreditsEnabled();
 
+        if (hasCheckoutPaymentIssue()) {
+          logStep(
+            "Payment issue — credits do not cover total (Select Payment Method shown)",
+          );
+          await disableCursor();
+          return { paymentIssue: true };
+        }
+
         const confirmed = await waitForPlaceOrderConfirmation(
           "Credits enabled. Click Place Order in the panel when ready (no payment method selected).",
         );
@@ -2438,9 +2474,21 @@
 
         logStep("Waiting for Place Order button…");
         const placeBtn = await waitFor(function () {
+          if (hasCheckoutPaymentIssue()) return "PAYMENT_ISSUE";
           return findPlaceOrderButton();
-        }, 45000, 400);
+        }, 15000, 400);
+        if (placeBtn === "PAYMENT_ISSUE" || hasCheckoutPaymentIssue()) {
+          logStep(
+            "Payment issue — credits do not cover total (Select Payment Method shown)",
+          );
+          await disableCursor();
+          return { paymentIssue: true };
+        }
         if (!placeBtn) {
+          if (hasCheckoutPaymentIssue()) {
+            await disableCursor();
+            return { paymentIssue: true };
+          }
           throw new Error(
             "Place Order button not visible yet — complete payment manually if needed",
           );
@@ -2651,6 +2699,12 @@
       }
       logStep("Starting batch order flow…");
       const cartResult = await runCartFlow(payload.productUrl);
+      if (cartResult && cartResult.paymentIssue) {
+        await disableCursor();
+        await markFlowComplete({ ok: true, paymentIssue: true });
+        await clearFlowState();
+        return { ok: true, paymentIssue: true };
+      }
       if (cartResult && cartResult.orderSkipped) {
         await disableCursor();
         await markFlowComplete({ ok: true, orderSkipped: true });

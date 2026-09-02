@@ -220,6 +220,26 @@ async function markOrderSkippedRow(row, productUrl) {
   });
 }
 
+async function markPaymentIssueRow(row, productUrl) {
+  const now = isoNow();
+  await patchStage(row.id, {
+    purchase_status: "payment_issue",
+    purchased_at: now,
+    purchase_error: "Insufficient credits — Select Payment Method required",
+    status: "partial",
+  });
+  emitBatch({
+    type: "BATCH_ROW_DONE",
+    batchId: row.batch_id,
+    rowId: row.id,
+    rowNumber: row.row_number,
+    success: true,
+    stage: "order",
+    detail: shortUrl(productUrl),
+    message: `Row ${row.row_number} — payment issue, skipped`,
+  });
+}
+
 async function ensureRowAccount(tabId, row, previousEmail) {
   const rowEmail = normalizeEmail(row.email);
   emitStageProgress(
@@ -505,13 +525,16 @@ async function processBatchRow(row, tabId) {
   if (!stageOrderDone(row.purchase_status)) {
     throwIfCancelled();
     const product = shortUrl(row.product_url);
-    const orderRetry = row.purchase_status === "skipped";
+    const orderRetry =
+      row.purchase_status === "skipped" || row.purchase_status === "payment_issue";
     emitStageProgress(
       row,
       "order",
       "active",
       orderRetry
-        ? `Row ${rowNum}: re-running order (previously skipped)`
+        ? row.purchase_status === "payment_issue"
+          ? `Row ${rowNum}: re-running order (previous payment issue)`
+          : `Row ${rowNum}: re-running order (previously skipped)`
         : `Row ${rowNum}: purchasing item`,
       row.product_url,
     );
@@ -530,6 +553,10 @@ async function processBatchRow(row, tabId) {
           placeOrder: batchPlaceOrder,
         });
       });
+      if (result && result.paymentIssue) {
+        await markPaymentIssueRow(row, row.product_url);
+        return;
+      }
       if (result && result.orderSkipped) {
         await markOrderSkippedRow(row, row.product_url);
         return;

@@ -6,9 +6,7 @@
   "permissions": ["storage", "tabs", "sidePanel"],
   "host_permissions": [
     "https://www.noon.com/*",
-    "https://account.noon.com/*",
-    "http://127.0.0.1:8000/*",
-    "http://localhost:8000/*"
+    "https://account.noon.com/*"
   ],
   "action": {
     "default_title": "Noon Automation — open side panel"

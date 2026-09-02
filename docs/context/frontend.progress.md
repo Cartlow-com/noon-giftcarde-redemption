@@ -7,7 +7,8 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
-- 2026-09-01 — Batch panel: global "Place order at checkout" checkbox (no per-row prompt)
+- 2026-09-02 — Checkout: detect "Select Payment Method" → `payment_issue` status, skip row, retry on re-run
+- 2026-09-02 — Backend URL moved from extension UI to `noon-extension/.env` (`VITE_API_BASE_URL`)
 | FE-2 | — | — | — | — | idle |
 | FE-3 | — | — | — | — | idle |
 

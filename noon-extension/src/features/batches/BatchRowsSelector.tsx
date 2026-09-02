@@ -19,6 +19,8 @@ function statusBadge(status: string): string {
       return base + "bg-amber-500/20 text-amber-200";
     case "skipped":
       return base + "bg-slate-500/25 text-slate-300";
+    case "payment_issue":
+      return base + "bg-orange-500/20 text-orange-200";
     case "partial":
       return base + "bg-amber-500/20 text-amber-200";
     case "in_progress":

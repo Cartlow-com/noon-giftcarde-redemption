@@ -5,7 +5,7 @@ chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch((err) => console.error(err));
 
-importScripts("batchApi.js", "batchRunner.js");
+importScripts("apiConfig.js", "batchApi.js", "batchRunner.js");
 
 async function openWidePanelWindow() {
   const url = chrome.runtime.getURL("popup.html");

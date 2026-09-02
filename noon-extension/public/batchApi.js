@@ -1,9 +1,9 @@
 async function getApiBaseUrl() {
-  const data = await chrome.storage.local.get("noon_api_base_url");
-  const stored = data.noon_api_base_url;
-  return typeof stored === "string" && stored.trim()
-    ? stored.trim().replace(/\/$/, "")
-    : "http://127.0.0.1:8000";
+  const base = typeof NOON_API_BASE_URL === "string" ? NOON_API_BASE_URL : "";
+  if (!base.trim()) {
+    throw new Error("NOON_API_BASE_URL is not configured — set VITE_API_BASE_URL in .env and rebuild");
+  }
+  return base.trim().replace(/\/$/, "");
 }
 
 async function batchApiRequest(path, options) {

@@ -41,8 +41,8 @@ export interface BatchRow {
 }
 
 async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  const base = await getApiBaseUrl();
-  const url = `${base.replace(/\/$/, "")}${path}`;
+  const base = getApiBaseUrl();
+  const url = `${base}${path}`;
   return fetch(url, init);
 }
 
