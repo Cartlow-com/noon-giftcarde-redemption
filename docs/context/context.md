@@ -25,11 +25,15 @@ noon_automation/
 │   │   └── background.js    # Tab mgmt, message relay, flow resume
 │   ├── src/
 │   │   ├── popup/App.tsx    # Side panel UI
-│   │   ├── lib/storage.ts   # chrome.storage.local
+│   │   ├── features/batches/BatchesPanel.tsx
+│   │   ├── lib/api.ts         # Backend batch API client
+│   │   ├── lib/config.ts      # API base URL storage
 │   │   └── types.ts
 │   └── dist/                # Load this in chrome://extensions
 ├── backend/
-│   └── scripts/noon_login_flow.py   # Original Playwright reference flow
+│   ├── app/modules/batches/   # CSV batch upload + row tracking APIs
+│   ├── app/modules/login/     # JWT auth
+│   └── seeders/users.example.csv
 └── docs/context/            # Agent context (this folder)
 ```
 
@@ -39,10 +43,13 @@ noon_automation/
 |---|---|---|
 | Login automation | ✅ Done | Skips if `Hi,` greeting detected |
 | Ghost cursor | ✅ Done | Arrow default, I-beam on inputs; re-attaches after nav |
-| Gift card redemption | 🟡 In progress | Flow built; needs live E2E verification |
+| Gift card redemption | ✅ Done | Direct credits URL flow |
+| Cart checkout flow | 🟡 New | Add to cart → checkout → credits → confirm Place Order |
 | Side panel UI | ✅ Done | Email, password, gift card #, PIN, Run/Cancel/Save |
 | Cross-page resume | ✅ Done | `chrome.storage.local` flow state |
-| Post-redeem handling | ⬜ Not started | Success/error UI feedback TBD |
+| Backend API | ✅ Done | FastAPI — login + batches |
+| Batch upload/history UI | ✅ Done | Extension Batches tab |
+| Batch runner (pull-next) | ⬜ Not started | Extension automation loop |
 
 ## Gift Card Flow (current)
 
@@ -51,6 +58,16 @@ noon_automation/
 3. Click **Redeem Giftcards** bar
 4. In **Add Credits** popup → click **Giftcards & Vouchers**
 5. Fill gift card number + PIN → click **REDEEM**
+
+## Cart Flow (current)
+
+1. Login (or skip)
+2. Open product URL → **Add to Cart**
+3. **View Cart** → **Checkout**
+4. If noon One popup → **Continue to Checkout**
+5. Toggle **Use my credits**
+6. **Pause** — side panel asks user to confirm **Place Order**
+7. If confirmed → click **Place Order** (polls until button appears)
 
 ## Page State Machine
 
@@ -70,6 +87,7 @@ noon_automation/
 ## Build & Load
 
 ```bash
+cd backend && uv sync --extra dev && uv run python run.py
 cd noon-extension && npm install && npm run build
 # chrome://extensions → Load unpacked → select dist/
 ```

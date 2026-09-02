@@ -19,7 +19,8 @@ class Base(DeclarativeBase):
 
 
 def init_db() -> None:
-    from app.modules.login.models import db_models  # noqa: F401
+    from app.modules.batches.models import db_models as batches_db_models  # noqa: F401
+    from app.modules.login.models import db_models as login_db_models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
 

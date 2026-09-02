@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./app.db"
     SECRET_KEY: str = "change-me-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    AUTH_REQUIRED: bool = False
 
 
 settings = Settings()

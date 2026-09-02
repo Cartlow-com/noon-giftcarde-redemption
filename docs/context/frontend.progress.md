@@ -5,6 +5,9 @@
 | Slot | Agent | Trigger | Spec | Task | Status |
 |---|---|---|---|---|---|
 | FE-1 | — | — | — | — | idle |
+
+## Recent Changes
+- 2026-09-01 — Batch panel: global "Place order at checkout" checkbox (no per-row prompt)
 | FE-2 | — | — | — | — | idle |
 | FE-3 | — | — | — | — | idle |
 
@@ -89,11 +92,11 @@ Homepage → click Orders in header → account dashboard → click noon Credits
 
 ## Recent Changes
 
-- 2026-09-01 — Direct nav to credits URL; removed Orders/noon Credits clicks
+- 2026-09-01 — Session detection: checkout/cart/product pages count as logged in; redeem navigates to credits from checkout
 - 2026-09-01 — Fixed Add Credits modal detection + Giftcards & Vouchers click
 - 2026-09-01 — Fixed Redeem Giftcards finder (main content scope)
 - 2026-09-01 — Ghost cursor: pointer-only (no hand), re-attach after nav
 - 2026-09-01 — 30ms wait + dashboard/credits page ready polling
 - 2026-09-01 — Initial extension scaffold: login + ghost cursor + side panel
 - 2026-09-01 — Gift card flow, page-aware state machine, cross-page resume
-- 2026-09-01 — Created docs/context/ with full journey documentation
+- 2026-09-01 — Ghost cursor visible entire flow (login, gift card, cart); persists across page reloads; larger yellow arrow
