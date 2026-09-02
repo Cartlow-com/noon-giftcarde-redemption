@@ -1,0 +1,40 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            set -e
+
+            cd /root/noon-giftcarde-redemption
+
+            # Pull latest code
+            git stash push -m "deploy-$(date +%s)" || true
+            git fetch origin main
+            git checkout main
+            git pull --rebase origin main
+
+            # Install/update dependencies
+            cd backend
+            /root/.local/bin/uv sync
+
+            # Restart app
+            pm2 restart noon-giftcard-backend
+
+            # Wait and health check
+            sleep 3
+            curl -sf http://127.0.0.1:8020/ || curl -sf http://127.0.0.1:8020/health || true
+
+            echo 'Deployment complete'
