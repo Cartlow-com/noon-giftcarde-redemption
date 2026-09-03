@@ -1,6 +1,7 @@
 window.AdminUtil = {
-  async api(path) {
-    const response = await fetch(path);
+  async api(path, init) {
+    const response = await fetch(path, init);
+    if (response.status === 204) return null;
     if (!response.ok) {
       let detail = response.statusText;
       try {
@@ -9,7 +10,9 @@ window.AdminUtil = {
       } catch (_) {}
       throw new Error(detail || `Request failed (${response.status})`);
     }
-    return response.json();
+    const text = await response.text();
+    if (!text) return null;
+    return JSON.parse(text);
   },
 
   escapeHtml(value) {
@@ -31,6 +34,14 @@ window.AdminUtil = {
     } catch (_) {
       return String(value);
     }
+  },
+
+  formatDuration(ms) {
+    if (ms == null || Number.isNaN(Number(ms))) return "—";
+    const total = Math.max(0, Math.round(Number(ms) / 1000));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
   },
 
   badge(status) {

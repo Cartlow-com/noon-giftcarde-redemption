@@ -76,6 +76,10 @@ class BatchRow(Base):
     screenshot_after_redeem: Mapped[str | None] = mapped_column(Text, nullable=True)
     screenshot_after_order: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    run_started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    run_finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     status: Mapped[str] = mapped_column(String(16), default=ROW_PENDING, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
@@ -83,3 +87,21 @@ class BatchRow(Base):
     )
 
     batch: Mapped["Batch"] = relationship("Batch", back_populates="rows")
+
+
+class BatchRun(Base):
+    __tablename__ = "batch_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    batch_id: Mapped[str] = mapped_column(String(36), ForeignKey("batches.id"), index=True)
+    row_ids_json: Mapped[str] = mapped_column(Text)
+    place_order: Mapped[int] = mapped_column(Integer, default=1)
+    send_redeem_emails: Mapped[int] = mapped_column(Integer, default=0)
+    send_order_emails: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(32), default="queued", index=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stop_requested: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )

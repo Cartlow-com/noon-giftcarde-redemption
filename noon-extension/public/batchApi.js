@@ -81,3 +81,39 @@ async function notifyOrderEmail(rowId) {
     method: "POST",
   });
 }
+
+async function createBatchRun(payload) {
+  return batchApiRequest("/runs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function getPendingRun() {
+  return batchApiRequest("/runs/pending");
+}
+
+async function getActiveRun() {
+  return batchApiRequest("/runs/active");
+}
+
+async function claimBatchRun(runId) {
+  return batchApiRequest(`/runs/${encodeURIComponent(runId)}/claim`, { method: "POST" });
+}
+
+async function stopBatchRunApi(runId) {
+  return batchApiRequest(`/runs/${encodeURIComponent(runId)}/stop`, { method: "POST" });
+}
+
+async function patchBatchRun(runId, body) {
+  return batchApiRequest(`/runs/${encodeURIComponent(runId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function getRunsConfig() {
+  return batchApiRequest("/runs/config");
+}

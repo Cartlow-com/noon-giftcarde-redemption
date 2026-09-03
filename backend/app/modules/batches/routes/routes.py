@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -18,6 +18,7 @@ from app.modules.batches.controllers.controller import (
     upload_screenshot,
 )
 from app.modules.batches.helpers.auth import require_auth
+from app.modules.batches.helpers.csv_parser import REQUIRED_COLUMNS
 from app.modules.batches.models.request_models import UpdateRowRequest
 from app.modules.batches.models.response_models import (
     BatchDetailResponse,
@@ -29,6 +30,13 @@ from app.modules.batches.models.response_models import (
 from app.modules.email.models.response_models import SendEmailResponse
 
 router = APIRouter(prefix="/batches", tags=["batches"])
+
+SAMPLE_CSV_BODY = (
+    ",".join(REQUIRED_COLUMNS)
+    + "\n"
+    + "user@example.com,YourPassword123,1100 1705 2778 3945,2724,"
+    + "https://www.noon.com/uae-en/product/N27674082A/p/,1\n"
+)
 
 
 def _not_found(exc: ValueError) -> HTTPException:
@@ -51,6 +59,15 @@ def upload_batch_route(
         return upload_batch(file, db)
     except ValueError as exc:
         raise _bad_request(exc) from exc
+
+
+@router.get("/sample.csv")
+def sample_csv_route(_: str | None = Depends(require_auth)) -> Response:
+    return Response(
+        content=SAMPLE_CSV_BODY,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="noon_batch_sample.csv"'},
+    )
 
 
 @router.get("", response_model=BatchListResponse)

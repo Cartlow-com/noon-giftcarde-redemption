@@ -27,6 +27,7 @@ function extensionEnvPlugin(apiBase: string): Plugin {
       const manifestPath = path.resolve(__dirname, "dist/manifest.json");
       const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
         host_permissions?: string[];
+        externally_connectable?: { matches?: string[] };
       };
       const permission = apiHostPermission(apiBase);
       const permissions = new Set(manifest.host_permissions || []);
@@ -34,6 +35,14 @@ function extensionEnvPlugin(apiBase: string): Plugin {
       permissions.delete("http://localhost:8000/*");
       permissions.add(permission);
       manifest.host_permissions = Array.from(permissions);
+
+      const origin = new URL(apiBase).origin;
+      const matches = new Set(manifest.externally_connectable?.matches || []);
+      matches.add(`${origin}/*`);
+      matches.add("http://127.0.0.1:8000/*");
+      matches.add("http://localhost:8000/*");
+      manifest.externally_connectable = { matches: Array.from(matches) };
+
       fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
     },
   };

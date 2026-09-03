@@ -12,6 +12,7 @@
     />
     <link rel="stylesheet" href="/assets/styles.css" />
     <link rel="stylesheet" href="/assets/detail.css" />
+    <link rel="stylesheet" href="/assets/controls.css" />
   </head>
   <body>
     <div class="shell">
@@ -22,9 +23,31 @@
         </div>
         <div class="topbar-meta">
           <span id="health" class="pill pill-muted">Checking…</span>
+          <span id="run-pill" class="pill pill-muted">No active run</span>
           <button type="button" id="btn-refresh" class="btn-text">Refresh</button>
         </div>
       </header>
+
+      <section class="controls-bar">
+        <div class="controls-left">
+          <a class="btn-secondary" href="/batches/sample.csv" download>Download sample CSV</a>
+          <label class="btn-primary">
+            Upload CSV
+            <input id="file-upload" type="file" accept=".csv,text/csv" hidden />
+          </label>
+          <button type="button" id="btn-delete-batch" class="btn-danger" disabled>Delete batch</button>
+        </div>
+        <div class="controls-right">
+          <label class="check"><input id="opt-place-order" type="checkbox" checked /> Place order</label>
+          <label class="check"><input id="opt-redeem-email" type="checkbox" /> Redeem email</label>
+          <label class="check"><input id="opt-order-email" type="checkbox" /> Order email</label>
+          <button type="button" id="btn-run" class="btn-primary" disabled>Run selected</button>
+          <button type="button" id="btn-stop" class="btn-secondary" disabled>Stop</button>
+        </div>
+      </section>
+      <p id="run-hint" class="run-hint muted">
+        Extension must be installed in this Chrome. Run queues a job — the extension opens a Noon window and starts.
+      </p>
 
       <main class="layout">
         <aside class="panel batches-panel">
@@ -51,16 +74,25 @@
               <button type="button" data-status="failed" class="chip">Failed</button>
             </div>
           </div>
+          <div class="row-actions" id="row-actions" hidden>
+            <button type="button" id="btn-select-all" class="btn-text">Select all</button>
+            <button type="button" id="btn-clear-sel" class="btn-text">Clear</button>
+            <span id="sel-count" class="muted">0 selected</span>
+            <span id="expected-label" class="muted"></span>
+          </div>
           <div class="table-wrap">
             <table id="rows-table" class="data-table">
               <thead>
                 <tr>
+                  <th></th>
                   <th>#</th>
                   <th>Email</th>
                   <th>Login</th>
                   <th>Redeem</th>
                   <th>Order</th>
                   <th>Status</th>
+                  <th>Time</th>
+                  <th>Expected</th>
                 </tr>
               </thead>
               <tbody id="rows-body"></tbody>
@@ -80,8 +112,10 @@
       </main>
 
       <p id="global-error" class="toast error hidden"></p>
+      <p id="global-ok" class="toast ok hidden"></p>
     </div>
     <script src="/assets/util.js"></script>
     <script src="/assets/app.js"></script>
+    <script src="/assets/controls.js"></script>
   </body>
 </html>

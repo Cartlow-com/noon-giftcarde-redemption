@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class BatchRowResponse(BaseModel):
@@ -31,6 +31,9 @@ class BatchRowResponse(BaseModel):
     screenshot_before_redeem: str | None = None
     screenshot_after_redeem: str | None = None
     screenshot_after_order: str | None = None
+    run_started_at: datetime | None = None
+    run_finished_at: datetime | None = None
+    duration_ms: int | None = None
     status: str
     created_at: datetime
     updated_at: datetime
@@ -69,3 +72,28 @@ class BatchRowListResponse(BaseModel):
 class UploadBatchResponse(BaseModel):
     batch: BatchSummaryResponse
     message: str
+
+
+class BatchRunResponse(BaseModel):
+    id: str
+    batch_id: str
+    row_ids: list[str]
+    place_order: bool
+    send_redeem_emails: bool
+    send_order_emails: bool
+    status: str
+    message: str | None
+    stop_requested: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class AppConfigResponse(BaseModel):
+    expected_row_seconds: int = Field(description="Expected seconds per row")
+    auth_required: bool = False
+
+
+class ExtensionStatusResponse(BaseModel):
+    online: bool
+    last_seen_at: datetime | None = None
+    ttl_seconds: int

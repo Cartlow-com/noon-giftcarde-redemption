@@ -4,7 +4,7 @@
 
 | Slot | Agent | Trigger | Spec | Task | Status |
 |---|---|---|---|---|---|
-| BE-1 | — | — | — | — | idle |
+| BE-1 | backend-engineer | -q | none | Extension heartbeat + dashboard auth | in_progress |
 | BE-2 | — | — | — | — | idle |
 | BE-3 | — | — | — | — | idle |
 
@@ -21,11 +21,13 @@ FastAPI backend with login + batch modules. Extension connects to backend for CS
 | User seed CSV | ✅ Done | `seeders/users.example.csv` → copy to `users.csv` |
 | Extension batch UI | ✅ Done | Upload + history in Batches tab |
 | Batch automation runner | ✅ Done | Upload → DB save → auto-start pull-next loop |
-| Admin dashboard | ✅ Done | Read-only `/` + screenshot GET |
+| Admin dashboard | ✅ Done | `/` upload/run/stop/delete + screenshots/emails |
+| Dashboard run jobs | ✅ Done | `/runs` queue; extension poll + Noon window |
 | Redeem verification | ⬜ Deferred | Balance/transaction check — later |
 
 ## Recent Changes
 
+- 2026-09-03 — Dashboard: upload/sample CSV, select+run/stop, email/place-order toggles, delete batch; `/runs` job API + row timing
 - 2026-09-03 — Dashboard served at `/` (port 8000 root); assets under `/assets`
 - 2026-09-03 — Read-only `/admin` dashboard + `GET` screenshot files for row images
 - 2026-09-03 — Email module + screenshot APIs + history table; batch notify redeem/order

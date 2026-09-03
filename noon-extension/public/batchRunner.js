@@ -761,6 +761,7 @@ async function runSelectedRows(batchId, rowIds, options) {
       placeOrder: batchPlaceOrder,
       sendRedeemEmails: batchSendRedeemEmails,
       sendOrderEmails: batchSendOrderEmails,
+      runId: opts.runId || null,
     },
   });
 
@@ -796,9 +797,17 @@ async function runSelectedRows(batchId, rowIds, options) {
 
     if (row.batch_id !== batchId) continue;
 
-    await patchStage(row.id, { status: "in_progress" });
+    const startedAt = isoNow();
+    await patchStage(row.id, {
+      status: "in_progress",
+      run_started_at: startedAt,
+      run_finished_at: null,
+      duration_ms: null,
+    });
 
-    const tabId = await getOrCreateNoonTab();
+    const tabId = await getOrCreateNoonTab({
+      forceNewWindow: !!opts.forceNewWindow && i === 0,
+    });
     activeLoginTabId = tabId;
     if (i > 0) {
       await resetTabForNewRow(tabId, row.row_number);
@@ -806,6 +815,12 @@ async function runSelectedRows(batchId, rowIds, options) {
       await recoverNoonTab(tabId);
     }
     await processBatchRow(row, tabId);
+    const finishedAt = isoNow();
+    const durationMs = Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt));
+    await patchStage(row.id, {
+      run_finished_at: finishedAt,
+      duration_ms: durationMs,
+    }).catch(function () {});
     activeLoginTabId = null;
     currentBatchRow = null;
     processed += 1;

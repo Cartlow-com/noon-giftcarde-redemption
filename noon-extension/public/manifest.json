@@ -3,11 +3,14 @@
   "name": "Noon Automation",
   "version": "0.1.0",
   "description": "Automate Noon.com login and workflows from a side panel.",
-  "permissions": ["storage", "tabs", "sidePanel"],
+  "permissions": ["storage", "tabs", "sidePanel", "windows"],
   "host_permissions": [
     "https://www.noon.com/*",
     "https://account.noon.com/*"
   ],
+  "externally_connectable": {
+    "matches": ["http://127.0.0.1:8000/*", "http://localhost:8000/*"]
+  },
   "action": {
     "default_title": "Noon Automation — open side panel"
   },

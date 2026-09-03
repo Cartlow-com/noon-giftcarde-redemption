@@ -29,6 +29,9 @@ def _ensure_sqlite_columns() -> None:
         "screenshot_before_redeem": "ALTER TABLE batch_rows ADD COLUMN screenshot_before_redeem TEXT",
         "screenshot_after_redeem": "ALTER TABLE batch_rows ADD COLUMN screenshot_after_redeem TEXT",
         "screenshot_after_order": "ALTER TABLE batch_rows ADD COLUMN screenshot_after_order TEXT",
+        "run_started_at": "ALTER TABLE batch_rows ADD COLUMN run_started_at DATETIME",
+        "run_finished_at": "ALTER TABLE batch_rows ADD COLUMN run_finished_at DATETIME",
+        "duration_ms": "ALTER TABLE batch_rows ADD COLUMN duration_ms INTEGER",
     }
     with engine.begin() as conn:
         for name, sql in alters.items():

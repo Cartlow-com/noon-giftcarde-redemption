@@ -4,9 +4,10 @@
 
 | Slot | Agent | Trigger | Spec | Task | Status |
 |---|---|---|---|---|---|
-| FE-1 | — | — | — | — | idle |
+| FE-1 | frontend-engineer | -q | none | Dashboard login + extension-online gate | in_progress |
 
 ## Recent Changes
+- 2026-09-03 — Dashboard controls: upload, sample CSV, row select/run/stop, place-order + email toggles, delete; extension polls `/runs`
 - 2026-09-03 — Dashboard moved to `http://127.0.0.1:8000/` (assets `/assets`)
 - 2026-09-03 — Read-only admin UI at `/admin` (extension palette; batches/rows/emails/screenshots)
 - 2026-09-03 — Email checkboxes (default off) + screenshot capture/upload + order_id from URL

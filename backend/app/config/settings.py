@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     AUTH_REQUIRED: bool = False
+    EXTENSION_API_TOKEN: str = ""
+    EXTENSION_HEARTBEAT_TTL_SECONDS: int = 15
+
+    EXPECTED_ROW_SECONDS: int = 180
 
     SCREENSHOT_STORAGE_DIR: str = "storage/screenshots"
 

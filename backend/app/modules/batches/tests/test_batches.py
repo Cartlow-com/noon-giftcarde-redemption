@@ -66,6 +66,17 @@ def test_upload_rejects_bad_csv(client) -> None:
     assert response.status_code == 400
 
 
+def test_sample_csv_download(client) -> None:
+    response = client.get("/batches/sample.csv")
+    assert response.status_code == 200
+    assert "text/csv" in response.headers.get("content-type", "")
+    body = response.text
+    assert "email,password,gift_card_number,gift_card_pin,product_url,quantity" in body
+    assert "redeem_status" not in body
+    assert "order_id" not in body
+    assert "status" not in body.split("\n")[0]
+
+
 def test_delete_batch(client) -> None:
     batch_id = _upload_csv(client, SAMPLE_CSV).json()["batch"]["id"]
     deleted = client.delete(f"/batches/{batch_id}")
