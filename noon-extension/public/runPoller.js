@@ -43,7 +43,7 @@ async function startDashboardRun(run) {
     batchId: claimed.batch_id,
     stage: "system",
     status: "info",
-    message: `Dashboard run claimed — opening Noon window (${claimed.row_ids.length} row(s))` +
+    message: `Dashboard run claimed — using Noon window (${claimed.row_ids.length} row(s))` +
       (claimed.hide_window ? " — hidden" : ""),
   });
 
@@ -54,7 +54,6 @@ async function startDashboardRun(run) {
       sendOrderEmails: claimed.send_order_emails,
       hideWindow: !!claimed.hide_window,
       loginOnly: !!claimed.login_only,
-      forceNewWindow: true,
       runId: claimed.id,
     });
     await patchBatchRun(claimed.id, {

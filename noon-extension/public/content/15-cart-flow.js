@@ -92,7 +92,7 @@ async function runCartFlow(productUrl) {
       const placeBtn = await waitFor(function () {
         if (hasCheckoutPaymentIssue()) return "PAYMENT_ISSUE";
         return findPlaceOrderButton();
-      }, 15000, 400);
+      }, 15000, 50);
       if (placeBtn === "PAYMENT_ISSUE" || hasCheckoutPaymentIssue()) {
         logStep(
           "Payment issue — credits do not cover total (Select Payment Method shown)",
@@ -113,7 +113,9 @@ async function runCartFlow(productUrl) {
       logStep("Clicking Place Order…");
       await mouse().click(placeBtn);
       logStep("Place Order clicked");
-      await pause(1);
+      await waitFor(function () {
+        return detectCartState() !== "CHECKOUT_PAGE" ? true : null;
+      }, 8000, 50);
       return;
     }
 
@@ -122,7 +124,9 @@ async function runCartFlow(productUrl) {
       const btn = findContinueToCheckoutButton();
       if (!btn) throw new Error("Continue to Checkout not found");
       await mouse().click(btn);
-      await pause(1);
+      await waitFor(function () {
+        return !findContinueToCheckoutButton() ? true : null;
+      }, 8000, 50);
       continue;
     }
 
@@ -139,7 +143,9 @@ async function runCartFlow(productUrl) {
       if (!btn) throw new Error("Checkout button not found");
       await mouse().click(btn);
       await setCartPhase("checkout");
-      await pause(1);
+      await waitFor(function () {
+        return isOnCheckoutPage() || findContinueToCheckoutButton() ? true : null;
+      }, 8000, 50);
       continue;
     }
 
@@ -148,7 +154,7 @@ async function runCartFlow(productUrl) {
       if (phase === "viewed_cart") {
         await waitFor(function () {
           return isOnCartPage();
-        }, 8000, 200);
+        }, 8000, 50);
         continue;
       }
       await clickViewCartButton();
@@ -157,8 +163,20 @@ async function runCartFlow(productUrl) {
 
     if (state === "PRODUCT_PAGE") {
       const phase = await getCartPhase();
-      if (phase === "added") {
-        await clickViewCartButton();
+      if (phase === "added" || phase === "viewed_cart") {
+        if (phase === "added" && findViewCartButton()) {
+          await clickViewCartButton();
+        } else if (phase === "viewed_cart" && !isOnCartPage()) {
+          await waitFor(function () {
+            return isOnCartPage();
+          }, 8000, 50);
+        } else if (phase === "added") {
+          // Drawer may still be opening — wait, never click Add to Cart again.
+          await waitFor(function () {
+            return findViewCartButton() || isOnCartPage() || isAddedToCartDrawerOpen();
+          }, 6000, 50);
+          if (findViewCartButton()) await clickViewCartButton();
+        }
         continue;
       }
       const navigated = await handleProductPageStep(normalizedUrl);

@@ -6,8 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.config.database import SessionLocal, init_db
+from app.config.database import SessionLocal, backfill_tenancy_after_seed, init_db
 from app.config.settings import settings
+from app.modules.batches.routes.admin_events import router as admin_events_router
 from app.modules.batches.routes.routes import router as batches_router
 from app.modules.batches.routes.run_routes import router as runs_router
 from app.modules.email.routes.routes import router as email_router
@@ -25,6 +26,7 @@ async def lifespan(_: FastAPI):
         seed_users(db)
     finally:
         db.close()
+    backfill_tenancy_after_seed()
     yield
 
 
@@ -42,6 +44,7 @@ app.include_router(login_router)
 app.include_router(batches_router)
 app.include_router(runs_router)
 app.include_router(email_router)
+app.include_router(admin_events_router)
 
 if ADMIN_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=ADMIN_DIR), name="dashboard_assets")

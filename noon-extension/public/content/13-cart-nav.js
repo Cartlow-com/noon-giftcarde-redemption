@@ -7,22 +7,41 @@ async function handleProductPageStep(productUrl) {
   logStep("Waiting for product page…");
   await waitFor(function () {
     return isOnProductPage();
-  }, 15000, 200);
-  await pause(0.8);
+  }, 15000, 50);
+
+  const phase = await getCartPhase();
+  if (
+    phase === "added" ||
+    phase === "viewed_cart" ||
+    findViewCartButton() ||
+    isAddedToCartDrawerOpen()
+  ) {
+    logStep("Item already added — skipping Add to Cart (click once only)");
+    if (findViewCartButton() && phase !== "viewed_cart") {
+      await clickViewCartButton();
+    }
+    return false;
+  }
 
   let addBtn = findAddToCartButton();
   if (!addBtn) {
     addBtn = await waitFor(function () {
       return findAddToCartButton();
-    }, 8000, 300);
+    }, 8000, 50);
   }
 
   if (addBtn) {
-    await setCartPhase("");
-    logStep("Add to Cart visible — clicking Add to Cart…");
-    await mouse().click(addBtn);
+    // Mark added BEFORE click so a loop resume cannot click a second time.
     await setCartPhase("added");
-    await pause(1);
+    logStep("Add to Cart visible — clicking once…");
+    await mouse().click(addBtn, { fast: true, once: true });
+    await waitFor(
+      function () {
+        return findViewCartButton() || isOnCartPage() || isAddedToCartDrawerOpen();
+      },
+      6000,
+      50,
+    );
     return false;
   }
 
@@ -53,19 +72,24 @@ async function clickViewCartButton() {
   logStep("Clicking View Cart…");
   const btn = await waitFor(function () {
     return findViewCartButton();
-  }, 10000, 200);
+  }, 10000, 50);
   if (!btn) throw new Error("View Cart not found");
-  await mouse().click(btn);
+  await mouse().click(btn, { fast: true });
   await setCartPhase("viewed_cart");
-  await pause(1);
+  await waitFor(
+    function () {
+      return isOnCartPage() || findCheckoutButton();
+    },
+    8000,
+    50,
+  );
 }
 
 async function waitForProductPageReady() {
-  await pause(0.03);
   logStep("Waiting for product page…");
   await waitFor(function () {
     return isOnProductPage();
-  }, 15000, 200);
+  }, 15000, 50);
   logStep("Product page ready");
 }
 
@@ -105,14 +129,13 @@ function findCheckoutButton() {
 }
 
 async function waitForCartPageReady() {
-  await pause(0.03);
   logStep("Waiting for cart page…");
   await waitFor(
     function () {
       return isOnCartPage() && findCheckoutButton();
     },
     12000,
-    200,
+    50,
   );
   logStep("Cart page ready");
 }

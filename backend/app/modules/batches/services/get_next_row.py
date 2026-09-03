@@ -2,16 +2,32 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.batches.helpers.batch_stats import refresh_batch_counts
-from app.modules.batches.models.db_models import ROW_IN_PROGRESS, ROW_PENDING, Batch, BatchRow
+from app.modules.batches.helpers.ownership import get_owned_batch
+from app.modules.batches.models.db_models import (
+    ROW_IN_PROGRESS,
+    ROW_PENDING,
+    Batch,
+    BatchRow,
+)
 from app.modules.batches.models.response_models import BatchRowResponse
 
 
-def get_next_pending_row(batch_id: str | None, db: Session) -> BatchRowResponse:
+def get_next_pending_row(
+    batch_id: str | None,
+    db: Session,
+    user_id: str | None = None,
+) -> BatchRowResponse:
+    if batch_id:
+        get_owned_batch(db, batch_id, user_id)
+
     query = (
         select(BatchRow)
+        .join(Batch, Batch.id == BatchRow.batch_id)
         .where(BatchRow.status.in_([ROW_PENDING, ROW_IN_PROGRESS]))
         .order_by(BatchRow.batch_id, BatchRow.row_number)
     )
+    if user_id:
+        query = query.where(Batch.user_id == user_id)
     if batch_id:
         query = query.where(BatchRow.batch_id == batch_id)
 

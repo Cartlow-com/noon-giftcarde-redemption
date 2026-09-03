@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "./config";
+import { getStoredAuthTokens } from "./storage";
 
 export interface BatchSummary {
   id: string;
@@ -47,7 +48,13 @@ export interface BatchRow {
 async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   const base = getApiBaseUrl();
   const url = `${base}${path}`;
-  return fetch(url, init);
+  const tokens = await getStoredAuthTokens();
+  if (!tokens.accessToken) {
+    throw new Error("Noon dashboard access token missing. Sign in to the dashboard first.");
+  }
+  const headers = new Headers(init?.headers);
+  headers.set("Authorization", `Bearer ${tokens.accessToken}`);
+  return fetch(url, { ...init, headers });
 }
 
 async function parseJson<T>(response: Response): Promise<T> {

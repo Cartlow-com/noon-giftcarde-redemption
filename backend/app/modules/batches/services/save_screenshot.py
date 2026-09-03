@@ -4,7 +4,7 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.config.settings import settings
-from app.modules.batches.models.db_models import BatchRow
+from app.modules.batches.helpers.ownership import get_owned_row
 from app.modules.batches.models.response_models import BatchRowResponse
 
 SCREENSHOT_KINDS = {
@@ -20,13 +20,12 @@ def save_row_screenshot(
     kind: str,
     file: UploadFile,
     db: Session,
+    user_id: str | None = None,
 ) -> BatchRowResponse:
     if kind not in SCREENSHOT_KINDS:
         raise ValueError(f"Invalid screenshot kind: {kind}")
 
-    row = db.get(BatchRow, row_id)
-    if not row:
-        raise ValueError("Row not found")
+    row = get_owned_row(db, row_id, user_id)
 
     folder = Path(settings.SCREENSHOT_STORAGE_DIR) / row.batch_id / str(row.row_number)
     folder.mkdir(parents=True, exist_ok=True)

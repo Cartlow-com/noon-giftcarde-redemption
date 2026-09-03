@@ -13,6 +13,10 @@
   const optOrder = document.getElementById("opt-order-email");
 
   async function refreshActiveRun() {
+    if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) {
+      ui().setActiveRun(null);
+      return;
+    }
     try {
       const run = await U.api("/runs/active");
       ui().setActiveRun(run);
@@ -22,6 +26,10 @@
   }
 
   async function refreshExtensionStatus() {
+    if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) {
+      ui().setExtensionOnline(false);
+      return;
+    }
     try {
       const status = await U.api("/runs/extension/status");
       ui().setExtensionOnline(!!status.online);
@@ -64,6 +72,7 @@
 
   btnRun.addEventListener("click", async () => {
     const s = state();
+    if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) return;
     const rowIds = [...s.selectedIds];
     if (!s.selectedBatchId || rowIds.length === 0) return;
     if (!s.extensionOnline) {
@@ -99,6 +108,7 @@
   });
 
   btnStop.addEventListener("click", async () => {
+    if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) return;
     const run = state().activeRun;
     if (!run) return;
     try {
@@ -111,8 +121,24 @@
     }
   });
 
-  refreshActiveRun();
-  refreshExtensionStatus();
-  setInterval(refreshActiveRun, 2500);
-  setInterval(refreshExtensionStatus, 2500);
+  async function bootControls() {
+    if (window.AdminAuth && typeof window.AdminAuth.ready === "function") {
+      await window.AdminAuth.ready();
+    }
+    if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) return;
+    refreshActiveRun();
+    refreshExtensionStatus();
+  }
+
+  window.addEventListener("noon-auth-changed", (event) => {
+    if (event.detail && event.detail.authenticated) {
+      refreshActiveRun();
+      refreshExtensionStatus();
+    } else {
+      ui().setActiveRun(null);
+      ui().setExtensionOnline(false);
+    }
+  });
+
+  bootControls();
 })();

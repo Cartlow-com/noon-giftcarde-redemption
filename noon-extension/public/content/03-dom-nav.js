@@ -164,8 +164,7 @@ async function clickNavLink(el) {
 
   const href = link.href || link.getAttribute("href") || "";
   logStep("Clicking: " + normalizeText(link.textContent));
-  await mouse().click(link);
-  await pause(0.6);
+  await mouse().click(link, { fast: true });
 
   if (!href || href.indexOf("javascript:") === 0) return;
 
@@ -177,12 +176,21 @@ async function clickNavLink(el) {
       return true;
     }
     return isOnCreditsPage() && href.indexOf("/credits") !== -1;
-  }, 4000, 150);
+  }, 4000, 50);
 
   if (!navigated && href) {
     logStep("Opening link directly…");
     location.href = href;
-    await pause(1.2);
+    await waitFor(
+      function () {
+        if (pathNeedle && location.pathname.replace(/\/$/, "").indexOf(pathNeedle) !== -1) {
+          return true;
+        }
+        return document.readyState === "complete";
+      },
+      10000,
+      50,
+    );
   }
 }
 

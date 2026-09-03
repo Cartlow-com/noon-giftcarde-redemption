@@ -1,4 +1,5 @@
 let activeApiBaseUrl = null;
+const AUTH_TOKEN_KEY = "noon_access_token";
 
 function clearActiveApiBaseUrl() {
   activeApiBaseUrl = null;
@@ -31,11 +32,33 @@ async function getApiBaseUrl() {
   return activeApiBaseUrl || bases[0];
 }
 
+async function getAuthToken() {
+  const data = await chrome.storage.local.get([AUTH_TOKEN_KEY]);
+  return typeof data[AUTH_TOKEN_KEY] === "string" ? data[AUTH_TOKEN_KEY] : "";
+}
+
+async function withAuthHeaders(options) {
+  const token = await getAuthToken();
+  if (!token) {
+    throw new Error("Noon dashboard access token missing. Sign in to the dashboard first.");
+  }
+  const headers = new Headers((options && options.headers) || {});
+  headers.set("Authorization", `Bearer ${token}`);
+  return Object.assign({}, options || {}, { headers: headers });
+}
+
 async function batchApiRequestFromBase(base, path, options) {
+  const requestOptions = await withAuthHeaders(options);
   const response = await fetch(
     `${base}${path}`,
-    Object.assign({ credentials: "include" }, options || {}),
+    Object.assign({ credentials: "include" }, requestOptions),
   );
+  if (response.status === 401) {
+    await chrome.storage.local.remove(["noon_access_token", "noon_refresh_token"]);
+    const error = new Error("Session expired — sign in on the dashboard again");
+    error.status = 401;
+    throw error;
+  }
   if (!response.ok) {
     let detail = response.statusText;
     try {
@@ -69,11 +92,20 @@ async function patchBatchRow(rowId, body) {
 
 async function uploadRowScreenshot(rowId, kind, blob) {
   const base = await getApiBaseUrl();
+  const token = await getAuthToken();
+  if (!token) {
+    throw new Error("Noon dashboard access token missing. Sign in to the dashboard first.");
+  }
   const form = new FormData();
   form.append("file", blob, kind + ".png");
   const response = await fetch(
     `${base}/batches/rows/${encodeURIComponent(rowId)}/screenshots?kind=${encodeURIComponent(kind)}`,
-    { method: "POST", body: form, credentials: "include" },
+    {
+      method: "POST",
+      body: form,
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}` },
+    },
   );
   if (!response.ok) {
     let detail = response.statusText;
@@ -87,10 +119,18 @@ async function uploadRowScreenshot(rowId, kind, blob) {
 }
 
 async function captureAndUploadScreenshot(tabId, rowId, kind) {
-  const tab = await chrome.tabs.get(tabId);
+  let tab = await chrome.tabs.get(tabId);
   if (tab.windowId == null) {
     throw new Error("Tab has no window — cannot capture screenshot");
   }
+
+  // Redeem shots must be the Noon credits tab — never another focused window/tab.
+  if (kind === "before_redeem" || kind === "after_redeem") {
+    if (!tab.url || tab.url.indexOf("account.noon.com") === -1 || tab.url.indexOf("/credits") === -1) {
+      throw new Error("Noon credits tab not active — refusing wrong-screen screenshot");
+    }
+  }
+
   const hideAfter =
     typeof batchHideWindow !== "undefined" ? !!batchHideWindow : false;
   try {
@@ -99,8 +139,18 @@ async function captureAndUploadScreenshot(tabId, rowId, kind) {
     await chrome.windows.update(tab.windowId, focusPatch);
   } catch (_) {}
   await chrome.tabs.update(tabId, { active: true });
+  tab = await chrome.tabs.get(tabId);
+  if (kind === "before_redeem" || kind === "after_redeem") {
+    if (!tab.url || tab.url.indexOf("/credits") === -1) {
+      throw new Error("Lost Noon credits tab before capture");
+    }
+    const stillReady = await prepareCreditsScreenshotOnTab(tabId, "ready");
+    if (!stillReady || stillReady.ok === false || stillReady.balance == null) {
+      throw new Error("Credits still loading — not capturing skeleton screenshot");
+    }
+  }
   await new Promise(function (resolve) {
-    setTimeout(resolve, 400);
+    setTimeout(resolve, kind === "before_redeem" || kind === "after_redeem" ? 600 : 250);
   });
   let dataUrl;
   try {

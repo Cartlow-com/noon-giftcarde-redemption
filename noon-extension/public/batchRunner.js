@@ -9,6 +9,8 @@ let batchSendRedeemEmails = false;
 let batchSendOrderEmails = false;
 let batchHideWindow = false;
 let batchLoginOnly = false;
+let activeBatchRunId = null;
+let pendingAttemptMeta = null;
 
 const NOON_CREDITS_URL = "https://account.noon.com/uae-en/credits/";
 const NOON_PROFILE_URL = "https://account.noon.com/uae-en/profile/";
@@ -16,47 +18,60 @@ const NOON_PROFILE_URL = "https://account.noon.com/uae-en/profile/";
 async function openCreditsPage(tabId) {
   await chrome.tabs.update(tabId, { url: NOON_CREDITS_URL });
   await waitForTabComplete(tabId);
-  await delay(900);
 }
 
 async function captureRedeemScreenshot(tabId, row, kind) {
-  // After redeem: hard-nav to credits so modal closes and balance can paint.
-  // Do this from the extension (not content.js) so the page reload doesn't kill the RPC.
-  if (kind === "after_redeem") {
-    await chrome.tabs.update(tabId, { url: NOON_CREDITS_URL });
-    await waitForTabComplete(tabId);
-    await delay(900);
-  }
+  // Always land on credits and wait for Available Balance before capturing.
+  await chrome.tabs.update(tabId, { url: NOON_CREDITS_URL, active: true });
+  await waitForTabComplete(tabId);
+
+  let prepared = null;
   try {
     throwIfCancelled();
-    const prepared = await prepareCreditsScreenshotOnTab(tabId, "ready");
+    prepared = await prepareCreditsScreenshotOnTab(tabId, "ready");
     if (prepared && prepared.ok === false) {
       throw new Error(prepared.error || "Credits page not ready for screenshot");
     }
-    if (prepared && prepared.balance != null) {
-      emitStageProgress(
-        row,
-        "redeem",
-        "info",
-        `Row ${row.row_number}: credits balance ${prepared.balance} AED — capturing ${kind.replace(/_/g, " ")}`,
-      );
+    if (!prepared || prepared.balance == null) {
+      throw new Error("Credits balance not visible — skipping inaccurate screenshot");
     }
+    emitStageProgress(
+      row,
+      "redeem",
+      "info",
+      `Row ${row.row_number}: credits balance ${prepared.balance} AED — capturing ${kind.replace(/_/g, " ")}`,
+    );
   } catch (error) {
     emitStageProgress(
       row,
       "system",
       "info",
       `Row ${row.row_number}: credits prepare for ${kind} — ${
-        error instanceof Error ? error.message : "continuing"
+        error instanceof Error ? error.message : "skipping screenshot"
       }`,
     );
+    return;
   }
+
+  // Ensure we still own the Noon credits tab (never capture dashboard/other windows).
+  let tab = await chrome.tabs.get(tabId);
+  if (!tab.url || tab.url.indexOf("account.noon.com") === -1 || tab.url.indexOf("/credits") === -1) {
+    await chrome.tabs.update(tabId, { url: NOON_CREDITS_URL, active: true });
+    await waitForTabComplete(tabId);
+    prepared = await prepareCreditsScreenshotOnTab(tabId, "ready");
+    if (!prepared || prepared.ok === false || prepared.balance == null) return;
+    tab = await chrome.tabs.get(tabId);
+  }
+
   await safeCaptureScreenshot(tabId, row, kind);
 }
 
 async function safeCaptureScreenshot(tabId, row, kind) {
+  // on_failure: one shot only — row already failed (e.g. too many login attempts);
+  // a second capture just delays moving on and rarely helps.
+  const maxAttempts = kind === "on_failure" ? 1 : 2;
   let lastError = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       await captureAndUploadScreenshot(tabId, row.id, kind);
       emitStageProgress(
@@ -68,7 +83,7 @@ async function safeCaptureScreenshot(tabId, row, kind) {
       return;
     } catch (error) {
       lastError = error;
-      await delay(600);
+      if (attempt + 1 < maxAttempts) await delay(150);
     }
   }
   emitStageProgress(
@@ -228,11 +243,8 @@ async function recoverNoonTab(tabId) {
   try {
     await chrome.tabs.sendMessage(tabId, { type: "RECOVER_PAGE_IF_NEEDED" });
   } catch (_) {
-    try {
-      await hardRefreshTab(tabId);
-      await waitForTabComplete(tabId);
-      await delay(600);
-    } catch (_) {}
+    // Wait for content script instead of reloading — refresh mid-flow breaks automation.
+    await delay(150);
   }
 }
 
@@ -259,7 +271,6 @@ async function resetTabForNewRow(tabId, rowNumber) {
   try {
     await chrome.tabs.update(tabId, { url: NOON_PROFILE_URL });
     await waitForTabComplete(tabId);
-    await delay(400);
   } catch (_) {}
 }
 
@@ -534,6 +545,37 @@ function stageOrderDone(status) {
   return status === "success";
 }
 
+async function recordRowAttempt(row, meta) {
+  if (!row || !row.id) return null;
+  const info = meta || {};
+  try {
+    return await batchApiRequest(`/batches/rows/${encodeURIComponent(row.id)}/attempts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        batch_run_id: activeBatchRunId || null,
+        outcome: info.outcome || row.status || "unknown",
+        message: info.message || null,
+        login_status: row.login_status,
+        redeem_status: row.redeem_status,
+        purchase_status: row.purchase_status,
+        status: row.status,
+        login_error: row.login_error || null,
+        redeem_error: row.redeem_error || null,
+        purchase_error: row.purchase_error || null,
+        order_id: row.order_id || null,
+        duration_ms: row.duration_ms != null ? row.duration_ms : null,
+      }),
+    });
+  } catch (_) {
+    return null;
+  }
+}
+
+function noteAttempt(meta) {
+  pendingAttemptMeta = meta || null;
+}
+
 async function syncSessionForRow(row, tabId, previousEmail) {
   // CRITICAL: never trust DB login_status or in-memory sessionEmail alone.
   // Always open profile; logout+login when browser session != row email.
@@ -545,6 +587,7 @@ async function processBatchRow(row, tabId, previousEmail) {
   const rowNum = row.row_number;
   const now = isoNow();
   currentBatchRow = row;
+  pendingAttemptMeta = null;
 
   if (batchLoginOnly) {
     await processLoginOnlyRow(row, tabId);
@@ -552,7 +595,6 @@ async function processBatchRow(row, tabId, previousEmail) {
   }
 
   if (
-    stageSuccess(row.login_status) &&
     stageRedeemDone(row.redeem_status) &&
     stageOrderDone(row.purchase_status)
   ) {
@@ -560,10 +602,14 @@ async function processBatchRow(row, tabId, previousEmail) {
       row,
       "system",
       "skipped",
-      `Row ${rowNum}: all stages already successful — skipping row`,
+      `Row ${rowNum}: redeem+order already done — skipping entire row`,
       row.email,
     );
     await patchStage(row.id, { status: "completed" });
+    noteAttempt({
+      message: "Skipped — redeem and order already successful",
+      outcome: "skipped_complete",
+    });
     emitBatch({
       type: "BATCH_ROW_DONE",
       batchId: row.batch_id,
@@ -585,6 +631,8 @@ async function processBatchRow(row, tabId, previousEmail) {
     }
     const errMsg = error instanceof Error ? error.message : "Login failed";
     await skipFailedRow(row, "login", errMsg, tabId);
+    row = await getBatchRow(row.id);
+    noteAttempt({ message: errMsg, outcome: "failed_login" });
     return;
   }
 
@@ -600,6 +648,19 @@ async function processBatchRow(row, tabId, previousEmail) {
 
   if (!stageRedeemDone(row.redeem_status)) {
     throwIfCancelled();
+    // Always re-verify live Noon email == row email before redeem (never trust prior login alone).
+    try {
+      await assertSessionEmailOnTab(tabId, row.email);
+    } catch (error) {
+      if (error.cancelled) {
+        await markRowStopped(row, "login");
+        return;
+      }
+      const errMsg = error instanceof Error ? error.message : "Session email mismatch";
+      await skipFailedRow(row, "login", errMsg, tabId);
+      noteAttempt({ message: errMsg, outcome: "failed_login" });
+      return;
+    }
     const cardLabel = maskCardNumber(row.gift_card_number);
     emitStageProgress(
       row,
@@ -610,7 +671,6 @@ async function processBatchRow(row, tabId, previousEmail) {
     );
     await patchStage(row.id, { redeem_status: "running" });
     try {
-      // Account was verified once by ensureRowAccount immediately before this stage.
       await openCreditsPage(tabId);
       await captureRedeemScreenshot(tabId, row, "before_redeem");
       const result = await runFlowStep(tabId, function () {
@@ -619,7 +679,7 @@ async function processBatchRow(row, tabId, previousEmail) {
           password: row.password,
           giftCardNumber: row.gift_card_number,
           giftCardPin: row.gift_card_pin,
-          accountVerified: true,
+          accountVerified: false,
         });
       });
       const redeemedAt = isoNow();
@@ -663,6 +723,8 @@ async function processBatchRow(row, tabId, previousEmail) {
         await safeNotifyRedeem(row);
       } else {
         await skipFailedRow(row, "redeem", errMsg, tabId);
+        row = await getBatchRow(row.id);
+        noteAttempt({ message: errMsg, outcome: "failed_redeem" });
         return;
       }
     }
@@ -682,9 +744,25 @@ async function processBatchRow(row, tabId, previousEmail) {
 
   if (!stageOrderDone(row.purchase_status)) {
     throwIfCancelled();
+    // Always re-verify before placing order.
+    try {
+      await assertSessionEmailOnTab(tabId, row.email);
+    } catch (error) {
+      if (error.cancelled) {
+        await markRowStopped(row, "login");
+        return;
+      }
+      const errMsg = error instanceof Error ? error.message : "Session email mismatch";
+      await skipFailedRow(row, "login", errMsg, tabId);
+      noteAttempt({ message: errMsg, outcome: "failed_login" });
+      return;
+    }
     const product = shortUrl(row.product_url);
     const orderRetry =
-      row.purchase_status === "skipped" || row.purchase_status === "payment_issue";
+      row.status === "partial" ||
+      row.purchase_status === "skipped" ||
+      row.purchase_status === "payment_issue" ||
+      row.purchase_status === "failed";
     emitStageProgress(
       row,
       "order",
@@ -692,7 +770,9 @@ async function processBatchRow(row, tabId, previousEmail) {
       orderRetry
         ? row.purchase_status === "payment_issue"
           ? `Row ${rowNum}: re-running order (previous payment issue)`
-          : `Row ${rowNum}: re-running order (previously skipped)`
+          : row.status === "partial"
+            ? `Row ${rowNum}: re-running order (row was partial)`
+            : `Row ${rowNum}: re-running order (previously ${row.purchase_status || "incomplete"})`
         : `Row ${rowNum}: purchasing item`,
       row.product_url,
     );
@@ -713,10 +793,14 @@ async function processBatchRow(row, tabId, previousEmail) {
       });
       if (result && result.paymentIssue) {
         await markPaymentIssueRow(row, row.product_url);
+        row = await getBatchRow(row.id);
+        noteAttempt({ message: "Payment issue", outcome: "partial" });
         return;
       }
       if (result && result.orderSkipped) {
         await markOrderSkippedRow(row, row.product_url);
+        row = await getBatchRow(row.id);
+        noteAttempt({ message: "Place order skipped", outcome: "partial" });
         return;
       }
       const orderId =
@@ -733,6 +817,10 @@ async function processBatchRow(row, tabId, previousEmail) {
       await safeCaptureScreenshot(tabId, row, "after_order");
       row = await getBatchRow(row.id);
       await safeNotifyOrder(row);
+      noteAttempt({
+        message: orderId ? `Order ${orderId}` : "Order placed",
+        outcome: "completed",
+      });
       emitBatch({
         type: "BATCH_ROW_DONE",
         batchId: row.batch_id,
@@ -752,6 +840,8 @@ async function processBatchRow(row, tabId, previousEmail) {
       }
       const errMsg = error instanceof Error ? error.message : "Order failed";
       await skipFailedRow(row, "order", errMsg, tabId);
+      row = await getBatchRow(row.id);
+      noteAttempt({ message: errMsg, outcome: "failed_order" });
     }
     return;
   }
@@ -764,6 +854,11 @@ async function processBatchRow(row, tabId, previousEmail) {
     shortUrl(row.product_url),
   );
   await patchStage(row.id, { status: "completed" });
+  row = await getBatchRow(row.id);
+  noteAttempt({
+    message: "Skipped — order already successful",
+    outcome: "skipped_complete",
+  });
   emitBatch({
     type: "BATCH_ROW_DONE",
     batchId: row.batch_id,
@@ -789,6 +884,7 @@ async function runSelectedRows(batchId, rowIds, options) {
   batchSendOrderEmails = !!opts.sendOrderEmails;
   batchHideWindow = !!opts.hideWindow;
   batchLoginOnly = !!opts.loginOnly;
+  activeBatchRunId = opts.runId || null;
   await chrome.storage.local.set({
     [BATCH_RUN_KEY]: {
       batchId: batchId,
@@ -846,7 +942,6 @@ async function runSelectedRows(batchId, rowIds, options) {
     });
 
     const tabId = await getOrCreateNoonTab({
-      forceNewWindow: !!opts.forceNewWindow && i === 0,
       hideWindow: batchHideWindow,
     });
     activeLoginTabId = tabId;
@@ -863,6 +958,11 @@ async function runSelectedRows(batchId, rowIds, options) {
       run_finished_at: finishedAt,
       duration_ms: durationMs,
     }).catch(function () {});
+    try {
+      const finalRow = await getBatchRow(row.id);
+      await recordRowAttempt(finalRow, pendingAttemptMeta || { outcome: finalRow.status });
+    } catch (_) {}
+    pendingAttemptMeta = null;
     activeLoginTabId = null;
     currentBatchRow = null;
     processed += 1;
@@ -870,6 +970,8 @@ async function runSelectedRows(batchId, rowIds, options) {
 
   batchRunActive = false;
   currentBatchRow = null;
+  activeBatchRunId = null;
+  pendingAttemptMeta = null;
   await chrome.storage.local.remove(BATCH_RUN_KEY);
 
   emitBatch({

@@ -104,7 +104,7 @@ async function dismissRedeemModal() {
       );
       if (closeInDialog && isVisible(closeInDialog)) {
         await mouse().click(closeInDialog);
-        await pause(0.6);
+        await pause(0.05);
         continue;
       }
     }
@@ -114,14 +114,14 @@ async function dismissRedeemModal() {
     );
     if (closeBtn && isVisible(closeBtn)) {
       await mouse().click(closeBtn);
-      await pause(0.6);
+      await pause(0.05);
       continue;
     }
 
     document.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", keyCode: 27, bubbles: true }),
     );
-    await pause(0.5);
+    await pause(0.05);
   }
 }
 
@@ -134,7 +134,7 @@ async function waitForBalanceIncrease(balanceBefore, timeoutMs) {
       return null;
     },
     timeoutMs || 15000,
-    400,
+    50,
   );
 }
 

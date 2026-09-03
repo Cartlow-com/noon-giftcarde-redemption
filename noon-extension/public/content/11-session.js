@@ -18,41 +18,175 @@ function setSessionEmail(email) {
 }
 
 async function loginOnHomepage(email, password) {
-  await goToNoonHomeIfNeeded();
-  await acceptCookies();
-  await openLoginModal();
-  await enterEmailAndContinue(email);
-  await loginWithPassword(password);
-  await pause(0.4);
+  await loginFromProfilePage(email, password);
 }
 
 async function loginFromProfilePage(email, password) {
   await openProfilePage();
-  await acceptCookies();
   await loginFromCurrentPage(email, password);
-  await pause(0.2);
+}
+
+async function waitForLoginRequiredScreen() {
+  const gate = await waitFor(
+    function () {
+      if (findEmailInput()) return "popup";
+      if (isAccountRequiredPage()) return "account_required";
+      return null;
+    },
+    10000,
+    50,
+  );
+  if (gate) {
+    logStep("Login required (" + gate + ")");
+    return gate;
+  }
+  if (location.href.indexOf("/profile") !== -1 && findNavbarLogIn && findNavbarLogIn()) {
+    logStep("Login required (profile Log In)");
+    return "login";
+  }
+  throw new Error("Login required screen did not appear");
 }
 
 async function loginFromCurrentPage(email, password) {
   await acceptCookies();
-  // On Account required (and any logged-out page): open navbar Log In popup — never the blue LOGIN/SIGNUP.
+  if (!findEmailInput()) {
+    await waitForLoginRequiredScreen();
+  }
   if (!findEmailInput()) {
     await openLoginModal();
   }
   await enterEmailAndContinue(email);
   await loginWithPassword(password);
-  await pause(0.4);
 }
 
-async function persistBatchAccountLogin(payload) {
+async function persistBatchAccountLogin(payload, step) {
   await saveFlowState({
     active: true,
     resumeOnLoad: true,
     flowType: "batch_account",
     email: payload.email || "",
     password: payload.password || "",
-    step: "login_profile",
+    step: step || "login_profile",
   });
+}
+
+async function reopenProfileAfterLogout(payload) {
+  logStep("Waiting 1s after sign out…");
+  await pause(1);
+  logStep("Opening profile page again…");
+  await persistBatchAccountLogin(payload, "after_logout");
+  const current = location.href.split("?")[0].replace(/\/$/, "");
+  const target = NOON_PROFILE.replace(/\/$/, "");
+  if (current === target) {
+    location.reload();
+  } else {
+    location.href = NOON_PROFILE;
+  }
+  return { navigated: true };
+}
+
+/** Profile first: match email, or sign out → wait → profile → Log In (retry once). */
+async function matchOrLoginOnProfile(payload) {
+  const required = String(payload.email).trim().toLowerCase();
+  const previous = payload.previousEmail
+    ? String(payload.previousEmail).trim().toLowerCase()
+    : null;
+
+  await openProfilePage();
+  const authState = await waitForProfileAuthState(12000);
+  let profileEmail =
+    authState && authState.kind === "email" ? authState.email : null;
+  logStep(
+    "Profile check — required=" +
+      required +
+      " live=" +
+      (profileEmail || "unknown") +
+      " state=" +
+      ((authState && authState.kind) || "unknown"),
+  );
+
+  if (profileEmail === required) {
+    await setSessionEmail(required);
+    logStep("Profile email matches — already logged in as " + required);
+    return { ok: true, skipped: true, switched: false };
+  }
+
+  const needsLogout =
+    (profileEmail && profileEmail !== required) ||
+    (!profileEmail && isLoggedIn()) ||
+    (previous && previous !== required && profileEmail !== required);
+
+  let didLogout = false;
+  if (needsLogout) {
+    logStep(
+      "Logged in as " +
+        (profileEmail || previous || "unknown") +
+        " — row is " +
+        required +
+        " — signing out",
+    );
+    await logoutFromNoon();
+    didLogout = true;
+    const afterNav = await reopenProfileAfterLogout(payload);
+    if (afterNav.navigated) return { ok: true, pending: true };
+    const afterLogout = await waitForProfileAuthState(12000);
+    profileEmail =
+      afterLogout && afterLogout.kind === "email" ? afterLogout.email : null;
+  }
+
+  if (profileEmail === required) {
+    await setSessionEmail(required);
+    return { ok: true, skipped: true, switched: didLogout };
+  }
+
+  if (profileEmail && profileEmail !== required) {
+    throw new Error(
+      "Still logged in as " +
+        profileEmail +
+        (didLogout ? " after logout" : " — logout never ran") +
+        " — cannot switch to " +
+        required,
+    );
+  }
+
+  logStep("Logging in as " + required + "…");
+  try {
+    await loginFromCurrentPage(payload.email, payload.password);
+    await openProfilePage();
+    const afterState = await waitForProfileAuthState(12000);
+    const afterEmail =
+      afterState && afterState.kind === "email" ? afterState.email : null;
+    if (afterEmail !== required) {
+      throw new Error(
+        "Login finished but profile is " +
+          (afterEmail || "unknown") +
+          " not " +
+          required,
+      );
+    }
+    await setSessionEmail(required);
+    return { ok: true, skipped: false, switched: true };
+  } catch (localErr) {
+    if (
+      localErr &&
+      localErr.message &&
+      (localErr.message.indexOf("OTP is required") !== -1 ||
+        localErr.message.indexOf("Manual login required") !== -1 ||
+        localErr.message.indexOf("Too many failed attempts") !== -1)
+    ) {
+      throw localErr;
+    }
+    logStep(
+      "In-place login failed (" +
+        (localErr instanceof Error ? localErr.message : "error") +
+        ") — retrying from profile",
+    );
+  }
+
+  await clearFlowDone();
+  await persistBatchAccountLogin(payload, "login_profile");
+  location.href = NOON_PROFILE;
+  return { ok: true, pending: true };
 }
 
 async function runBatchAccount(payload) {
@@ -64,130 +198,12 @@ async function runBatchAccount(payload) {
   try {
     await enableCursor();
     await recoverFromFetchErrorIfNeeded(1);
-    const required = String(payload.email).trim().toLowerCase();
-    const previous = payload.previousEmail
-      ? String(payload.previousEmail).trim().toLowerCase()
-      : null;
-
-    await openProfilePage();
-    let profileEmail = await waitForReadableProfileEmail(6000);
-    logStep(
-      "Profile check — required=" +
-        required +
-        " live=" +
-        (profileEmail || "unknown") +
-        " hiGreeting=" +
-        isLoggedIn() +
-        " session=" +
-        hasActiveNoonSession(),
-    );
-
-    // Already the right account.
-    if (profileEmail === required) {
-      await setSessionEmail(required);
-      logStep("Profile email matches — already logged in as " + required);
-      await disableCursor();
-      return { ok: true, skipped: true, switched: false };
-    }
-
-    // MUST logout when profile shows another email — do not require Hi, greeting.
-    // If previous row email differs and we cannot prove we are already `required`, logout.
-    const needsLogout =
-      (profileEmail && profileEmail !== required) ||
-      (!profileEmail && isLoggedIn()) ||
-      (previous && previous !== required && profileEmail !== required);
-
-    let didLogout = false;
-    if (needsLogout) {
-      logStep(
-        "Switching account — logout required before " +
-          required +
-          " (live=" +
-          (profileEmail || previous || "unknown") +
-          ")",
-      );
-      await logoutFromNoon();
-      didLogout = true;
-      await pause(0.6);
-      await openProfilePage();
-      profileEmail = await waitForReadableProfileEmail(4000);
-    }
-
-    if (profileEmail === required) {
-      await setSessionEmail(required);
-      await disableCursor();
-      return { ok: true, skipped: true, switched: didLogout };
-    }
-
-    if (profileEmail && profileEmail !== required) {
-      throw new Error(
-        "Still logged in as " +
-          profileEmail +
-          (didLogout ? " after logout" : " — logout never ran") +
-          " — cannot switch to " +
-          required,
-      );
-    }
-
-    // Logged out (or account-required) → login as row.
-    logStep("Logging in as " + required + "…");
-    try {
-      await loginFromCurrentPage(payload.email, payload.password);
-      await openProfilePage();
-      const afterEmail = await waitForReadableProfileEmail(8000);
-      if (afterEmail !== required) {
-        throw new Error(
-          "Login finished but profile is " +
-            (afterEmail || "unknown") +
-            " not " +
-            required,
-        );
-      }
-      await setSessionEmail(required);
-      await disableCursor();
-      return {
-        ok: true,
-        skipped: false,
-        switched: true,
-      };
-    } catch (localErr) {
-      if (
-        localErr &&
-        localErr.message &&
-        (localErr.message.indexOf("OTP is required") !== -1 ||
-          localErr.message.indexOf("Manual login required") !== -1)
-      ) {
-        throw localErr;
-      }
-      logStep(
-        "In-place login failed (" +
-          (localErr instanceof Error ? localErr.message : "error") +
-          ") — retrying from profile",
-      );
-    }
-
-    await clearFlowDone();
-    await persistBatchAccountLogin(payload);
-    location.href = NOON_PROFILE;
-    return { ok: true, pending: true };
+    const result = await matchOrLoginOnProfile(payload);
+    if (!result.pending) await disableCursor();
+    return result;
   } finally {
     flow().running = false;
   }
-}
-
-async function goToNoonHomeIfNeeded() {
-  if (!location.href.includes("noon.com")) {
-    location.href = NOON_HOME;
-    await waitForPageReady();
-    return;
-  }
-  if (location.href.indexOf("www.noon.com") === -1) {
-    logStep("Going to Noon homepage…");
-    location.href = NOON_HOME;
-    await waitForPageReady();
-    return;
-  }
-  await waitForPageReady();
 }
 
 async function ensureLoggedIn(payload) {
@@ -196,52 +212,28 @@ async function ensureLoggedIn(payload) {
     ? String(payload.email).trim().toLowerCase()
     : null;
 
-  // If we know the required account, always verify via profile (never trust Hi, alone).
   if (required) {
-    try {
-      await assertSessionMatchesRowEmail(required);
+    const result = await matchOrLoginOnProfile(payload);
+    if (result && result.pending) {
+      await new Promise(function () {});
+    }
+    if (result && result.skipped) {
       logStep("Already logged in as " + required + " — skipping login");
       return true;
-    } catch (_) {
-      if (isLoggedIn()) {
-        logStep("Logged in as someone else — logging out before " + required);
-        await logoutFromNoon();
-      }
     }
-    await loginFromCurrentPage(payload.email, payload.password).catch(async function () {
-      await loginOnHomepage(payload.email, payload.password);
-    });
-    await assertSessionMatchesRowEmail(required);
     logStep("Login complete as " + required);
     return false;
   }
 
-  if (!location.href.includes("noon.com")) {
-    logStep("Navigating to Noon…");
-    location.href = NOON_HOME;
-    await waitForPageReady();
-  } else if (location.href.indexOf("www.noon.com") !== -1) {
-    await waitForPageReady();
-  } else if (location.href.indexOf("account.noon.com") !== -1) {
-    logStep("On account page — going to homepage…");
-    location.href = NOON_HOME;
-    await waitForPageReady();
-  } else {
-    await pause(0.3);
-  }
-
+  await openProfilePage();
   await acceptCookies();
-
-  if (isLoggedIn()) {
+  const authState = await waitForProfileAuthState(12000);
+  if (authState && authState.kind === "email") {
     logStep("Already logged in — skipping login");
     return true;
   }
 
-  await openLoginModal();
-  await enterEmailAndContinue(payload.email);
-  await loginWithPassword(payload.password);
-  await pause(0.4);
+  await loginFromCurrentPage(payload.email, payload.password);
   logStep("Login complete");
   return false;
 }
-

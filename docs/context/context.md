@@ -47,10 +47,11 @@ noon_automation/
 | Cart checkout flow | 🟡 New | Add to cart → checkout → credits → confirm Place Order |
 | Side panel UI | ✅ Done | Email, password, gift card #, PIN, Run/Cancel/Save |
 | Cross-page resume | ✅ Done | `chrome.storage.local` flow state |
-| Backend API | ✅ Done | FastAPI — login + batches |
+| Backend API | ✅ Done | FastAPI — login + batches (auth required, per-user) |
 | Batch upload/history UI | ✅ Done | Extension Batches tab |
 | Batch runner (pull-next) | ✅ Done | Extension automation loop |
-| Admin dashboard (read-only) | ✅ Done | FastAPI `/` — status, emails, screenshots |
+| Admin dashboard | ✅ Done | FastAPI `/` — login + upload/run/stop + screenshots/emails |
+| Multi-user isolation | ✅ Done | Per-user data + concurrent runs; dashboard→extension token bridge |
 
 ## Gift Card Flow (current)
 

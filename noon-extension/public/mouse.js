@@ -205,17 +205,22 @@
     });
   }
 
-  async function moveToElement(el) {
+  async function moveToElement(el, options) {
     ensureVisible();
+    const fast = !options || options.fast !== false;
     setCursorMode(cursorModeForElement(el));
-    await delay(80);
+    if (!fast) await delay(80);
     checkAbort();
     scrollElementIntoView(el);
-    await delay(120);
+    if (!fast) await delay(120);
     checkAbort();
     const target = elementCenter(el, false);
-    await moveTo(target.x, target.y);
-    await delay(randomBetween(60, 120));
+    await moveTo(
+      target.x,
+      target.y,
+      fast ? Math.min(160, Math.max(40, Math.hypot(target.x - pos.x, target.y - pos.y) * 0.35)) : undefined,
+    );
+    if (!fast) await delay(randomBetween(60, 120));
   }
 
   function showClickRing(x, y) {
@@ -259,8 +264,9 @@
     return el;
   }
 
-  function dispatchPointerClick(el, clientX, clientY) {
+  function dispatchPointerClick(el, clientX, clientY, options) {
     const target = resolveClickableTarget(el) || el;
+    const once = options && options.once;
     const opts = {
       bubbles: true,
       cancelable: true,
@@ -274,6 +280,12 @@
       buttons: 1,
       detail: 1,
     };
+    if (once) {
+      try {
+        target.click();
+      } catch (_) {}
+      return;
+    }
     ["pointerover", "mouseover", "pointerenter", "mouseenter"].forEach(function (type) {
       try {
         target.dispatchEvent(new MouseEvent(type, opts));
@@ -304,41 +316,53 @@
   async function humanClick(el, options) {
     ensureVisible();
     const skipMove = options && options.skipMove;
+    const fast = !options || options.fast !== false;
+    const once = !!(options && options.once);
     setCursorMode("default");
     const clickable = resolveClickableTarget(el) || el;
     scrollElementIntoView(clickable);
-    await delay(120);
+    if (!fast) await delay(120);
     checkAbort();
     const center = elementCenter(clickable, false);
     if (!skipMove) {
-      await moveTo(center.x, center.y);
+      await moveTo(
+        center.x,
+        center.y,
+        fast ? Math.min(140, Math.max(40, Math.hypot(center.x - pos.x, center.y - pos.y) * 0.35)) : undefined,
+      );
     } else {
       setPosition(center.x, center.y);
     }
     showClickRing(center.x, center.y);
     await clickPulse();
-    // Click whatever is actually under the cursor (handles nested spans/icons).
     let hit = null;
     try {
       hit = document.elementFromPoint(center.x, center.y);
     } catch (_) {}
     if (hit && hit.id === HOST_ID) hit = null;
     const primary = resolveClickableTarget(hit) || hit || clickable;
-    dispatchPointerClick(primary, center.x, center.y);
-    if (primary !== clickable) {
-      dispatchPointerClick(clickable, center.x, center.y);
+    // once: single native click on one target — avoids Noon adding the item twice
+    if (once) {
+      dispatchPointerClick(primary || clickable, center.x, center.y, { once: true });
+    } else {
+      dispatchPointerClick(primary, center.x, center.y);
+      if (primary !== clickable) {
+        dispatchPointerClick(clickable, center.x, center.y);
+      }
     }
-    await delay(randomBetween(120, 200));
+    await delay(fast ? 20 : randomBetween(120, 200));
   }
 
   async function humanType(el, text, options) {
     ensureVisible();
     const masked = options && options.masked;
     const skipMove = options && options.skipMove;
+    const paste = options && options.paste;
+    const fast = !options || options.fast !== false;
 
     setCursorMode("text");
-    if (!skipMove) await moveToElement(el);
-    await humanClick(el, { skipMove: true });
+    if (!skipMove) await moveToElement(el, { fast: fast });
+    await humanClick(el, { skipMove: true, fast: fast });
     setCursorMode("text");
 
     el.focus();
@@ -348,6 +372,20 @@
 
     setNativeValue(el, "");
     el.dispatchEvent(new Event("input", { bubbles: true }));
+
+    if (paste) {
+      setNativeValue(el, text);
+      el.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          data: text,
+          inputType: "insertFromPaste",
+        }),
+      );
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      await delay(20);
+      return;
+    }
 
     let current = "";
     for (let i = 0; i < text.length; i++) {
@@ -362,11 +400,11 @@
           inputType: "insertText",
         }),
       );
-      await delay(randomBetween(35, 90));
+      await delay(fast ? randomBetween(4, 12) : randomBetween(35, 90));
     }
 
     el.dispatchEvent(new Event("change", { bubbles: true }));
-    await delay(masked ? 200 : randomBetween(150, 280));
+    await delay(masked ? (fast ? 30 : 200) : fast ? 20 : randomBetween(150, 280));
   }
 
   async function hide() {

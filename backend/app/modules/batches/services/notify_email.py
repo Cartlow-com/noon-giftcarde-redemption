@@ -3,10 +3,10 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.config.settings import settings
+from app.modules.batches.helpers.ownership import get_owned_row
 from app.modules.batches.models.db_models import (
     STAGE_ALREADY_REDEEMED,
     STAGE_SUCCESS,
-    BatchRow,
 )
 from app.modules.email.models.response_models import SendEmailResponse
 from app.modules.email.services.send_email import send_templated_email
@@ -35,10 +35,12 @@ def _safe_screenshot_paths(*paths: str | None) -> list[str]:
     return result
 
 
-def notify_redeem_email(row_id: str, db: Session) -> SendEmailResponse:
-    row = db.get(BatchRow, row_id)
-    if not row:
-        raise ValueError("Row not found")
+def notify_redeem_email(
+    row_id: str,
+    db: Session,
+    user_id: str | None = None,
+) -> SendEmailResponse:
+    row = get_owned_row(db, row_id, user_id)
     if row.redeem_status not in (STAGE_SUCCESS, STAGE_ALREADY_REDEEMED):
         raise ValueError("Redeem email only allowed for success or already_redeemed")
 
@@ -64,10 +66,12 @@ def notify_redeem_email(row_id: str, db: Session) -> SendEmailResponse:
     )
 
 
-def notify_order_email(row_id: str, db: Session) -> SendEmailResponse:
-    row = db.get(BatchRow, row_id)
-    if not row:
-        raise ValueError("Row not found")
+def notify_order_email(
+    row_id: str,
+    db: Session,
+    user_id: str | None = None,
+) -> SendEmailResponse:
+    row = get_owned_row(db, row_id, user_id)
     if row.purchase_status != STAGE_SUCCESS:
         raise ValueError("Order email only allowed for purchase success")
 

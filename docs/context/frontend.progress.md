@@ -7,6 +7,25 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-09-04 — Stop instantly on Noon “Too many failed attempts”; no Continue/login retry
+- 2026-09-04 — Dashboard Run history is selectable; clicking Run #1/#2 shows that run’s stages and errors
+- 2026-09-04 — Wrong account vs row: Sign out → wait 1s → profile → Log In → email → Continue
+- 2026-09-03 — Redeem screenshots wait for Available Balance + Redeem Giftcards (no skeleton/spinner); skip capture if still loading
+- 2026-09-03 — Never click Log In until profile email or login-required is visible; after sign-out wait then reopen profile
+- 2026-09-03 — Login always starts on profile; mismatch → sign out, wait, reopen profile; Log In click retried once if popup stays closed
+- 2026-09-03 — Noon opens in a dedicated browser window (not dashboard); one window reused for all rows
+- 2026-09-03 — Redeem screenshots wait for Available Balance (no spinner); refuse capture if not on Noon credits tab
+- 2026-09-03 — Add to Cart clicks once only (phase guard + single native click); no double-add
+- 2026-09-03 — Row run history in detail panel; always verify session email before redeem/order; skip complete redeem+order rows; partial re-runs order
+- 2026-09-03 — Dashboard screenshots load via authenticated fetch (bare img src was 401 under AUTH_REQUIRED)
+- 2026-09-03 — on_failure screenshot: 1 attempt only (no retry after terminal errors like too many login attempts)
+- 2026-09-03 — Element-driven speed: waitFor polls 50ms; mouse defaults fast; removed fixed 0.6–1s pauses / 900ms post-nav delays
+- 2026-09-03 — Fixed Noon refresh loop: hardRefresh no longer re-enters recover; narrower error detection; less aggressive tab reloads
+- 2026-09-03 — Runs reuse an existing Noon tab (or open one tab); no new browser window
+- 2026-09-03 — Login: OTP+password same screen → password flow; OTP-only → stop; `preferPasswordLogin` in `02b-login-password.js`
+- 2026-09-03 — Login sped up: scan-driven (no fixed waits); paste email/password; profile detects logged-out immediately
+- 2026-09-03 — After login, user must click Connect extension to push JWT and onboard this Chrome (no auto-sync)
+- 2026-09-03 — Dashboard login now syncs auth tokens to extension storage and the extension adds bearer auth to API calls
 - 2026-09-03 — Live dashboard assets now use cache-busting query strings and `/` serves no-store to load fresh status JS
 - 2026-09-03 — Live dashboard status: no-store extension status/heartbeat responses and admin fetches to avoid stale offline badge
 - 2026-09-03 — Live dashboard API calls now use credentialed fetch so Cloudflare/browser cookies can pass

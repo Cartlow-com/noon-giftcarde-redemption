@@ -1,4 +1,44 @@
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === "SET_AUTH_TOKENS") {
+    (async () => {
+      try {
+        const access = typeof message.accessToken === "string" ? message.accessToken.trim() : "";
+        if (!access) {
+          sendResponse({ ok: false, error: "accessToken required" });
+          return;
+        }
+        const refresh =
+          typeof message.refreshToken === "string" ? message.refreshToken.trim() : "";
+        await chrome.storage.local.set({
+          noon_access_token: access,
+          noon_refresh_token: refresh,
+        });
+        sendResponse({ ok: true });
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to store auth tokens",
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === "CLEAR_AUTH_TOKENS") {
+    (async () => {
+      try {
+        await chrome.storage.local.remove(["noon_access_token", "noon_refresh_token"]);
+        sendResponse({ ok: true });
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to clear auth tokens",
+        });
+      }
+    })();
+    return true;
+  }
+
   if (message.type === "START_NOON_CART") {
     (async () => {
       try {

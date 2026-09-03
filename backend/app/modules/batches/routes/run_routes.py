@@ -1,11 +1,9 @@
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.config.settings import settings
-from app.modules.batches.helpers.auth import require_auth
+from app.modules.batches.helpers.auth import require_auth, resolve_owner_user_id
 from app.modules.batches.models.request_models import CreateRunRequest, UpdateRunRequest
 from app.modules.batches.models.response_models import (
     AppConfigResponse,
@@ -47,11 +45,21 @@ def config_route() -> AppConfigResponse:
 
 
 @router.get("/extension/status", response_model=ExtensionStatusResponse)
-def extension_status_route(response: Response) -> ExtensionStatusResponse:
+def extension_status_route(
+    response: Response,
+    db: Session = Depends(get_db),
+    user_id: str | None = Depends(require_auth),
+) -> ExtensionStatusResponse:
     response.headers["Cache-Control"] = "no-store"
-    last = get_extension_last_seen()
+    if not user_id:
+        return ExtensionStatusResponse(
+            online=False,
+            last_seen_at=None,
+            ttl_seconds=settings.EXTENSION_HEARTBEAT_TTL_SECONDS,
+        )
+    last = get_extension_last_seen(db, user_id)
     return ExtensionStatusResponse(
-        online=is_extension_online(),
+        online=is_extension_online(db, user_id),
         last_seen_at=last,
         ttl_seconds=settings.EXTENSION_HEARTBEAT_TTL_SECONDS,
     )
@@ -60,10 +68,12 @@ def extension_status_route(response: Response) -> ExtensionStatusResponse:
 @router.post("/extension/heartbeat", response_model=ExtensionStatusResponse)
 def extension_heartbeat_route(
     response: Response,
-    _: str | None = Depends(require_auth),
+    db: Session = Depends(get_db),
+    user_id: str | None = Depends(require_auth),
 ) -> ExtensionStatusResponse:
     response.headers["Cache-Control"] = "no-store"
-    last = touch_extension_heartbeat()
+    owner_id = resolve_owner_user_id(user_id, db)
+    last = touch_extension_heartbeat(db, owner_id)
     return ExtensionStatusResponse(
         online=True,
         last_seen_at=last,
@@ -75,7 +85,7 @@ def extension_heartbeat_route(
 def create_run_route(
     payload: CreateRunRequest,
     db: Session = Depends(get_db),
-    _: str | None = Depends(require_auth),
+    user_id: str | None = Depends(require_auth),
 ) -> BatchRunResponse:
     try:
         return create_batch_run(
@@ -87,6 +97,7 @@ def create_run_route(
             hide_window=payload.hide_window,
             login_only=payload.login_only,
             db=db,
+            user_id=user_id,
         )
     except ValueError as exc:
         detail = str(exc)
@@ -98,29 +109,30 @@ def create_run_route(
 @router.get("/pending", response_model=BatchRunResponse | None)
 def pending_run_route(
     db: Session = Depends(get_db),
-    _: str | None = Depends(require_auth),
+    user_id: str | None = Depends(require_auth),
 ) -> BatchRunResponse | None:
-    # Polling proves the extension service worker is alive.
-    touch_extension_heartbeat()
-    return get_pending_run(db)
+    owner_id = resolve_owner_user_id(user_id, db)
+    touch_extension_heartbeat(db, owner_id)
+    return get_pending_run(db, user_id=owner_id)
 
 
 @router.get("/active", response_model=BatchRunResponse | None)
 def active_run_route(
     db: Session = Depends(get_db),
-    _: str | None = Depends(require_auth),
+    user_id: str | None = Depends(require_auth),
 ) -> BatchRunResponse | None:
-    return get_active_run(db)
+    owner_id = resolve_owner_user_id(user_id, db)
+    return get_active_run(db, user_id=owner_id)
 
 
 @router.get("/{run_id}", response_model=BatchRunResponse)
 def get_run_route(
     run_id: str,
     db: Session = Depends(get_db),
-    _: str | None = Depends(require_auth),
+    user_id: str | None = Depends(require_auth),
 ) -> BatchRunResponse:
     try:
-        return get_run(run_id, db)
+        return get_run(run_id, db, user_id=user_id)
     except ValueError as exc:
         raise _not_found(exc) from exc
 
@@ -129,10 +141,10 @@ def get_run_route(
 def claim_run_route(
     run_id: str,
     db: Session = Depends(get_db),
-    _: str | None = Depends(require_auth),
+    user_id: str | None = Depends(require_auth),
 ) -> BatchRunResponse:
     try:
-        return claim_batch_run(run_id, db)
+        return claim_batch_run(run_id, db, user_id=user_id)
     except ValueError as exc:
         detail = str(exc)
         if detail == "Run not found":
@@ -144,10 +156,10 @@ def claim_run_route(
 def stop_run_route(
     run_id: str,
     db: Session = Depends(get_db),
-    _: str | None = Depends(require_auth),
+    user_id: str | None = Depends(require_auth),
 ) -> BatchRunResponse:
     try:
-        return stop_batch_run(run_id, db)
+        return stop_batch_run(run_id, db, user_id=user_id)
     except ValueError as exc:
         raise _not_found(exc) from exc
 
@@ -157,7 +169,7 @@ def patch_run_route(
     run_id: str,
     payload: UpdateRunRequest,
     db: Session = Depends(get_db),
-    _: str | None = Depends(require_auth),
+    user_id: str | None = Depends(require_auth),
 ) -> BatchRunResponse:
     try:
         return update_batch_run(
@@ -165,6 +177,7 @@ def patch_run_route(
             status=payload.status,
             message=payload.message,
             db=db,
+            user_id=user_id,
         )
     except ValueError as exc:
         raise _not_found(exc) from exc

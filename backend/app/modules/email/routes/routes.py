@@ -26,6 +26,13 @@ def history_route(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _: str | None = Depends(require_auth),
+    user_id: str | None = Depends(require_auth),
 ) -> EmailHistoryListResponse:
-    return get_history(db, row_id=row_id, to_email=to_email, limit=limit, offset=offset)
+    return get_history(
+        db,
+        user_id=user_id,
+        row_id=row_id,
+        to_email=to_email,
+        limit=limit,
+        offset=offset,
+    )

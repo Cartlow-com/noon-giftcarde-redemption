@@ -20,6 +20,7 @@ def send_email(payload: SendTemplatedEmailRequest, db: Session) -> SendEmailResp
 
 def get_history(
     db: Session,
+    user_id: str | None,
     row_id: str | None,
     to_email: str | None,
     limit: int,
@@ -27,6 +28,7 @@ def get_history(
 ) -> EmailHistoryListResponse:
     return list_email_history(
         db,
+        user_id=user_id,
         row_id=row_id,
         to_email=to_email,
         limit=limit,

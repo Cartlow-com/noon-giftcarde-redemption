@@ -11,8 +11,6 @@ var PAGE_FETCH_ERROR_MARKERS = [
   "fail to fetch",
   "failed to fetch",
   "looks like you're offline",
-  "something went wrong",
-  "network error",
 ];
 var FLOW_STATE_KEY = "noon_flow_state";
 var FLOW_DONE_KEY = "noon_flow_done";
@@ -90,7 +88,10 @@ function flow() {
 }
 
 function pause(seconds) {
-  return mouse().delay((seconds ?? 1.5) * 1000);
+  const ms = Math.max(0, Math.round((seconds ?? 0.05) * 1000));
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
 }
 
 function emit(type, payload) {

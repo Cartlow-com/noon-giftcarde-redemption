@@ -10,9 +10,9 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/assets/styles.css?v=20260903-live-status" />
-    <link rel="stylesheet" href="/assets/detail.css?v=20260903-live-status" />
-    <link rel="stylesheet" href="/assets/controls.css?v=20260903-live-status" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260904-run-select" />
+    <link rel="stylesheet" href="/assets/detail.css?v=20260904-run-select" />
+    <link rel="stylesheet" href="/assets/controls.css?v=20260904-run-select" />
   </head>
   <body>
     <div class="shell">
@@ -24,7 +24,11 @@
         <div class="topbar-meta">
           <span id="health" class="pill pill-muted">Checking…</span>
           <span id="ext-pill" class="pill pill-muted">Extension…</span>
+          <span id="session-email" class="pill pill-muted hidden"></span>
+          <span id="connect-pill" class="pill pill-muted hidden">Extension not connected</span>
+          <button type="button" id="btn-connect-ext" class="btn-secondary hidden" disabled>Connect extension</button>
           <span id="run-pill" class="pill pill-muted">No active run</span>
+          <button type="button" id="btn-signout" class="btn-text hidden">Sign out</button>
           <button type="button" id="btn-refresh" class="btn-text">Refresh</button>
         </div>
       </header>
@@ -48,8 +52,8 @@
         </div>
       </section>
       <p id="run-hint" class="run-hint muted">
-        Top bar shows <strong>API online/offline</strong> and <strong>Extension online/offline</strong>.
-        Load the Noon Automation extension in this Chrome — then Run queues a job and the extension opens Noon.
+        1) Sign in · 2) Click <strong>Connect extension</strong> (this Chrome only) · 3) Run selected.
+        Connecting sends your session into the extension so it can claim <em>your</em> jobs and open Noon on this PC.
       </p>
 
       <main class="layout">
@@ -117,8 +121,30 @@
       <p id="global-error" class="toast error hidden"></p>
       <p id="global-ok" class="toast ok hidden"></p>
     </div>
-    <script src="/assets/util.js?v=20260903-live-status"></script>
-    <script src="/assets/app.js?v=20260903-live-status"></script>
-    <script src="/assets/controls.js?v=20260903-live-status"></script>
+    <div id="auth-overlay" class="auth-overlay">
+      <section class="auth-panel" aria-labelledby="auth-title">
+        <p class="auth-kicker">Noon Automation</p>
+        <h1 id="auth-title">Dashboard login</h1>
+        <p class="auth-copy">Sign in to unlock the dashboard. After login, click <strong>Connect extension</strong> in this Chrome to onboard the bot on this PC.</p>
+        <form id="login-form" class="auth-form">
+          <label>
+            <span>Email</span>
+            <input id="login-email" name="email" type="email" autocomplete="username" required />
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+          </label>
+          <button type="submit" class="btn-primary auth-submit">Sign in</button>
+        </form>
+        <p id="auth-error" class="auth-error hidden" role="alert"></p>
+      </section>
+    </div>
+    <script src="/assets/util.js?v=20260904-run-select"></script>
+    <script src="/assets/auth.js?v=20260904-run-select"></script>
+    <script src="/assets/sse.js?v=20260904-run-select"></script>
+    <script src="/assets/app.js?v=20260904-run-select"></script>
+    <script src="/assets/snapshot.js?v=20260904-run-select"></script>
+    <script src="/assets/controls.js?v=20260904-run-select"></script>
   </body>
 </html>

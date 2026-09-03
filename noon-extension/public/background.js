@@ -20,10 +20,6 @@ async function openWidePanelWindow() {
   });
 }
 
-const NOON_HOME = "https://www.noon.com/uae-en/";
-const NOON_URL_PATTERN = "https://*.noon.com/*";
-const NOON_PROFILE = "https://account.noon.com/uae-en/profile/";
-
 let activeLoginTabId = null;
 
 function waitForTabComplete(tabId) {
@@ -77,7 +73,6 @@ async function waitForFlowDone(timeoutMs) {
 async function hardRefreshTab(tabId) {
   await chrome.tabs.reload(tabId, { bypassCache: true });
   await waitForTabComplete(tabId);
-  await delay(500);
 }
 
 async function sendMessageToTab(tabId, message, attempts = 3) {
@@ -89,19 +84,17 @@ async function sendMessageToTab(tabId, message, attempts = 3) {
       const response = await chrome.tabs.sendMessage(tabId, message);
       return response;
     } catch (_) {
-      if (i < attempts - 1) {
-        try {
-          await hardRefreshTab(tabId);
-        } catch (_) {}
-      }
-      const resumed = await waitForFlowDone(90000);
+      // Content script may not be injected yet after navigation — wait, don't reload.
+      const resumed = await waitForFlowDone(i === 0 ? 2500 : 8000);
       if (resumed && resumed.cancelled) return resumed;
       if (resumed) return resumed;
-      await delay(800 + i * 400);
+      await delay(200 + i * 200);
     }
   }
+  // Last resort only — one refresh if the page never answered.
   try {
     await hardRefreshTab(tabId);
+    await delay(200);
     const response = await chrome.tabs.sendMessage(tabId, message);
     return response;
   } catch (_) {}
@@ -208,92 +201,6 @@ async function sendBatchCartToTab(tabId, payload, attempts = 3) {
   );
 }
 
-async function navigateTabToProfile(tabId) {
-  const tab = await chrome.tabs.get(tabId);
-  if (!tab.url || tab.url.indexOf("/profile") === -1) {
-    await chrome.tabs.update(tabId, { url: NOON_PROFILE });
-    await waitForTabComplete(tabId);
-    await delay(800);
-  }
-  try {
-    await chrome.tabs.sendMessage(tabId, { type: "RECOVER_PAGE_IF_NEEDED" });
-  } catch (_) {}
-}
-
-async function getOrCreateNoonTab(options) {
-  const opts = options || {};
-  const hideWindow = !!opts.hideWindow;
-  if (opts.forceNewWindow) {
-    let width = 1280;
-    let height = 900;
-    let left = 40;
-    let top = 40;
-    try {
-      const current = await chrome.windows.getCurrent();
-      if (current.width && current.height) {
-        width = Math.max(1100, current.width);
-        height = Math.max(750, current.height);
-        left = typeof current.left === "number" ? current.left : left;
-        top = typeof current.top === "number" ? current.top : top;
-      }
-    } catch (_) {}
-
-    const win = await chrome.windows.create({
-      url: NOON_PROFILE,
-      focused: !hideWindow,
-      type: "normal",
-      state: "normal",
-      width: width,
-      height: height,
-      left: left,
-      top: top,
-    });
-    try {
-      if (win && win.id != null) {
-        if (hideWindow) {
-          await chrome.windows.update(win.id, { state: "minimized", focused: false });
-        } else {
-          await chrome.windows.update(win.id, { state: "maximized", focused: true });
-        }
-      }
-    } catch (_) {}
-
-    const tabId = win.tabs && win.tabs[0] && win.tabs[0].id;
-    if (tabId == null) throw new Error("Failed to open Noon window");
-    await waitForTabComplete(tabId);
-    await delay(400);
-    try {
-      await chrome.tabs.sendMessage(tabId, { type: "RECOVER_PAGE_IF_NEEDED" });
-    } catch (_) {}
-    return tabId;
-  }
-
-  const tabs = await chrome.tabs.query({ url: NOON_URL_PATTERN });
-  if (tabs.length > 0 && tabs[0].id != null) {
-    const tabId = tabs[0].id;
-    await chrome.tabs.update(tabId, { active: true });
-    await waitForTabComplete(tabId);
-    await delay(200);
-    try {
-      await chrome.tabs.sendMessage(tabId, { type: "RECOVER_PAGE_IF_NEEDED" });
-    } catch (_) {
-      try {
-        await hardRefreshTab(tabId);
-      } catch (_) {}
-    }
-    return tabId;
-  }
-
-  const tab = await chrome.tabs.create({ url: NOON_PROFILE, active: true });
-  if (tab.id == null) throw new Error("Failed to open Noon tab");
-  await waitForTabComplete(tab.id);
-  await delay(400);
-  try {
-    await chrome.tabs.sendMessage(tab.id, { type: "RECOVER_PAGE_IF_NEEDED" });
-  } catch (_) {}
-  return tab.id;
-}
-
 async function cancelLoginOnTab(tabId) {
   try {
     await chrome.tabs.sendMessage(tabId, { type: "CANCEL_LOGIN" });
@@ -324,4 +231,4 @@ async function clearNoonSessionCookies() {
   return { ok: true, removed: removed };
 }
 
-importScripts("messageRouter.js");
+importScripts("noonTab.js", "messageRouter.js");

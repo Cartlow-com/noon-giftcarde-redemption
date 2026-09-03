@@ -1,18 +1,21 @@
 from sqlalchemy.orm import Session
 
 from app.modules.batches.helpers.batch_stats import refresh_batch_counts
+from app.modules.batches.helpers.ownership import get_owned_row
 from app.modules.batches.helpers.status import compute_row_status
-from app.modules.batches.models.db_models import BatchRow
 from app.modules.batches.models.request_models import UpdateRowRequest
 from app.modules.batches.models.response_models import BatchRowResponse
 
 STAGE_FIELDS = frozenset({"login_status", "redeem_status", "purchase_status"})
 
 
-def update_batch_row(row_id: str, payload: UpdateRowRequest, db: Session) -> BatchRowResponse:
-    row = db.get(BatchRow, row_id)
-    if not row:
-        raise ValueError("Row not found")
+def update_batch_row(
+    row_id: str,
+    payload: UpdateRowRequest,
+    db: Session,
+    user_id: str | None = None,
+) -> BatchRowResponse:
+    row = get_owned_row(db, row_id, user_id)
 
     data = payload.model_dump(exclude_unset=True)
     explicit_status = data.pop("status", None)
@@ -30,7 +33,6 @@ def update_batch_row(row_id: str, payload: UpdateRowRequest, db: Session) -> Bat
             row.purchase_status,
             current=row.status,
         )
-    # Timing-only patches keep the existing terminal/overall status.
 
     db.commit()
     db.refresh(row)

@@ -76,18 +76,53 @@
   margin-bottom: 0.5rem;
 }
 
+.run-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.run-item:hover {
+  border-color: color-mix(in srgb, var(--noon) 45%, var(--border));
+}
+
+.run-item.active {
+  border-color: var(--noon);
+  background: color-mix(in srgb, var(--noon) 12%, var(--surface));
+}
+
+.run-viewing {
+  margin: 0 0 0.55rem;
+  font-size: 0.75rem;
+}
+
+.run-hint-small {
+  font-size: 0.7rem;
+  margin: 0 0 0.5rem;
+}
+
+.run-item .subject,
 .email-item .subject {
   font-weight: 600;
   font-size: 0.8rem;
   margin-bottom: 0.25rem;
 }
 
+.run-item .meta,
 .email-item .meta {
   color: var(--muted);
   font-size: 0.7rem;
   margin-bottom: 0.35rem;
 }
 
+.run-item pre,
 .email-item pre {
   margin: 0;
   white-space: pre-wrap;

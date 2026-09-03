@@ -136,22 +136,21 @@ async function openProfileDropdown() {
 
   logStep("Opening account menu…");
   await mouse().click(profileBtn);
-  await pause(0.6);
+  // no fixed wait — Sign out is scanned next
   dispatchNativeClick(profileBtn);
 
   const opened = await waitFor(
     function () {
       return isUserMenuOpen() || findSignOutButton();
     },
-    6000,
-    200,
+    5000,
+    50,
   );
   return !!opened;
 }
 
 async function clickSignOut(signOut) {
   logStep("Clicking Sign out…");
-  await mouse().click(signOut);
-  await pause(0.4);
+  await mouse().click(signOut, { fast: true });
   dispatchNativeClick(resolveSignOutClickable(signOut) || signOut);
 }

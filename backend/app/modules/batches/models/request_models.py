@@ -45,3 +45,18 @@ class CreateRunRequest(BaseModel):
 class UpdateRunRequest(BaseModel):
     status: str | None = None
     message: str | None = None
+
+
+class CreateRowAttemptRequest(BaseModel):
+    batch_run_id: str | None = None
+    outcome: str = "unknown"
+    message: str | None = None
+    login_status: str = "pending"
+    redeem_status: str = "pending"
+    purchase_status: str = "pending"
+    status: str = "pending"
+    login_error: str | None = None
+    redeem_error: str | None = None
+    purchase_error: str | None = None
+    order_id: str | None = None
+    duration_ms: int | None = None

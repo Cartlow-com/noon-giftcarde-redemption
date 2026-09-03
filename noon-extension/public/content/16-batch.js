@@ -62,15 +62,8 @@ async function runBatchRedeem(payload) {
   await clearFlowDone();
   try {
     await enableCursor();
-    // Do not re-open profile here during batch redeem; the row account stage has
-    // just verified and stored the email before navigating to credits.
-    const storedEmail = String((await getSessionEmail()) || "").toLowerCase();
-    const requiredEmail = String(payload.email || "").trim().toLowerCase();
-    const alreadyVerified =
-      payload.accountVerified === true || storedEmail === requiredEmail;
-    if (!alreadyVerified) {
-      await assertSessionMatchesRowEmail(payload.email);
-    }
+    // Always verify live session email matches the row before redeem.
+    await assertSessionMatchesRowEmail(payload.email);
     payload.waitForRedeemResult = true;
     await persistFlow("RESUME", payload);
     let result;
@@ -141,6 +134,9 @@ async function runBatchCart(payload) {
   });
   try {
     await enableCursor();
+    if (payload.email) {
+      await assertSessionMatchesRowEmail(payload.email);
+    }
     if (!hasNoonSession() && !isOnAccountPage()) {
       throw new Error("Not logged in — login stage must succeed first");
     }

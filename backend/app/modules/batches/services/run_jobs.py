@@ -6,8 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.batches.helpers.batch_stats import refresh_batch_counts
+from app.modules.batches.helpers.ownership import get_owned_batch, get_owned_run
 from app.modules.batches.helpers.status import compute_row_status
 from app.modules.batches.services.extension_presence import is_extension_online
+from app.modules.batches.helpers.auth import resolve_owner_user_id
 from app.modules.batches.models.db_models import (
     ROW_FAILED,
     ROW_IN_PROGRESS,
@@ -18,7 +20,6 @@ from app.modules.batches.models.db_models import (
     STAGE_RUNNING,
     STAGE_SKIPPED,
     STAGE_SUCCESS,
-    Batch,
     BatchRun,
     BatchRow,
 )
@@ -57,10 +58,10 @@ def create_batch_run(
     hide_window: bool = False,
     login_only: bool = False,
     db: Session,
+    user_id: str | None = None,
 ) -> BatchRunResponse:
-    batch = db.get(Batch, batch_id)
-    if not batch:
-        raise ValueError("Batch not found")
+    owner_id = resolve_owner_user_id(user_id, db)
+    batch = get_owned_batch(db, batch_id, owner_id)
     if not row_ids:
         raise ValueError("At least one row_id is required")
 
@@ -72,17 +73,22 @@ def create_batch_run(
         raise ValueError("One or more row_ids do not belong to this batch")
 
     existing = db.scalars(
-        select(BatchRun).where(BatchRun.status.in_(ACTIVE_STATUSES)).limit(1)
+        select(BatchRun)
+        .where(BatchRun.user_id == owner_id, BatchRun.status.in_(ACTIVE_STATUSES))
+        .limit(1)
     ).first()
     if existing:
         raise ValueError("Another run is already active — stop it first")
 
-    if not is_extension_online():
-        raise ValueError("Extension is not loaded/online — open Chrome with Noon Automation extension")
+    if not is_extension_online(db, owner_id):
+        raise ValueError(
+            "Extension is not loaded/online — open Chrome with Noon Automation extension and sign in on the dashboard"
+        )
 
     run = BatchRun(
         id=str(uuid.uuid4()),
-        batch_id=batch_id,
+        user_id=owner_id,
+        batch_id=batch.id,
         row_ids_json=json.dumps(unique_ids),
         place_order=1 if place_order else 0,
         send_redeem_emails=1 if send_redeem_emails else 0,
@@ -98,37 +104,33 @@ def create_batch_run(
     return _to_response(run)
 
 
-def get_pending_run(db: Session) -> BatchRunResponse | None:
-    run = db.scalars(
-        select(BatchRun)
-        .where(BatchRun.status == "queued")
-        .order_by(BatchRun.created_at.asc())
-        .limit(1)
-    ).first()
+def get_pending_run(db: Session, user_id: str | None = None) -> BatchRunResponse | None:
+    query = select(BatchRun).where(BatchRun.status == "queued").order_by(BatchRun.created_at.asc())
+    if user_id:
+        query = query.where(BatchRun.user_id == user_id)
+    run = db.scalars(query.limit(1)).first()
     return _to_response(run) if run else None
 
 
-def get_run(run_id: str, db: Session) -> BatchRunResponse:
-    run = db.get(BatchRun, run_id)
-    if not run:
-        raise ValueError("Run not found")
+def get_run(run_id: str, db: Session, user_id: str | None = None) -> BatchRunResponse:
+    run = get_owned_run(db, run_id, user_id)
     return _to_response(run)
 
 
-def get_active_run(db: Session) -> BatchRunResponse | None:
-    run = db.scalars(
+def get_active_run(db: Session, user_id: str | None = None) -> BatchRunResponse | None:
+    query = (
         select(BatchRun)
         .where(BatchRun.status.in_(ACTIVE_STATUSES))
         .order_by(BatchRun.created_at.desc())
-        .limit(1)
-    ).first()
+    )
+    if user_id:
+        query = query.where(BatchRun.user_id == user_id)
+    run = db.scalars(query.limit(1)).first()
     return _to_response(run) if run else None
 
 
-def claim_batch_run(run_id: str, db: Session) -> BatchRunResponse:
-    run = db.get(BatchRun, run_id)
-    if not run:
-        raise ValueError("Run not found")
+def claim_batch_run(run_id: str, db: Session, user_id: str | None = None) -> BatchRunResponse:
+    run = get_owned_run(db, run_id, user_id)
     if run.status != "queued":
         raise ValueError(f"Run is not claimable (status={run.status})")
     run.status = "running"
@@ -199,11 +201,8 @@ def _finalize_interrupted_rows(run: BatchRun, db: Session) -> int:
     return changed
 
 
-def stop_batch_run(run_id: str, db: Session) -> BatchRunResponse:
-    run = db.get(BatchRun, run_id)
-    if not run:
-        raise ValueError("Run not found")
-
+def stop_batch_run(run_id: str, db: Session, user_id: str | None = None) -> BatchRunResponse:
+    run = get_owned_run(db, run_id, user_id)
     interrupted = _finalize_interrupted_rows(run, db)
 
     if run.status in TERMINAL_STATUSES:
@@ -235,10 +234,9 @@ def update_batch_run(
     status: str | None,
     message: str | None,
     db: Session,
+    user_id: str | None = None,
 ) -> BatchRunResponse:
-    run = db.get(BatchRun, run_id)
-    if not run:
-        raise ValueError("Run not found")
+    run = get_owned_run(db, run_id, user_id)
     # Ignore late extension patches after stop/complete/fail.
     if run.status in TERMINAL_STATUSES:
         return _to_response(run)

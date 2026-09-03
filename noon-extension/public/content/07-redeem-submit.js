@@ -15,32 +15,33 @@ async function fillAndRedeemGiftCard(giftCardNumber, giftCardPin, waitForResult,
 
   const numberInput = await waitFor(function () {
     return findGiftCardNumberInput();
-  }, 10000, 200);
+  }, 10000, 50);
   if (!numberInput) throw new Error("Gift card number input not found");
 
   logStep("Typing gift card number (no spaces)…");
-  await mouse().type(numberInput, cardDigits);
+  await mouse().type(numberInput, cardDigits, { paste: true, fast: true });
   logStep("Gift card number entered");
 
   const pinInput = await waitFor(function () {
     return findGiftCardPinInput();
-  }, 8000, 200);
+  }, 8000, 50);
   if (!pinInput) throw new Error("Gift card PIN input not found");
 
   logStep("Typing PIN…");
-  await mouse().type(pinInput, pinDigits, { masked: true });
+  await mouse().type(pinInput, pinDigits, { masked: true, paste: true, fast: true });
   logStep("PIN entered");
-  await pause(0.5);
 
-  let redeemBtn = findRedeemSubmitButton();
-  if (redeemBtn && isDisabled(redeemBtn)) await pause(1);
-  redeemBtn = findRedeemSubmitButton();
+  const redeemBtn = await waitUntilEnabled(
+    function () {
+      return findRedeemSubmitButton();
+    },
+    6000,
+  );
   if (!redeemBtn) throw new Error("Redeem button not found");
 
   logStep("Clicking Redeem…");
-  await mouse().click(redeemBtn);
+  await mouse().click(redeemBtn, { fast: true });
   logStep("Gift card submitted");
-  await pause(1);
   if (waitForResult) {
     const outcome = await waitForRedeemOutcome();
 
@@ -64,7 +65,6 @@ async function fillAndRedeemGiftCard(giftCardNumber, giftCardPin, waitForResult,
     }
 
     await dismissRedeemModal();
-    await pause(0.5);
 
     let balanceAfter = readCreditsBalance();
     if (balanceAfter != null && balanceAfter > balanceBefore) {
@@ -126,7 +126,7 @@ async function waitForRedeemOutcome() {
       return scanRedeemPopupFeedback();
     },
     15000,
-    250,
+    50,
   );
 
   if (!feedback) {
@@ -206,7 +206,7 @@ async function waitForOrderConfirmation() {
       return !!extractOrderIdFromPage();
     },
     45000,
-    400,
+    50,
   );
   return {
     orderId: extractOrderIdFromPage(),

@@ -3,17 +3,20 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.config.settings import settings
-from app.modules.batches.models.db_models import BatchRow
+from app.modules.batches.helpers.ownership import get_owned_row
 from app.modules.batches.services.save_screenshot import SCREENSHOT_KINDS
 
 
-def resolve_row_screenshot_path(row_id: str, kind: str, db: Session) -> Path:
+def resolve_row_screenshot_path(
+    row_id: str,
+    kind: str,
+    db: Session,
+    user_id: str | None = None,
+) -> Path:
     if kind not in SCREENSHOT_KINDS:
         raise ValueError(f"Invalid screenshot kind: {kind}")
 
-    row = db.get(BatchRow, row_id)
-    if not row:
-        raise ValueError("Row not found")
+    row = get_owned_row(db, row_id, user_id)
 
     column = SCREENSHOT_KINDS[kind]
     stored = getattr(row, column, None)

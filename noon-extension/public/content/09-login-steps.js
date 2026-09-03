@@ -7,9 +7,8 @@ async function acceptCookies() {
   const btn = queryByRole("button", { name: "Accept All" });
   if (btn) {
     logStep("Moving to Accept cookies…");
-    await mouse().click(btn);
+    await mouse().click(btn, { fast: true });
     logStep("Cookies accepted");
-    await pause();
   }
 }
 
@@ -48,99 +47,87 @@ function findNavbarLogIn() {
 }
 
 async function clickLogin() {
-  const target = findNavbarLogIn();
+  throwIfManualLoginRequired();
+  const target = await waitFor(
+    function () {
+      throwIfManualLoginRequired();
+      return findNavbarLogIn();
+    },
+    5000,
+    50,
+  );
   if (!target) throw new Error("Navbar Log In not found");
 
+  throwIfManualLoginRequired();
   logStep("Moving to navbar Log In…");
-  await mouse().click(target);
-  await pause(0.6);
-
-  // Extra native fallbacks — Noon sometimes ignores synthetic events on nested text.
-  try {
-    target.focus();
-  } catch (_) {}
-  try {
-    target.click();
-  } catch (_) {}
-  try {
-    const rect = target.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + Math.min(rect.height / 2, 18);
-    const hit = document.elementFromPoint(x, y);
-    if (hit) {
-      const clickable =
-        hit.closest("a, button, [role='button'], [role='link']") || hit;
-      clickable.dispatchEvent(
-        new MouseEvent("click", {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-          clientX: x,
-          clientY: y,
-        }),
-      );
-      try {
-        clickable.click();
-      } catch (_) {}
-    }
-  } catch (_) {}
-
+  await mouse().click(target, { fast: true });
   logStep("Clicked navbar Log In");
 }
 
 async function hardRefresh() {
   logStep("Refreshing page…");
+  // Do not call waitForPageReady here — that re-entered recover → hardRefresh
+  // and reloaded the tab in a loop while this document was still alive.
   location.reload();
-  await waitForPageReady();
+}
+
+async function waitForLoginPopup(timeoutMs) {
+  return waitFor(
+    function () {
+      return findEmailInput();
+    },
+    timeoutMs || 3500,
+    50,
+  );
 }
 
 async function openLoginModal() {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  if (findEmailInput()) {
+    logStep("Login popup already open");
+    return;
+  }
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
     flow().check();
-    await clickLogin();
-    await pause(0.4);
+    if (attempt === 1) {
+      await clickLogin();
+    } else {
+      logStep("Popup did not open — clicking Log In again");
+      await clickLogin();
+    }
 
     const networkError = getByText(NETWORK_ERROR);
     if ((networkError && isVisible(networkError)) || hasPageFetchError()) {
       logStep("Network error — refreshing");
       await hardRefresh();
-      await acceptCookies();
-      continue;
+      await new Promise(function () {});
     }
 
-    const emailInput = await waitFor(
-      function () {
-        return findEmailInput();
-      },
-      8000,
-      200,
-    );
-    if (emailInput) {
-      logStep("Login modal open");
+    if (await waitForLoginPopup(3500)) {
+      logStep("Login popup open");
       return;
     }
-
-    if (attempt === 0) {
-      logStep("Modal not open — retrying");
-      await hardRefresh();
-      await acceptCookies();
-    }
   }
-  throw new Error("Login modal did not open");
+  throw new Error("Login popup did not open after 2 Log In clicks");
 }
 
 async function enterEmailAndContinue(email) {
   throwIfManualLoginRequired();
-  await ensurePasswordTab();
 
-  const emailInput = findEmailInput();
+  const emailInput = await waitFor(
+    function () {
+      throwIfManualLoginRequired();
+      return findEmailInput();
+    },
+    4000,
+    50,
+  );
   if (!emailInput) throw new Error("Email input not found");
 
-  logStep("Typing email…");
-  await mouse().type(emailInput, email);
+  throwIfManualLoginRequired();
+  logStep("Pasting email…");
+  await mouse().type(emailInput, email, { paste: true, fast: true });
   logStep("Email entered");
-
-  await pause(0.3);
   throwIfManualLoginRequired();
 
   if (findPasswordInput()) {
@@ -148,28 +135,43 @@ async function enterEmailAndContinue(email) {
     return;
   }
 
-  let continueBtn = queryByRole("button", { name: "Continue" });
-  if (continueBtn && isDisabled(continueBtn)) await pause(0.8);
-  continueBtn = queryByRole("button", { name: "Continue" });
+  throwIfManualLoginRequired();
+  const continueBtn = await waitUntilEnabled(
+    function () {
+      throwIfManualLoginRequired();
+      return queryByRole("button", { name: "Continue" });
+    },
+    5000,
+  );
   if (!continueBtn) throw new Error("Continue button not found");
 
-  logStep("Moving to Continue…");
-  await mouse().click(continueBtn);
-  logStep("Clicked Continue");
-  await pause(0.5);
   throwIfManualLoginRequired();
+  logStep("Moving to Continue…");
+  await mouse().click(continueBtn, { fast: true });
+  logStep("Clicked Continue");
 
-  // After Continue: use password if available (even when OTP UI is also shown).
-  if (findPasswordInput()) {
+  const lockout = await waitFor(
+    function () {
+      if (getManualLoginRequiredMessage()) return "lockout";
+      if (findPasswordInput()) return "password";
+      return null;
+    },
+    2500,
+    50,
+  );
+  throwIfManualLoginRequired();
+  if (lockout === "password") {
     logStep("Password form ready");
     return;
   }
-  await ensurePasswordTab();
-  if (findPasswordInput()) {
+
+  const passwordReady = await preferPasswordLogin(8000);
+  throwIfManualLoginRequired();
+  if (passwordReady) {
     logStep("Password form ready");
     return;
   }
-  // OTP screen with no password option → manual login.
+
   throwIfOtpOnlyLogin();
   throw new Error("Password login not available — manual login required");
 }
@@ -184,8 +186,8 @@ async function loginWithPassword(password) {
       function () {
         return findPasswordInput();
       },
-      8000,
-      200,
+      6000,
+      50,
     );
   }
   if (!passwordInput) {
@@ -193,19 +195,21 @@ async function loginWithPassword(password) {
     throw new Error("Password input not found — manual login required");
   }
 
-  logStep("Typing password…");
-  await mouse().type(passwordInput, password, { masked: true });
+  logStep("Pasting password…");
+  await mouse().type(passwordInput, password, { masked: true, paste: true, fast: true });
   logStep("Password entered");
-  await pause(0.3);
   throwIfManualLoginRequired();
 
-  let loginBtn = findLoginSubmitButton();
-  if (loginBtn && isDisabled(loginBtn)) await pause(1.5);
-  loginBtn = findLoginSubmitButton();
+  const loginBtn = await waitUntilEnabled(
+    function () {
+      return findLoginSubmitButton();
+    },
+    6000,
+  );
   if (!loginBtn) throw new Error("Log in submit button not found");
 
   logStep("Moving to Log in submit…");
-  await mouse().click(loginBtn);
+  await mouse().click(loginBtn, { fast: true });
   logStep("Submitting login…");
 
   const success = await waitFor(
@@ -216,11 +220,10 @@ async function loginWithPassword(password) {
       if (readEmailFromProfilePage()) return "success";
       return null;
     },
-    18000,
-    300,
+    15000,
+    100,
   );
   if (success === "manual") throwIfManualLoginRequired();
   if (!success) throw new Error("Login did not complete — manual login may be required");
   logStep("Logged in successfully");
 }
-

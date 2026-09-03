@@ -5,6 +5,9 @@
     selectedBatchId: null,
     rows: [],
     selectedRowId: null,
+    selectedAttemptId: null,
+    detailEmails: [],
+    detailAttempts: [],
     selectedIds: new Set(),
     statusFilter: "",
     detailToken: 0,
@@ -41,17 +44,9 @@
 
   window.AdminState = state;
   window.AdminUI = {
-    showError,
-    showOk,
-    clearError,
-    loadBatches,
-    loadRows,
-    renderBatches,
-    renderRows,
-    updateActionButtons,
-    setActiveRun,
-    setExtensionOnline,
-    checkExtension,
+    showError, showOk, clearError, loadBatches, loadRows, renderBatches,
+    renderRows, renderDetail, updateActionButtons, setActiveRun,
+    setExtensionOnline, checkHealth, checkExtension,
   };
 
   function showError(message) {
@@ -77,7 +72,7 @@
       el.extPill.textContent = online ? "Extension online" : "Extension offline";
       el.extPill.className = `pill ${online ? "pill-ok" : "pill-bad"}`;
       el.extPill.title = online
-        ? "Extension is polling the backend"
+        ? "Extension heartbeat received"
         : "Open Chrome with Noon Automation loaded (reload extension after rebuild)";
     }
     updateActionButtons();
@@ -99,8 +94,9 @@
     const hasBatch = !!state.selectedBatchId;
     const hasSel = state.selectedIds.size > 0;
     const running = !!(state.activeRun && ["queued", "claimed", "running", "stopping"].includes(state.activeRun.status));
+    const authed = !window.AdminAuth || window.AdminAuth.isAuthenticated();
     el.btnDelete.disabled = !hasBatch || running;
-    el.btnRun.disabled = !hasBatch || !hasSel || running || !state.extensionOnline;
+    el.btnRun.disabled = !authed || !hasBatch || !hasSel || running || !state.extensionOnline;
     el.btnStop.disabled = !running;
     el.selCount.textContent = `${state.selectedIds.size} selected`;
   }
@@ -173,24 +169,39 @@
     updateActionButtons();
   }
 
+  async function paintDetail(row, emails, attempts) {
+    state.detailEmails = emails || [];
+    state.detailAttempts = attempts || [];
+    state.selectedAttemptId = U.resolveAttemptId(state.detailAttempts, state.selectedAttemptId);
+    await U.paintRowDetail(
+      el.detailBody,
+      row,
+      state.detailEmails,
+      state.detailAttempts,
+      state.selectedAttemptId,
+      state.expectedRowSeconds,
+    );
+  }
+
   async function renderDetail(row, { silent = false } = {}) {
+    if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) return;
     const token = ++state.detailToken;
     el.detailTitle.textContent = `Row ${row.row_number}`;
     if (!silent) el.detailBody.innerHTML = `<p class="muted">Loading detail…</p>`;
-    let emails = [];
     try {
-      const data = await U.api(`/emails/history?row_id=${encodeURIComponent(row.id)}&limit=20`);
-      emails = data.items || [];
+      const extra = await U.fetchRowDetailExtras(row.id);
+      if (token !== state.detailToken || state.selectedRowId !== row.id) return;
+      if (extra.error) showError(extra.error.message);
+      await paintDetail(row, extra.emails, extra.attempts);
     } catch (err) {
       if (token !== state.detailToken) return;
       showError(err.message);
     }
-    if (token !== state.detailToken || state.selectedRowId !== row.id) return;
-    el.detailBody.innerHTML = U.buildRowDetailHtml(row, emails, state.expectedRowSeconds);
   }
 
   async function loadRows({ silent = false } = {}) {
     if (!state.selectedBatchId) return;
+    if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) return;
     const params = new URLSearchParams({ limit: "500" });
     if (state.statusFilter) params.set("status", state.statusFilter);
     const data = await U.api(`/batches/${encodeURIComponent(state.selectedBatchId)}/rows?${params}`);
@@ -210,6 +221,7 @@
   }
 
   async function loadBatches({ keepSelection = true, silent = false } = {}) {
+    if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) return;
     if (state.loading) return;
     state.loading = true;
     if (!silent) clearError();
@@ -228,6 +240,7 @@
         renderRows();
         el.detailBody.innerHTML = `<p class="empty">Select a row</p>`;
       }
+      if (window.AdminSSE) window.AdminSSE.setBatchId(state.selectedBatchId);
     } catch (err) {
       showError(err.message);
     } finally {
@@ -236,18 +249,14 @@
   }
 
   async function checkHealth() {
-    try {
-      const data = await U.api("/health");
-      const ok = data.status === "ok";
-      el.health.textContent = ok ? "API online" : "API offline";
-      el.health.className = `pill ${ok ? "pill-ok" : "pill-bad"}`;
-    } catch (_) {
-      el.health.textContent = "API offline";
-      el.health.className = "pill pill-bad";
-    }
+    await U.checkHealth(el.health);
   }
 
   async function checkExtension() {
+    if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) {
+      setExtensionOnline(false);
+      return;
+    }
     try {
       const status = await U.api("/runs/extension/status");
       setExtensionOnline(!!status.online);
@@ -261,13 +270,26 @@
     if (!btn) return;
     state.selectedBatchId = btn.getAttribute("data-batch-id");
     state.selectedRowId = null;
+    state.selectedAttemptId = null;
     state.selectedIds = new Set();
     renderBatches();
+    if (window.AdminSSE) window.AdminSSE.setBatchId(state.selectedBatchId);
     try {
       await loadRows();
     } catch (err) {
       showError(err.message);
     }
+  });
+
+  el.detailBody.addEventListener("click", async (event) => {
+    const btn = event.target.closest("[data-attempt-id]");
+    if (!btn) return;
+    const id = btn.getAttribute("data-attempt-id");
+    if (!id || id === state.selectedAttemptId) return;
+    state.selectedAttemptId = id;
+    const row = state.rows.find((r) => r.id === state.selectedRowId);
+    if (!row) return;
+    await paintDetail(row, state.detailEmails, state.detailAttempts);
   });
 
   el.rowsBody.addEventListener("click", async (event) => {
@@ -283,6 +305,7 @@
     const tr = event.target.closest("tr[data-row-id]");
     if (!tr) return;
     state.selectedRowId = tr.getAttribute("data-row-id");
+    state.selectedAttemptId = null;
     renderRows();
     const row = state.rows.find((r) => r.id === state.selectedRowId);
     if (row) await renderDetail(row);
@@ -314,22 +337,6 @@
     checkHealth();
     checkExtension();
     loadBatches();
+    if (window.AdminLive) window.AdminLive.syncLiveStream();
   });
-
-  async function boot() {
-    await checkHealth();
-    await checkExtension();
-    try {
-      const cfg = await U.api("/runs/config");
-      state.expectedRowSeconds = cfg.expected_row_seconds || 180;
-    } catch (_) {}
-    await loadBatches({ keepSelection: false });
-    setInterval(() => {
-      checkHealth();
-      checkExtension();
-      loadBatches({ keepSelection: true, silent: true });
-    }, 5000);
-  }
-
-  boot();
 })();

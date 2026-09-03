@@ -100,3 +100,28 @@ class ExtensionStatusResponse(BaseModel):
     online: bool
     last_seen_at: datetime | None = None
     ttl_seconds: int
+
+
+class RowAttemptResponse(BaseModel):
+    id: str
+    row_id: str
+    batch_id: str
+    batch_run_id: str | None = None
+    attempt_number: int
+    login_status: str
+    redeem_status: str
+    purchase_status: str
+    status: str
+    outcome: str
+    message: str | None = None
+    login_error: str | None = None
+    redeem_error: str | None = None
+    purchase_error: str | None = None
+    order_id: str | None = None
+    duration_ms: int | None = None
+    created_at: datetime
+
+
+class RowAttemptListResponse(BaseModel):
+    attempts: list[RowAttemptResponse]
+    total: int

@@ -48,9 +48,37 @@ async function waitForReadableProfileEmail(timeoutMs) {
       return readEmailFromProfilePage();
     },
     timeoutMs || 8000,
-    300,
+    50,
   );
   return found || readEmailFromProfilePage();
+}
+
+/** Wait until profile email is readable, or the login-required gate is shown. Never treat navbar Log In alone as ready. */
+async function waitForProfileAuthState(timeoutMs) {
+  const found = await waitFor(
+    function () {
+      const email = readEmailFromProfilePage();
+      if (email) return { kind: "email", email: email };
+      if (isAccountRequiredPage()) return { kind: "logged_out" };
+      if (findEmailInput()) return { kind: "login_modal" };
+      return null;
+    },
+    timeoutMs || 10000,
+    50,
+  );
+  if (found) return found;
+  const email = readEmailFromProfilePage();
+  if (email) return { kind: "email", email: email };
+  if (isAccountRequiredPage() || findEmailInput()) return { kind: "logged_out" };
+  if (
+    location.href.indexOf("/profile") !== -1 &&
+    !isLoggedIn() &&
+    findNavbarLogIn &&
+    findNavbarLogIn()
+  ) {
+    return { kind: "logged_out" };
+  }
+  return { kind: "unknown" };
 }
 
 async function waitForProfilePageReady() {
@@ -62,19 +90,23 @@ async function waitForProfilePageReady() {
       }
       if (isAccountRequiredPage()) return "account_required";
       if (readEmailFromProfilePage()) return "email";
-      if (isLoggedIn()) return "logged_in";
-      if (queryByRole("button", { name: "Log in" })) return "login";
-      if (normalizeText(document.body.textContent).toLowerCase().indexOf("contact") !== -1) {
-        return "profile";
-      }
+      if (findEmailInput()) return "login_modal";
+      if (isLoggedIn() && readEmailFromProfilePage()) return "email";
       return null;
     },
-    20000,
-    300,
+    12000,
+    50,
   );
-  if (!ready) throw new Error("Profile page did not load");
-  await pause(0.5);
-  logStep("Profile page ready (" + ready + ")");
+  if (ready) {
+    logStep("Profile page ready (" + ready + ")");
+    return;
+  }
+  const fallback = await waitForProfileAuthState(2000);
+  if (fallback && fallback.kind !== "unknown") {
+    logStep("Profile page ready (" + fallback.kind + ")");
+    return;
+  }
+  throw new Error("Profile page did not load");
 }
 
 async function openProfilePage() {
@@ -117,7 +149,7 @@ async function logoutFromNoon() {
 
   await clickSignOut(signOut);
 
-  const loggedOut = await waitFor(isLoggedOutState, 15000, 300);
+  const loggedOut = await waitFor(isLoggedOutState, 12000, 50);
   if (!loggedOut) {
     throw new Error("Sign out did not complete — still logged in");
   }

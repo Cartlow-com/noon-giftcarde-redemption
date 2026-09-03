@@ -2,16 +2,24 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from app.modules.batches.helpers.auth import resolve_owner_user_id
 from app.modules.batches.helpers.csv_parser import parse_orders_csv
 from app.modules.batches.models.db_models import ROW_PENDING, STAGE_PENDING, Batch, BatchRow
 from app.modules.batches.models.response_models import BatchSummaryResponse, UploadBatchResponse
 
 
-def create_batch_from_csv(filename: str, content: bytes, db: Session) -> UploadBatchResponse:
+def create_batch_from_csv(
+    filename: str,
+    content: bytes,
+    db: Session,
+    user_id: str | None = None,
+) -> UploadBatchResponse:
+    owner_id = resolve_owner_user_id(user_id, db)
     parsed_rows = parse_orders_csv(content)
     batch_id = str(uuid.uuid4())
     batch = Batch(
         id=batch_id,
+        user_id=owner_id,
         filename=filename or "upload.csv",
         total_rows=len(parsed_rows),
         pending_count=len(parsed_rows),

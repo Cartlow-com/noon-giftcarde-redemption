@@ -1,45 +1,48 @@
 from datetime import UTC, datetime
-from pathlib import Path
+
+from sqlalchemy import delete, select
+from sqlalchemy.orm import Session
 
 from app.config.settings import settings
+from app.modules.batches.models.db_models import ExtensionPresence
 
 
-def _path() -> Path:
-    return Path(settings.SCREENSHOT_STORAGE_DIR).resolve().parent / "extension_heartbeat.txt"
-
-
-def touch_extension_heartbeat() -> datetime:
-    path = _path()
-    path.parent.mkdir(parents=True, exist_ok=True)
+def touch_extension_heartbeat(db: Session, user_id: str) -> datetime:
     now = datetime.now(UTC)
-    path.write_text(now.isoformat(), encoding="utf-8")
-    return now
+    row = db.get(ExtensionPresence, user_id)
+    if row is None:
+        row = ExtensionPresence(user_id=user_id, last_seen_at=now)
+        db.add(row)
+    else:
+        row.last_seen_at = now
+    db.commit()
+    db.refresh(row)
+    return row.last_seen_at
 
 
-def clear_extension_heartbeat() -> None:
-    path = _path()
-    if path.is_file():
-        path.unlink()
+def clear_extension_heartbeat(db: Session, user_id: str | None = None) -> None:
+    if user_id:
+        row = db.get(ExtensionPresence, user_id)
+        if row:
+            db.delete(row)
+            db.commit()
+        return
+    db.execute(delete(ExtensionPresence))
+    db.commit()
 
 
-def get_extension_last_seen() -> datetime | None:
-    path = _path()
-    if not path.is_file():
+def get_extension_last_seen(db: Session, user_id: str) -> datetime | None:
+    row = db.get(ExtensionPresence, user_id)
+    if row is None:
         return None
-    raw = path.read_text(encoding="utf-8").strip()
-    if not raw:
-        return None
-    try:
-        value = datetime.fromisoformat(raw)
-    except ValueError:
-        return None
+    value = row.last_seen_at
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
     return value
 
 
-def is_extension_online(now: datetime | None = None) -> bool:
-    last = get_extension_last_seen()
+def is_extension_online(db: Session, user_id: str, now: datetime | None = None) -> bool:
+    last = get_extension_last_seen(db, user_id)
     if last is None:
         return False
     current = now or datetime.now(UTC)

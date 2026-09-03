@@ -32,67 +32,125 @@ function findRedeemGiftcardsBar() {
 }
 
 async function waitForCreditsPageReady() {
-  await pause(0.03);
   logStep("Waiting for credits page to load…");
-  await waitFor(
+  const ready = await waitFor(
     function () {
-      return isOnCreditsPage() && (findRedeemGiftcardsBar() || readCreditsBalance() != null);
+      return isCreditsBalanceScreenReady();
     },
-    15000,
-    150,
+    25000,
+    50,
   );
-  // Prefer waiting until Available Balance is painted (avoids spinner screenshots).
-  try {
-    await waitFor(
-      function () {
-        return readCreditsBalance() != null;
-      },
-      12000,
-      250,
-    );
-  } catch (_) {
-    logStep("Credits balance not readable yet — continuing with redeem bar ready");
+  if (!ready) throw new Error("Credits page did not finish loading");
+  await pause(0.4);
+  logStep("Credits page ready — balance visible");
+}
+
+function hasCreditsSkeletonUi() {
+  if (!document.body) return true;
+  const root = document.querySelector("main") || document.body;
+  const sel =
+    '[class*="skeleton" i], [class*="Skeleton"], [class*="shimmer" i], [class*="Shimmer"], [data-testid*="skeleton" i]';
+  const nodes = root.querySelectorAll(sel);
+  for (let i = 0; i < nodes.length; i++) {
+    if (isVisible(nodes[i])) return true;
   }
-  await pause(0.35);
-  logStep("Credits page ready");
+  return false;
+}
+
+function readAvailableBalanceLabel() {
+  const main = document.querySelector("main") || document.body;
+  const nodes = main.querySelectorAll("span, div, p, h1, h2, h3, label, strong");
+  for (let i = 0; i < nodes.length; i++) {
+    const el = nodes[i];
+    if (!isVisible(el)) continue;
+    const t = normalizeText(el.textContent).toLowerCase();
+    if (t !== "available balance" && t.indexOf("available balance") === -1) continue;
+    if (t.length > 80) continue;
+    let scope = el.parentElement;
+    for (let d = 0; d < 6 && scope; d++) {
+      const val = parseMoneyValue(scope.textContent);
+      if (val != null) return val;
+      scope = scope.parentElement;
+    }
+  }
+  return null;
+}
+
+function isCreditsBalanceScreenReady() {
+  if (!isOnCreditsPage()) return false;
+  if (document.readyState !== "complete") return false;
+  if (hasCreditsSkeletonUi()) return false;
+  if (isCreditsPageLoading()) return false;
+  if (findGiftCardNumberInput()) return false;
+  if (!findRedeemGiftcardsBar()) return false;
+  return readAvailableBalanceLabel() != null;
+}
+
+function isCreditsPageLoading() {
+  if (!document.body) return true;
+  if (hasCreditsSkeletonUi()) return true;
+  const scope = document.querySelector("main") || document.body;
+  const spinners = scope.querySelectorAll(
+    '[class*="spinner" i], [class*="loading" i], [class*="Loader" i], [aria-busy="true"], [data-testid*="loading" i]',
+  );
+  for (let i = 0; i < spinners.length; i++) {
+    if (isVisible(spinners[i])) return true;
+  }
+  const main = document.querySelector("main");
+  if (main && isVisible(main)) {
+    const text = normalizeText(main.textContent || "").toLowerCase();
+    if (text.indexOf("available balance") === -1) return true;
+    if (text.length < 80 && readAvailableBalanceLabel() == null) return true;
+  }
+  return false;
 }
 
 async function prepareCreditsForScreenshot(_kind) {
   await recoverFromFetchErrorIfNeeded(2);
+  try {
+    if (typeof dismissRedeemModal === "function") {
+      await dismissRedeemModal();
+    }
+  } catch (_) {}
+
   if (!isOnCreditsPage()) {
     location.href = NOON_CREDITS;
-    await waitFor(
-      function () {
-        return isOnCreditsPage();
-      },
-      12000,
-      150,
-    );
   }
-  await waitForCreditsPageReady();
-  try {
-    await waitFor(
-      function () {
-        return (
-          isOnCreditsPage() &&
-          readCreditsBalance() != null &&
-          !findGiftCardNumberInput()
-        );
-      },
-      12000,
-      250,
-    );
-  } catch (_) {
-    await waitFor(
-      function () {
-        return isOnCreditsPage() && (findRedeemGiftcardsBar() || readCreditsBalance() != null);
-      },
-      8000,
-      250,
-    );
+
+  const ready = await waitFor(
+    function () {
+      return isCreditsBalanceScreenReady();
+    },
+    25000,
+    50,
+  );
+
+  if (!ready) {
+    return {
+      ok: false,
+      error: "Credits balance screen not ready — refusing skeleton/loading screenshot",
+      balance: null,
+    };
   }
+
   await pause(0.5);
-  return { ok: true, balance: readCreditsBalance() };
+  if (!isCreditsBalanceScreenReady()) {
+    const again = await waitFor(isCreditsBalanceScreenReady, 8000, 50);
+    if (!again) {
+      return {
+        ok: false,
+        error: "Credits still loading after wait — refusing screenshot",
+        balance: null,
+      };
+    }
+  }
+
+  const balance = readAvailableBalanceLabel();
+  if (balance == null) {
+    return { ok: false, error: "Available balance not visible", balance: null };
+  }
+  logStep("Credits balance ready for screenshot: " + balance + " AED");
+  return { ok: true, balance: balance };
 }
 
 function findAddCreditsModal() {
@@ -133,14 +191,13 @@ function isOnAccountPage() {
 }
 
 async function waitForAddCreditsModal() {
-  await pause(0.03);
   logStep("Waiting for Add Credits popup…");
   await waitFor(
     function () {
       return findAddCreditsModal() || findGiftcardsVouchersOption();
     },
     8000,
-    150,
+    50,
   );
   logStep("Add Credits popup ready");
 }

@@ -11,7 +11,7 @@ async function waitForCheckoutPageReady() {
       return isOnCheckoutPage();
     },
     12000,
-    200,
+    50,
   );
   logStep("Checkout page ready");
 }
@@ -170,7 +170,7 @@ async function ensureUseMyCreditsEnabled() {
       );
     },
     12000,
-    200,
+    50,
   );
 
   if (isUseMyCreditsAlreadyEnabled()) {
@@ -200,7 +200,13 @@ async function ensureUseMyCreditsEnabled() {
 
   logStep("Enabling Use my credits…");
   await mouse().click(switchEl);
-  await pause(0.8);
+  await waitFor(
+    function () {
+      return isCreditsSwitchOn(switchEl) || null;
+    },
+    3000,
+    50,
+  );
 
   if (isUseMyCreditsAlreadyEnabled()) {
     logStep("Use my credits enabled");

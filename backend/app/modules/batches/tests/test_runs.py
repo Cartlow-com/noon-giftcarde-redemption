@@ -1,6 +1,7 @@
 import io
 
 from app.modules.batches.services.extension_presence import clear_extension_heartbeat
+from conftest import login, login_admin
 
 SAMPLE_CSV = """email,password,gift_card_number,gift_card_pin,product_url,quantity
 a@b.com,secret,1111222233334444,1234,https://www.noon.com/uae-en/product/N1/p/,1
@@ -8,44 +9,53 @@ c@d.com,secret2,1111222233335555,9999,https://www.noon.com/uae-en/product/N2/p/,
 """
 
 
-def _upload(client):
+def _upload(client, headers):
     return client.post(
         "/batches/upload",
+        headers=headers,
         files={"file": ("orders.csv", io.BytesIO(SAMPLE_CSV.encode()), "text/csv")},
     )
 
 
-def _mark_extension_online(client) -> None:
-    clear_extension_heartbeat()
-    assert client.get("/runs/pending").status_code == 200
-    status = client.get("/runs/extension/status")
+def _mark_extension_online(client, headers) -> None:
+    heartbeat = client.post("/runs/extension/heartbeat", headers=headers)
+    assert heartbeat.status_code == 200
+    assert client.get("/runs/pending", headers=headers).status_code == 200
+    status = client.get("/runs/extension/status", headers=headers)
     assert status.status_code == 200
     assert status.json()["online"] is True
 
 
-def test_rejects_run_when_extension_offline(client) -> None:
-    clear_extension_heartbeat()
-    upload = _upload(client)
+def test_rejects_run_when_extension_offline(client, db_session) -> None:
+    clear_extension_heartbeat(db_session)
+    headers = login(client)
+    upload = _upload(client, headers)
     batch_id = upload.json()["batch"]["id"]
-    row_id = client.get(f"/batches/{batch_id}/rows").json()["rows"][0]["id"]
-    offline = client.get("/runs/extension/status")
+    row_id = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"][0]["id"]
+    offline = client.get("/runs/extension/status", headers=headers)
     assert offline.status_code == 200
     assert offline.json()["online"] is False
-    created = client.post("/runs", json={"batch_id": batch_id, "row_ids": [row_id]})
+    created = client.post(
+        "/runs",
+        headers=headers,
+        json={"batch_id": batch_id, "row_ids": [row_id]},
+    )
     assert created.status_code == 400
     assert "Extension" in created.json()["detail"]
 
 
 def test_create_claim_stop_run(client) -> None:
-    _mark_extension_online(client)
-    upload = _upload(client)
+    headers = login(client)
+    _mark_extension_online(client, headers)
+    upload = _upload(client, headers)
     assert upload.status_code == 201
     batch_id = upload.json()["batch"]["id"]
-    rows = client.get(f"/batches/{batch_id}/rows").json()["rows"]
+    rows = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"]
     row_ids = [rows[0]["id"]]
 
     created = client.post(
         "/runs",
+        headers=headers,
         json={
             "batch_id": batch_id,
             "row_ids": row_ids,
@@ -62,32 +72,33 @@ def test_create_claim_stop_run(client) -> None:
     assert run["send_redeem_emails"] is True
     assert run["hide_window"] is False
 
-    pending = client.get("/runs/pending")
+    pending = client.get("/runs/pending", headers=headers)
     assert pending.status_code == 200
     assert pending.json()["id"] == run["id"]
 
-    claimed = client.post(f"/runs/{run['id']}/claim")
+    claimed = client.post(f"/runs/{run['id']}/claim", headers=headers)
     assert claimed.status_code == 200
     assert claimed.json()["status"] == "running"
 
-    stopped = client.post(f"/runs/{run['id']}/stop")
+    stopped = client.post(f"/runs/{run['id']}/stop", headers=headers)
     assert stopped.status_code == 200
     assert stopped.json()["stop_requested"] is True
     assert stopped.json()["status"] == "stopped"
 
-    active = client.get("/runs/active")
+    active = client.get("/runs/active", headers=headers)
     assert active.status_code == 200
     assert active.json() is None
 
 
 def test_rejects_second_active_run(client) -> None:
-    _mark_extension_online(client)
-    upload = _upload(client)
+    headers = login(client)
+    _mark_extension_online(client, headers)
+    upload = _upload(client, headers)
     batch_id = upload.json()["batch"]["id"]
-    row_id = client.get(f"/batches/{batch_id}/rows").json()["rows"][0]["id"]
-    first = client.post("/runs", json={"batch_id": batch_id, "row_ids": [row_id]})
+    row_id = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"][0]["id"]
+    first = client.post("/runs", headers=headers, json={"batch_id": batch_id, "row_ids": [row_id]})
     assert first.status_code == 201
-    second = client.post("/runs", json={"batch_id": batch_id, "row_ids": [row_id]})
+    second = client.post("/runs", headers=headers, json={"batch_id": batch_id, "row_ids": [row_id]})
     assert second.status_code == 400
 
 
@@ -99,11 +110,13 @@ def test_config_expected_row_seconds(client) -> None:
 
 
 def test_row_timing_patch(client) -> None:
-    upload = _upload(client)
+    headers = login(client)
+    upload = _upload(client, headers)
     batch_id = upload.json()["batch"]["id"]
-    row_id = client.get(f"/batches/{batch_id}/rows").json()["rows"][0]["id"]
+    row_id = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"][0]["id"]
     patched = client.patch(
         f"/batches/rows/{row_id}",
+        headers=headers,
         json={
             "run_started_at": "2026-09-03T10:00:00Z",
             "run_finished_at": "2026-09-03T10:02:30Z",
@@ -117,18 +130,20 @@ def test_row_timing_patch(client) -> None:
 
 
 def test_stop_finalizes_in_progress_row(client) -> None:
-    _mark_extension_online(client)
-    upload = _upload(client)
+    headers = login(client)
+    _mark_extension_online(client, headers)
+    upload = _upload(client, headers)
     batch_id = upload.json()["batch"]["id"]
-    row_id = client.get(f"/batches/{batch_id}/rows").json()["rows"][0]["id"]
+    row_id = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"][0]["id"]
 
-    created = client.post("/runs", json={"batch_id": batch_id, "row_ids": [row_id]})
+    created = client.post("/runs", headers=headers, json={"batch_id": batch_id, "row_ids": [row_id]})
     assert created.status_code == 201
     run = created.json()
-    assert client.post(f"/runs/{run['id']}/claim").status_code == 200
+    assert client.post(f"/runs/{run['id']}/claim", headers=headers).status_code == 200
 
     patched = client.patch(
         f"/batches/rows/{row_id}",
+        headers=headers,
         json={
             "login_status": "success",
             "redeem_status": "already_redeemed",
@@ -139,32 +154,38 @@ def test_stop_finalizes_in_progress_row(client) -> None:
     )
     assert patched.status_code == 200
 
-    stopped = client.post(f"/runs/{run['id']}/stop")
+    stopped = client.post(f"/runs/{run['id']}/stop", headers=headers)
     assert stopped.status_code == 200
     assert stopped.json()["status"] == "stopped"
     assert "finalized" in stopped.json()["message"]
 
-    row = client.get(f"/batches/{batch_id}/rows").json()["rows"][0]
+    row = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"][0]
     assert row["id"] == row_id
     assert row["purchase_status"] == "skipped"
     assert row["purchase_error"] == "Stopped by user"
     assert row["status"] == "partial"
     assert row["run_finished_at"] is not None
-    assert client.get("/runs/active").json() is None
+    assert client.get("/runs/active", headers=headers).json() is None
 
     # Late extension PATCH must not revive a stopped run.
-    late = client.patch(f"/runs/{run['id']}", json={"status": "completed", "message": "Completed"})
+    late = client.patch(
+        f"/runs/{run['id']}",
+        headers=headers,
+        json={"status": "completed", "message": "Completed"},
+    )
     assert late.status_code == 200
     assert late.json()["status"] == "stopped"
 
 
 def test_create_run_login_only(client) -> None:
-    _mark_extension_online(client)
-    upload = _upload(client)
+    headers = login(client)
+    _mark_extension_online(client, headers)
+    upload = _upload(client, headers)
     batch_id = upload.json()["batch"]["id"]
-    row_id = client.get(f"/batches/{batch_id}/rows").json()["rows"][0]["id"]
+    row_id = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"][0]["id"]
     created = client.post(
         "/runs",
+        headers=headers,
         json={"batch_id": batch_id, "row_ids": [row_id], "login_only": True},
     )
     assert created.status_code == 201
@@ -173,12 +194,14 @@ def test_create_run_login_only(client) -> None:
 
 
 def test_create_run_hide_window(client) -> None:
-    _mark_extension_online(client)
-    upload = _upload(client)
+    headers = login(client)
+    _mark_extension_online(client, headers)
+    upload = _upload(client, headers)
     batch_id = upload.json()["batch"]["id"]
-    row_id = client.get(f"/batches/{batch_id}/rows").json()["rows"][0]["id"]
+    row_id = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"][0]["id"]
     created = client.post(
         "/runs",
+        headers=headers,
         json={
             "batch_id": batch_id,
             "row_ids": [row_id],
@@ -187,20 +210,20 @@ def test_create_run_hide_window(client) -> None:
     )
     assert created.status_code == 201
     assert created.json()["hide_window"] is True
-    pending = client.get("/runs/pending")
+    pending = client.get("/runs/pending", headers=headers)
     assert pending.status_code == 200
     assert pending.json()["hide_window"] is True
 
 
 def test_heartbeat_marks_extension_online(client) -> None:
-    clear_extension_heartbeat()
-    before = client.get("/runs/extension/status")
+    headers = login(client)
+    before = client.get("/runs/extension/status", headers=headers)
     assert before.headers["cache-control"] == "no-store"
     assert before.json()["online"] is False
-    beat = client.post("/runs/extension/heartbeat")
+    beat = client.post("/runs/extension/heartbeat", headers=headers)
     assert beat.status_code == 200
     assert beat.headers["cache-control"] == "no-store"
     assert beat.json()["online"] is True
-    after = client.get("/runs/extension/status")
+    after = client.get("/runs/extension/status", headers=headers)
     assert after.headers["cache-control"] == "no-store"
     assert after.json()["online"] is True

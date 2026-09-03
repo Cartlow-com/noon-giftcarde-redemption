@@ -116,62 +116,26 @@ function findPasswordInput() {
   return null;
 }
 
-function isOtpLoginScreen() {
-  const text = normalizeText(document.body && document.body.textContent).toLowerCase();
-  if (text.indexOf("enter the 6-digit otp") !== -1) return true;
-  if (text.indexOf("6-digit otp") !== -1) return true;
-  if (text.indexOf("resend otp") !== -1 && text.indexOf("otp verification") !== -1) {
-    return true;
-  }
-  if (text.indexOf("resend otp") !== -1 && text.indexOf("otp") !== -1) return true;
-  const otpBoxes = document.querySelectorAll(
-    'input[autocomplete="one-time-code"], input[inputmode="numeric"], input[maxlength="1"]',
-  );
-  let visibleBoxes = 0;
-  for (let i = 0; i < otpBoxes.length; i++) {
-    if (isVisible(otpBoxes[i])) visibleBoxes += 1;
-  }
-  if (visibleBoxes >= 4 && !findPasswordInput()) return true;
-  return false;
-}
-
-function findPasswordLoginOption() {
-  if (findPasswordInput()) return null;
-  const named =
-    queryByRole("button", { name: "Log in with password" }) ||
-    queryByRole("tab", { name: "Log in with password" }) ||
-    queryByRole("link", { name: "Log in with password" });
-  if (named && isVisible(named)) return named;
-  return (
-    findClickableByText("Log in with password") ||
-    findClickableByText("Login with password") ||
-    findClickableByText("Use password") ||
-    findClickableByText("Sign in with password")
-  );
-}
-
-/** OTP-only = OTP UI present AND no password field AND no password switch option. */
-function isOtpOnlyLogin() {
-  if (findPasswordInput()) return false;
-  if (findPasswordLoginOption()) return false;
-  return isOtpLoginScreen();
-}
-
-function throwIfOtpOnlyLogin() {
-  if (isOtpOnlyLogin()) {
-    throw new Error("OTP is required — manual login required");
-  }
-}
-
 function getManualLoginRequiredMessage() {
+  const haystack = normalizeText(
+    (document.body && document.body.innerText) ||
+      (document.body && document.body.textContent) ||
+      "",
+  ).toLowerCase();
+  if (
+    haystack.indexOf("too many failed attempts") !== -1 ||
+    haystack.indexOf("link sent to your email address") !== -1
+  ) {
+    return "Too many failed attempts. Please use the email link to log in manually.";
+  }
+
   const nodes = document.querySelectorAll(
-    '[role="alert"], [aria-live], [class*="error" i], [class*="Error" i], p, span, div',
+    '[role="alert"], [aria-live], [class*="error" i], [class*="Error" i], p, span, div, label',
   );
   for (let i = 0; i < nodes.length; i++) {
     const el = nodes[i];
-    if (!isVisible(el)) continue;
     const text = normalizeText(el.textContent);
-    if (!text || text.length > 260) continue;
+    if (!text || text.length > 400) continue;
     const lower = text.toLowerCase();
     if (
       lower.indexOf("too many failed attempts") !== -1 ||
@@ -181,6 +145,10 @@ function getManualLoginRequiredMessage() {
     }
   }
   return null;
+}
+
+function isLoginLockoutError() {
+  return !!getManualLoginRequiredMessage();
 }
 
 function throwIfManualLoginRequired() {
@@ -204,29 +172,16 @@ function findLoginSubmitButton() {
   return null;
 }
 
-async function ensurePasswordTab() {
-  if (findPasswordInput()) return;
-
-  // Prefer switching to password when OTP (or other) UI also offers it.
-  const tab = findPasswordLoginOption();
-  if (tab) {
-    logStep("Moving to password login option…");
-    await mouse().click(tab);
-    logStep("Switched to password login");
-    await pause(0.6);
-    await waitFor(
-      function () {
-        return findPasswordInput();
-      },
-      6000,
-      150,
-    );
-  }
-
-  if (findPasswordInput()) return;
-
-  // Only fail when OTP is the only option left.
-  throwIfOtpOnlyLogin();
+async function waitUntilEnabled(findFn, timeoutMs) {
+  return waitFor(
+    function () {
+      const el = findFn();
+      if (el && !isDisabled(el)) return el;
+      return null;
+    },
+    timeoutMs || 5000,
+    50,
+  );
 }
 
 function getByText(text, root) {
@@ -252,14 +207,16 @@ function isDisabled(el) {
 
 async function waitFor(fn, timeoutMs, intervalMs) {
   const timeout = timeoutMs ?? 20000;
-  const interval = intervalMs ?? 200;
+  const interval = intervalMs ?? 50;
   const start = Date.now();
   while (Date.now() - start < timeout) {
     flow().check();
+    throwIfManualLoginRequired();
     const result = fn();
     if (result) return result;
     await pause(interval / 1000);
   }
+  throwIfManualLoginRequired();
   return null;
 }
 

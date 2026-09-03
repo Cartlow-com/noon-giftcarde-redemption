@@ -32,11 +32,21 @@
       "run_at": "document_start"
     },
     {
+      "matches": [
+        "https://redeem.cartlow.com/*",
+        "http://127.0.0.1:8000/*",
+        "http://localhost:8000/*"
+      ],
+      "js": ["dashboardBridge.js"],
+      "run_at": "document_start"
+    },
+    {
       "matches": ["https://www.noon.com/*", "https://account.noon.com/*"],
       "js": [
         "content/01-core.js",
         "content/02-dom-query.js",
         "content/03-dom-nav.js",
+        "content/02b-login-password.js",
         "content/03b-signout.js",
         "content/04-state.js",
         "content/05-redeem-ui.js",

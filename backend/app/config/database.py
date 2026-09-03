@@ -40,16 +40,45 @@ def _ensure_sqlite_columns() -> None:
                 if name not in existing:
                     conn.execute(text(sql))
 
+    if "batches" in tables:
+        batch_cols = {col["name"] for col in inspector.get_columns("batches")}
+        if "user_id" not in batch_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE batches ADD COLUMN user_id VARCHAR(36) DEFAULT ''"))
+
     if "batch_runs" in tables:
         run_cols = {col["name"] for col in inspector.get_columns("batch_runs")}
         run_alters = {
             "hide_window": "ALTER TABLE batch_runs ADD COLUMN hide_window INTEGER DEFAULT 0",
             "login_only": "ALTER TABLE batch_runs ADD COLUMN login_only INTEGER DEFAULT 0",
+            "user_id": "ALTER TABLE batch_runs ADD COLUMN user_id VARCHAR(36) DEFAULT ''",
         }
         with engine.begin() as conn:
             for name, sql in run_alters.items():
                 if name not in run_cols:
                     conn.execute(text(sql))
+
+
+def _backfill_owner_user_ids() -> None:
+    """Assign legacy rows with empty user_id to the seeded admin account."""
+    from seeders.seed_users import get_admin_user_id
+
+    db = SessionLocal()
+    try:
+        admin_id = get_admin_user_id(db)
+        if not admin_id:
+            return
+        db.execute(
+            text("UPDATE batches SET user_id = :uid WHERE user_id IS NULL OR user_id = ''"),
+            {"uid": admin_id},
+        )
+        db.execute(
+            text("UPDATE batch_runs SET user_id = :uid WHERE user_id IS NULL OR user_id = ''"),
+            {"uid": admin_id},
+        )
+        db.commit()
+    finally:
+        db.close()
 
 
 def init_db() -> None:
@@ -59,6 +88,10 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
     _ensure_sqlite_columns()
+
+
+def backfill_tenancy_after_seed() -> None:
+    _backfill_owner_user_ids()
 
 
 def get_db() -> Generator[Session, None, None]:

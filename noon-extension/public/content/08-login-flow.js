@@ -48,10 +48,16 @@ async function runGiftCardRedemption(payload) {
       logStep("Clicking Giftcards & Vouchers…");
       const option = await waitFor(function () {
         return findGiftcardsVouchersOption();
-      }, 8000, 150);
+      }, 8000, 50);
       if (!option) throw new Error("Giftcards & Vouchers option not found");
-      await mouse().click(option);
-      await pause(0.8);
+      await mouse().click(option, { fast: true });
+      await waitFor(
+        function () {
+          return findGiftCardNumberInput() || detectPageState() === "REDEEM_FORM";
+        },
+        6000,
+        50,
+      );
       continue;
     }
 
@@ -73,11 +79,10 @@ async function runGiftCardRedemption(payload) {
       logStep("Clicking Redeem Giftcards…");
       const redeemBar = await waitFor(function () {
         return findRedeemGiftcardsBar();
-      }, 10000, 200);
+      }, 10000, 50);
       if (!redeemBar) throw new Error("Redeem Giftcards not found");
-      await mouse().click(redeemBar);
+      await mouse().click(redeemBar, { fast: true });
       await waitForAddCreditsModal();
-      await pause(0.5);
       continue;
     }
 
@@ -95,7 +100,6 @@ async function runGiftCardRedemption(payload) {
 
 async function runFromStep(state) {
   await enableCursor();
-  await pause(0.3);
 
   if (state.flowType === "cart") {
     await restoreBatchCartContextFromState(state);
@@ -183,26 +187,60 @@ async function runNextStep(payload) {
 }
 
 function hasPageFetchError() {
-  const bodyText = (document.body && document.body.textContent) || "";
-  const lower = bodyText.toLowerCase();
-  for (let i = 0; i < PAGE_FETCH_ERROR_MARKERS.length; i++) {
-    if (lower.indexOf(PAGE_FETCH_ERROR_MARKERS[i]) !== -1) return true;
-  }
+  // Only visible UI — scanning full body.textContent false-positives on Noon scripts/copy
+  // and used to trigger endless location.reload() loops.
   const networkError = getByText(NETWORK_ERROR);
-  return !!(networkError && isVisible(networkError));
+  if (networkError && isVisible(networkError)) return true;
+
+  const nodes = document.querySelectorAll("h1, h2, h3, [role='alert'], [class*='error' i]");
+  for (let i = 0; i < nodes.length; i++) {
+    const el = nodes[i];
+    if (!isVisible(el)) continue;
+    const lower = normalizeText(el.textContent).toLowerCase();
+    if (!lower || lower.length > 120) continue;
+    for (let m = 0; m < PAGE_FETCH_ERROR_MARKERS.length; m++) {
+      if (lower.indexOf(PAGE_FETCH_ERROR_MARKERS[m]) !== -1) return true;
+    }
+  }
+  return false;
 }
 
 async function recoverFromFetchErrorIfNeeded(maxAttempts) {
   const attempts = maxAttempts == null ? 2 : maxAttempts;
+  const key = "noon_recover_reloads";
+  let used = 0;
+  try {
+    used = Number(sessionStorage.getItem(key) || "0") || 0;
+  } catch (_) {}
+
   for (let i = 0; i < attempts; i++) {
-    if (!hasPageFetchError()) return false;
+    if (!hasPageFetchError()) {
+      try {
+        sessionStorage.removeItem(key);
+      } catch (_) {}
+      return false;
+    }
+    if (used >= attempts) {
+      throw new Error("Noon page failed to load after refresh");
+    }
     logStep("Noon page error detected — hard refreshing…");
+    used += 1;
+    try {
+      sessionStorage.setItem(key, String(used));
+    } catch (_) {}
     await hardRefresh();
+    // hardRefresh unloads the document; if we are still here, wait briefly.
+    await new Promise(function (resolve) {
+      setTimeout(resolve, 800);
+    });
     await acceptCookies();
   }
   if (hasPageFetchError()) {
     throw new Error("Noon page failed to load after refresh");
   }
+  try {
+    sessionStorage.removeItem(key);
+  } catch (_) {}
   return true;
 }
 
@@ -211,12 +249,14 @@ async function waitForPageReady() {
   logStep("Waiting for Noon homepage…");
   await waitFor(
     function () {
-      return isLoggedIn() || queryByRole("button", { name: "Log in" });
+      return isLoggedIn() || queryByRole("button", { name: "Log in" }) || findNavbarLogIn();
     },
-    15000,
-    150,
+    12000,
+    50,
   );
-  await pause(0.4);
+  try {
+    sessionStorage.removeItem("noon_recover_reloads");
+  } catch (_) {}
   logStep("Page loaded");
 }
 

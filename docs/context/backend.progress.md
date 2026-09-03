@@ -7,8 +7,6 @@
 | BE-1 | — | — | — | — | idle |
 | BE-2 | — | — | — | — | idle |
 | BE-3 | — | — | — | — | idle |
-| BE-2 | — | — | — | — | idle |
-| BE-3 | — | — | — | — | idle |
 
 ## Status
 
@@ -19,16 +17,21 @@ FastAPI backend with login + batch modules. Extension connects to backend for CS
 | FastAPI backend | ✅ Done | SQLite, login + batches modules |
 | Batch CSV upload API | ✅ Done | POST `/batches/upload` |
 | Batch list/detail/rows API | ✅ Done | GET + PATCH + pull-next |
-| `AUTH_REQUIRED` env flag | ✅ Done | Default `false` |
-| User seed CSV | ✅ Done | `seeders/users.example.csv` → copy to `users.csv` |
+| `AUTH_REQUIRED` env flag | ✅ Done | Default **true** |
+| User seed CSV | ✅ Done | `admin@example.com` / `admin123`, `user@example.com` / `password123` |
+| Per-user tenancy | ✅ Done | Batches/runs/presence scoped by `user_id`; multi-user concurrent runs |
 | Extension batch UI | ✅ Done | Upload + history in Batches tab |
 | Batch automation runner | ✅ Done | Upload → DB save → auto-start pull-next loop |
-| Admin dashboard | ✅ Done | `/` upload/run/stop/delete + screenshots/emails |
+| Admin dashboard | ✅ Done | `/` + SSE live updates (`/admin/events`) |
 | Dashboard run jobs | ✅ Done | `/runs` queue; extension poll + Noon window |
 | Redeem verification | ⬜ Deferred | Balance/transaction check — later |
 
 ## Recent Changes
 
+- 2026-09-03 — Per-row run attempt history API + dashboard; skip complete when redeem+order done; always email-verify before redeem/order; partial re-runs order
+- 2026-09-03 — Admin dashboard live updates via SSE (`GET /admin/events`); removed GET poll intervals
+- 2026-09-03 — Multi-user auth (no roles): AUTH_REQUIRED=true; per-user batches/runs/presence; dashboard login bridges JWT to extension
+- 2026-09-03 — Dashboard auth overlay now stores Noon JWTs, syncs them into the extension bridge, and clears both on sign-out
 - 2026-09-03 — Run flags `login_only` + `screenshot_on_failure` kind for stage failures
 - 2026-09-03 — Run flag `hide_window` + SQLite column; dashboard/extension minimize Noon window
 - 2026-09-03 — Heartbeat TTL 90s (matches MV3 alarm wake); already_redeemed+skipped→partial; timing PATCH keeps status

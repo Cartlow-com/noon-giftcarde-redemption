@@ -16,11 +16,28 @@
 
     if (
       state.flowType === "batch_account" &&
-      (state.step === "login_profile" || state.step === "login_home")
+      (state.step === "login_profile" ||
+        state.step === "login_home" ||
+        state.step === "after_logout")
     ) {
       await enableCursor();
-      await loginFromProfilePage(state.email, state.password);
+      logStep(
+        state.step === "after_logout"
+          ? "On profile after sign out — click Log In, fill email, Continue"
+          : "Resuming account login on profile",
+      );
+      await waitForProfilePageReady();
       const required = String(state.email || "").trim().toLowerCase();
+      const settled = await waitForProfileAuthState(12000);
+      if (settled && settled.kind === "email" && settled.email === required) {
+        await setSessionEmail(required);
+        await disableCursor();
+        await markFlowComplete({ ok: true, skipped: true, switched: false });
+        await clearFlowState();
+        emit("LOGIN_SUCCESS", { message: "Already logged in as " + required });
+        return;
+      }
+      await loginFromCurrentPage(state.email, state.password);
       await openProfilePage();
       const profileEmail = await waitForReadableProfileEmail(8000);
       if (profileEmail !== required) {
