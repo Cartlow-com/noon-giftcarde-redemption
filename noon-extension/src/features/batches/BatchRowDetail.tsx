@@ -65,6 +65,7 @@ export default function BatchRowDetail({ row, onClose }: BatchRowDetailProps) {
           <DetailRow label="SS before redeem" value={row.screenshot_before_redeem} />
           <DetailRow label="SS after redeem" value={row.screenshot_after_redeem} />
           <DetailRow label="SS after order" value={row.screenshot_after_order} />
+          <DetailRow label="SS on failure" value={row.screenshot_on_failure} />
         </div>
       </div>
     </div>

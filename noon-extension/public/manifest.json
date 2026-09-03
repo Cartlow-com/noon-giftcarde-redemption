@@ -3,8 +3,9 @@
   "name": "Noon Automation",
   "version": "0.1.0",
   "description": "Automate Noon.com login and workflows from a side panel.",
-  "permissions": ["storage", "tabs", "sidePanel", "windows"],
+  "permissions": ["storage", "tabs", "sidePanel", "windows", "alarms", "cookies"],
   "host_permissions": [
+    "<all_urls>",
     "https://www.noon.com/*",
     "https://account.noon.com/*"
   ],
@@ -28,7 +29,27 @@
     },
     {
       "matches": ["https://www.noon.com/*", "https://account.noon.com/*"],
-      "js": ["content.js"],
+      "js": [
+        "content/01-core.js",
+        "content/02-dom-query.js",
+        "content/03-dom-nav.js",
+        "content/03b-signout.js",
+        "content/04-state.js",
+        "content/05-redeem-ui.js",
+        "content/06-redeem-scan.js",
+        "content/07-redeem-submit.js",
+        "content/08-login-flow.js",
+        "content/09-login-steps.js",
+        "content/10-account.js",
+        "content/11-session.js",
+        "content/12-cart-product.js",
+        "content/13-cart-nav.js",
+        "content/14-checkout-ui.js",
+        "content/15-cart-flow.js",
+        "content/16-batch.js",
+        "content/17-messages.js",
+        "content/18-resume.js"
+      ],
       "run_at": "document_idle"
     }
   ]

@@ -238,29 +238,66 @@
     await delay(60);
   }
 
+  function resolveClickableTarget(el) {
+    if (!el || el.nodeType !== 1) return el;
+    const semantic = el.closest("a, button, [role='button'], [role='link'], summary, label");
+    if (semantic) return semantic;
+    let node = el;
+    for (let i = 0; i < 8 && node && node !== document.body; i++) {
+      try {
+        const style = window.getComputedStyle(node);
+        if (
+          style.cursor === "pointer" ||
+          node.getAttribute("tabindex") != null ||
+          typeof node.onclick === "function"
+        ) {
+          return node;
+        }
+      } catch (_) {}
+      node = node.parentElement;
+    }
+    return el;
+  }
+
   function dispatchPointerClick(el, clientX, clientY) {
+    const target = resolveClickableTarget(el) || el;
     const opts = {
       bubbles: true,
       cancelable: true,
+      composed: true,
       view: window,
       clientX: clientX,
       clientY: clientY,
+      screenX: clientX,
+      screenY: clientY,
       button: 0,
       buttons: 1,
+      detail: 1,
     };
     ["pointerover", "mouseover", "pointerenter", "mouseenter"].forEach(function (type) {
       try {
-        el.dispatchEvent(new MouseEvent(type, opts));
+        target.dispatchEvent(new MouseEvent(type, opts));
       } catch (_) {}
     });
-    ["pointerdown", "mousedown"].forEach(function (type) {
-      el.dispatchEvent(new MouseEvent(type, opts));
-    });
-    ["pointerup", "mouseup"].forEach(function (type) {
-      el.dispatchEvent(new MouseEvent(type, opts));
-    });
     try {
-      el.click();
+      if (typeof PointerEvent === "function") {
+        target.dispatchEvent(
+          new PointerEvent("pointerdown", Object.assign({}, opts, { pointerId: 1, pointerType: "mouse", isPrimary: true })),
+        );
+      }
+    } catch (_) {}
+    target.dispatchEvent(new MouseEvent("mousedown", opts));
+    try {
+      if (typeof PointerEvent === "function") {
+        target.dispatchEvent(
+          new PointerEvent("pointerup", Object.assign({}, opts, { pointerId: 1, pointerType: "mouse", isPrimary: true, buttons: 0 })),
+        );
+      }
+    } catch (_) {}
+    target.dispatchEvent(new MouseEvent("mouseup", Object.assign({}, opts, { buttons: 0 })));
+    target.dispatchEvent(new MouseEvent("click", Object.assign({}, opts, { buttons: 0 })));
+    try {
+      target.click();
     } catch (_) {}
   }
 
@@ -268,10 +305,11 @@
     ensureVisible();
     const skipMove = options && options.skipMove;
     setCursorMode("default");
-    scrollElementIntoView(el);
+    const clickable = resolveClickableTarget(el) || el;
+    scrollElementIntoView(clickable);
     await delay(120);
     checkAbort();
-    const center = elementCenter(el, false);
+    const center = elementCenter(clickable, false);
     if (!skipMove) {
       await moveTo(center.x, center.y);
     } else {
@@ -279,7 +317,17 @@
     }
     showClickRing(center.x, center.y);
     await clickPulse();
-    dispatchPointerClick(el, center.x, center.y);
+    // Click whatever is actually under the cursor (handles nested spans/icons).
+    let hit = null;
+    try {
+      hit = document.elementFromPoint(center.x, center.y);
+    } catch (_) {}
+    if (hit && hit.id === HOST_ID) hit = null;
+    const primary = resolveClickableTarget(hit) || hit || clickable;
+    dispatchPointerClick(primary, center.x, center.y);
+    if (primary !== clickable) {
+      dispatchPointerClick(clickable, center.x, center.y);
+    }
     await delay(randomBetween(120, 200));
   }
 

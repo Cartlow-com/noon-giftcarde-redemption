@@ -25,7 +25,7 @@ export default function BatchesPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [stopping, setStopping] = useState(false);
-  const [placeOrderEnabled, setPlaceOrderEnabled] = useState(true);
+  const [placeOrderEnabled, setPlaceOrderEnabled] = useState(false);
   const [sendRedeemEmails, setSendRedeemEmails] = useState(false);
   const [sendOrderEmails, setSendOrderEmails] = useState(false);
   const [placeOrderConfirm, setPlaceOrderConfirm] = useState<{

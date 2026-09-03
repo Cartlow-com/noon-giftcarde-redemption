@@ -136,6 +136,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "CLEAR_NOON_SESSION") {
+    (async () => {
+      try {
+        const result = await clearNoonSessionCookies();
+        sendResponse(result);
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : "Failed to clear Noon session",
+        });
+      }
+    })();
+    return true;
+  }
+
   if (message.type === "OPEN_WIDE_WINDOW") {
     (async () => {
       try {

@@ -152,6 +152,29 @@ async function sendBatchRedeemToTab(tabId, payload, attempts = 3) {
       password: payload.password,
       giftCardNumber: payload.giftCardNumber,
       giftCardPin: payload.giftCardPin,
+      accountVerified: payload.accountVerified === true,
+    },
+    attempts,
+  );
+}
+
+async function prepareCreditsScreenshotOnTab(tabId, kind, attempts = 3) {
+  return sendMessageToTab(
+    tabId,
+    {
+      type: "PREPARE_CREDITS_SCREENSHOT",
+      kind: kind === "after" ? "after" : "before",
+    },
+    attempts,
+  );
+}
+
+async function assertSessionEmailOnTab(tabId, email, attempts = 3) {
+  return sendMessageToTab(
+    tabId,
+    {
+      type: "ASSERT_SESSION_EMAIL",
+      email: email,
     },
     attempts,
   );
@@ -199,12 +222,42 @@ async function navigateTabToProfile(tabId) {
 
 async function getOrCreateNoonTab(options) {
   const opts = options || {};
+  const hideWindow = !!opts.hideWindow;
   if (opts.forceNewWindow) {
+    let width = 1280;
+    let height = 900;
+    let left = 40;
+    let top = 40;
+    try {
+      const current = await chrome.windows.getCurrent();
+      if (current.width && current.height) {
+        width = Math.max(1100, current.width);
+        height = Math.max(750, current.height);
+        left = typeof current.left === "number" ? current.left : left;
+        top = typeof current.top === "number" ? current.top : top;
+      }
+    } catch (_) {}
+
     const win = await chrome.windows.create({
       url: NOON_HOME,
-      focused: true,
+      focused: !hideWindow,
       type: "normal",
+      state: "normal",
+      width: width,
+      height: height,
+      left: left,
+      top: top,
     });
+    try {
+      if (win && win.id != null) {
+        if (hideWindow) {
+          await chrome.windows.update(win.id, { state: "minimized", focused: false });
+        } else {
+          await chrome.windows.update(win.id, { state: "maximized", focused: true });
+        }
+      }
+    } catch (_) {}
+
     const tabId = win.tabs && win.tabs[0] && win.tabs[0].id;
     if (tabId == null) throw new Error("Failed to open Noon window");
     await waitForTabComplete(tabId);
@@ -248,6 +301,27 @@ async function cancelLoginOnTab(tabId) {
   } catch (_) {
     return false;
   }
+}
+
+/** Wipe Noon auth cookies so the next row cannot inherit the previous account. */
+async function clearNoonSessionCookies() {
+  const domains = [".noon.com", "noon.com", "www.noon.com", "account.noon.com", "login.noon.com"];
+  let removed = 0;
+  for (let d = 0; d < domains.length; d++) {
+    const cookies = await chrome.cookies.getAll({ domain: domains[d] });
+    for (let i = 0; i < cookies.length; i++) {
+      const c = cookies[i];
+      const host = (c.domain || "").replace(/^\./, "");
+      if (!host) continue;
+      const url = (c.secure ? "https://" : "http://") + host + (c.path || "/");
+      try {
+        await chrome.cookies.remove({ url: url, name: c.name });
+        removed += 1;
+      } catch (_) {}
+    }
+  }
+  await chrome.storage.local.remove(["noon_batch_session_email"]);
+  return { ok: true, removed: removed };
 }
 
 importScripts("messageRouter.js");

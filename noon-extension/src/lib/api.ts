@@ -40,6 +40,7 @@ export interface BatchRow {
   screenshot_before_redeem?: string | null;
   screenshot_after_redeem?: string | null;
   screenshot_after_order?: string | null;
+  screenshot_on_failure?: string | null;
   status: string;
 }
 

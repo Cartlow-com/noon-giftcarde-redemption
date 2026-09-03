@@ -31,6 +31,7 @@ function extensionEnvPlugin(apiBase: string): Plugin {
       };
       const permission = apiHostPermission(apiBase);
       const permissions = new Set(manifest.host_permissions || []);
+      permissions.add("<all_urls>");
       permissions.delete("http://127.0.0.1:8000/*");
       permissions.delete("http://localhost:8000/*");
       permissions.add(permission);
@@ -62,10 +63,6 @@ export default defineConfig(({ mode }) => {
     new URL(apiBase);
   } catch {
     throw new Error("VITE_API_BASE_URL must be a valid URL in noon-extension/.env");
-  }
-
-  if (/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(apiBase)) {
-    throw new Error("VITE_API_BASE_URL must not be localhost — use your deployed backend URL.");
   }
 
   return {

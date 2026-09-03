@@ -56,17 +56,44 @@ async function uploadRowScreenshot(rowId, kind, blob) {
 
 async function captureAndUploadScreenshot(tabId, rowId, kind) {
   const tab = await chrome.tabs.get(tabId);
-  if (tab.windowId != null) {
-    try {
-      await chrome.windows.update(tab.windowId, { focused: true });
-    } catch (_) {}
+  if (tab.windowId == null) {
+    throw new Error("Tab has no window — cannot capture screenshot");
   }
+  const hideAfter =
+    typeof batchHideWindow !== "undefined" ? !!batchHideWindow : false;
+  try {
+    const focusPatch = { focused: true };
+    if (hideAfter) focusPatch.state = "normal";
+    await chrome.windows.update(tab.windowId, focusPatch);
+  } catch (_) {}
   await chrome.tabs.update(tabId, { active: true });
   await new Promise(function (resolve) {
     setTimeout(resolve, 400);
   });
-  const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+  let dataUrl;
+  try {
+    dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      "captureVisibleTab failed (" +
+        msg +
+        "). Extension needs <all_urls> host permission — reload from dist after rebuild.",
+    );
+  } finally {
+    if (hideAfter) {
+      try {
+        await chrome.windows.update(tab.windowId, { state: "minimized", focused: false });
+      } catch (_) {}
+    }
+  }
+  if (!dataUrl) {
+    throw new Error("captureVisibleTab returned empty image");
+  }
   const blob = await (await fetch(dataUrl)).blob();
+  if (!blob || blob.size === 0) {
+    throw new Error("Screenshot blob was empty");
+  }
   return uploadRowScreenshot(rowId, kind, blob);
 }
 
@@ -116,4 +143,8 @@ async function patchBatchRun(runId, body) {
 
 async function getRunsConfig() {
   return batchApiRequest("/runs/config");
+}
+
+async function postExtensionHeartbeat() {
+  return batchApiRequest("/runs/extension/heartbeat", { method: "POST" });
 }

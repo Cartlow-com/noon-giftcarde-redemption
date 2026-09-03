@@ -1,5 +1,10 @@
 let dashboardRunId = null;
 let runPollBusy = false;
+let stopWatchBusy = false;
+
+const DASHBOARD_POLL_ALARM = "noon_dashboard_poll";
+/** Chrome clamps alarm periods; ~30s is the practical minimum on modern Chrome. */
+const DASHBOARD_POLL_PERIOD_MINUTES = 0.5;
 
 async function startDashboardRun(run) {
   if (!run || !run.id) return;
@@ -31,7 +36,8 @@ async function startDashboardRun(run) {
     batchId: claimed.batch_id,
     stage: "system",
     status: "info",
-    message: `Dashboard run claimed — opening Noon window (${claimed.row_ids.length} row(s))`,
+    message: `Dashboard run claimed — opening Noon window (${claimed.row_ids.length} row(s))` +
+      (claimed.hide_window ? " — hidden" : ""),
   });
 
   try {
@@ -39,6 +45,8 @@ async function startDashboardRun(run) {
       placeOrder: claimed.place_order,
       sendRedeemEmails: claimed.send_redeem_emails,
       sendOrderEmails: claimed.send_order_emails,
+      hideWindow: !!claimed.hide_window,
+      loginOnly: !!claimed.login_only,
       forceNewWindow: true,
       runId: claimed.id,
     });
@@ -48,7 +56,7 @@ async function startDashboardRun(run) {
     });
   } catch (error) {
     await patchBatchRun(claimed.id, {
-      status: "failed",
+      status: isBatchRunCancelled() ? "stopped" : "failed",
       message: error instanceof Error ? error.message : "Run failed",
     }).catch(function () {});
     emitBatch({
@@ -61,22 +69,53 @@ async function startDashboardRun(run) {
   }
 }
 
+async function checkDashboardStop() {
+  if (stopWatchBusy) return;
+  if (!dashboardRunId || !isBatchRunActive()) return;
+  stopWatchBusy = true;
+  try {
+    const active = await getActiveRun();
+    let shouldStop = !!(active && active.id === dashboardRunId && active.stop_requested);
+    if (!shouldStop) {
+      // Stop API marks run stopped immediately → it drops out of /runs/active.
+      try {
+        const run = await batchApiRequest(`/runs/${encodeURIComponent(dashboardRunId)}`);
+        shouldStop = !!(run && (run.stop_requested || run.status === "stopped"));
+      } catch (_) {}
+    }
+    if (shouldStop) {
+      stopBatchRun();
+      emitBatch({
+        type: "BATCH_PROGRESS",
+        stage: "system",
+        status: "info",
+        message: "Stop received from dashboard — cancelling automation",
+      });
+    }
+  } catch (_) {
+    /* ignore */
+  } finally {
+    stopWatchBusy = false;
+  }
+}
+
 async function pollDashboardRuns() {
   if (runPollBusy) return;
   runPollBusy = true;
   try {
-    if (isBatchRunActive() && dashboardRunId) {
-      const active = await getActiveRun();
-      if (active && active.id === dashboardRunId && active.stop_requested) {
-        stopBatchRun();
-      }
-      return;
+    try {
+      await postExtensionHeartbeat();
+    } catch (_) {
+      /* older backends may lack heartbeat */
     }
+
+    await checkDashboardStop();
     if (isBatchRunActive()) return;
 
     const pending = await getPendingRun();
     if (pending && pending.id) {
-      await startDashboardRun(pending);
+      // Do not await — keep poller free so Stop can be checked while running.
+      startDashboardRun(pending);
     }
   } catch (_) {
     /* backend may be offline */
@@ -85,7 +124,32 @@ async function pollDashboardRuns() {
   }
 }
 
-function startDashboardRunPolling() {
-  pollDashboardRuns();
-  setInterval(pollDashboardRuns, 2500);
+function ensureDashboardPollAlarm() {
+  chrome.alarms.create(DASHBOARD_POLL_ALARM, {
+    delayInMinutes: DASHBOARD_POLL_PERIOD_MINUTES,
+    periodInMinutes: DASHBOARD_POLL_PERIOD_MINUTES,
+  });
 }
+
+function startDashboardRunPolling() {
+  ensureDashboardPollAlarm();
+  pollDashboardRuns();
+  // Fast loops only while the service worker stays awake (active run / recent events).
+  // When MV3 puts the SW to sleep, setInterval dies — chrome.alarms wakes it again.
+  setInterval(pollDashboardRuns, 2500);
+  setInterval(checkDashboardStop, 1000);
+}
+
+chrome.alarms.onAlarm.addListener(function (alarm) {
+  if (alarm.name === DASHBOARD_POLL_ALARM) {
+    pollDashboardRuns();
+  }
+});
+
+chrome.runtime.onInstalled.addListener(function () {
+  ensureDashboardPollAlarm();
+});
+
+chrome.runtime.onStartup.addListener(function () {
+  ensureDashboardPollAlarm();
+});

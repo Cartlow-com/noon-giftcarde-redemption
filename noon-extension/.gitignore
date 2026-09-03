@@ -2,3 +2,5 @@ node_modules/
 dist/
 .env
 public/apiConfig.js
+public/content.js.pre-split.bak
+*.pre-split.bak

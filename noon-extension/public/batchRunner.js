@@ -7,6 +7,8 @@ let sessionEmail = null;
 let batchPlaceOrder = true;
 let batchSendRedeemEmails = false;
 let batchSendOrderEmails = false;
+let batchHideWindow = false;
+let batchLoginOnly = false;
 
 const NOON_CREDITS_URL = "https://account.noon.com/uae-en/credits/";
 
@@ -16,25 +18,66 @@ async function openCreditsPage(tabId) {
   await delay(900);
 }
 
-async function safeCaptureScreenshot(tabId, row, kind) {
+async function captureRedeemScreenshot(tabId, row, kind) {
+  // After redeem: hard-nav to credits so modal closes and balance can paint.
+  // Do this from the extension (not content.js) so the page reload doesn't kill the RPC.
+  if (kind === "after_redeem") {
+    await chrome.tabs.update(tabId, { url: NOON_CREDITS_URL });
+    await waitForTabComplete(tabId);
+    await delay(900);
+  }
   try {
-    await captureAndUploadScreenshot(tabId, row.id, kind);
-    emitStageProgress(
-      row,
-      kind.indexOf("order") !== -1 ? "order" : "redeem",
-      "info",
-      `Row ${row.row_number}: saved ${kind.replace(/_/g, " ")} screenshot`,
-    );
+    throwIfCancelled();
+    const prepared = await prepareCreditsScreenshotOnTab(tabId, "ready");
+    if (prepared && prepared.ok === false) {
+      throw new Error(prepared.error || "Credits page not ready for screenshot");
+    }
+    if (prepared && prepared.balance != null) {
+      emitStageProgress(
+        row,
+        "redeem",
+        "info",
+        `Row ${row.row_number}: credits balance ${prepared.balance} AED — capturing ${kind.replace(/_/g, " ")}`,
+      );
+    }
   } catch (error) {
     emitStageProgress(
       row,
       "system",
       "info",
-      `Row ${row.row_number}: screenshot ${kind} failed — ${
-        error instanceof Error ? error.message : "unknown error"
+      `Row ${row.row_number}: credits prepare for ${kind} — ${
+        error instanceof Error ? error.message : "continuing"
       }`,
     );
   }
+  await safeCaptureScreenshot(tabId, row, kind);
+}
+
+async function safeCaptureScreenshot(tabId, row, kind) {
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await captureAndUploadScreenshot(tabId, row.id, kind);
+      emitStageProgress(
+        row,
+        kind === "on_failure" ? "system" : kind.indexOf("order") !== -1 ? "order" : "redeem",
+        "info",
+        `Row ${row.row_number}: saved ${kind.replace(/_/g, " ")} screenshot`,
+      );
+      return;
+    } catch (error) {
+      lastError = error;
+      await delay(600);
+    }
+  }
+  emitStageProgress(
+    row,
+    "system",
+    "info",
+    `Row ${row.row_number}: screenshot ${kind} failed — ${
+      lastError instanceof Error ? lastError.message : "unknown error"
+    }`,
+  );
 }
 
 async function safeNotifyRedeem(row) {
@@ -168,6 +211,8 @@ function throwIfCancelled() {
 }
 
 async function patchStage(rowId, fields) {
+  // Backend already finalizes rows on Stop — skip late stage writes.
+  if (batchRunCancelled) return null;
   return patchBatchRow(rowId, fields);
 }
 
@@ -192,7 +237,7 @@ async function recoverNoonTab(tabId) {
 
 async function resetTabForNewRow(tabId, rowNumber) {
   if (tabId == null) return;
-  sessionEmail = null;
+  // Keep sessionEmail for the next row's switch logic — caller passes previousEmail.
   emitBatch({
     type: "BATCH_PROGRESS",
     stage: "system",
@@ -282,7 +327,17 @@ async function markRowStopped(row, stage) {
   });
 }
 
-async function skipFailedRow(row, stage, errMsg) {
+async function skipFailedRow(row, stage, errMsg, tabId) {
+  // Capture failure page first (before any further navigation/patch side effects).
+  if (tabId != null) {
+    try {
+      // Temporarily un-hide so captureVisibleTab can see the page.
+      const wasHidden = !!batchHideWindow;
+      batchHideWindow = false;
+      await safeCaptureScreenshot(tabId, row, "on_failure");
+      batchHideWindow = wasHidden;
+    } catch (_) {}
+  }
   const now = isoNow();
   const fields = { status: "failed" };
   if (stage === "login") {
@@ -314,6 +369,40 @@ async function skipFailedRow(row, stage, errMsg) {
           ? shortUrl(row.product_url)
           : row.email,
   });
+}
+
+async function processLoginOnlyRow(row, tabId) {
+  row = await getBatchRow(row.id);
+  const rowNum = row.row_number;
+  currentBatchRow = row;
+  emitStageProgress(
+    row,
+    "login",
+    "active",
+    `Row ${rowNum}: login-only test — forcing login as ${row.email}`,
+    row.email,
+  );
+  try {
+    // Always run account switch/login regardless of stored login_status.
+    await ensureRowAccount(tabId, row, sessionEmail);
+    emitBatch({
+      type: "BATCH_ROW_DONE",
+      batchId: row.batch_id,
+      rowId: row.id,
+      rowNumber: rowNum,
+      success: true,
+      stage: "login",
+      message: `Row ${rowNum} login-only OK — ${row.email}`,
+      detail: row.email,
+    });
+  } catch (error) {
+    if (error.cancelled) {
+      await markRowStopped(row, "login");
+      return;
+    }
+    const errMsg = error instanceof Error ? error.message : "Login failed";
+    await skipFailedRow(row, "login", errMsg, tabId);
+  }
 }
 
 async function markOrderSkippedRow(row, productUrl) {
@@ -376,6 +465,12 @@ async function ensureRowAccount(tabId, row, previousEmail) {
       previousEmail: previousEmail || null,
     });
   });
+  if (result && result.ok === false) {
+    const err = new Error(result.error || "Account switch failed");
+    if (result.cancelled) err.cancelled = true;
+    throw err;
+  }
+
   await patchStage(row.id, {
     login_status: "success",
     login_at: isoNow(),
@@ -442,30 +537,21 @@ function stageOrderDone(status) {
 }
 
 async function syncSessionForRow(row, tabId, previousEmail) {
-  const rowEmail = normalizeEmail(row.email);
-  const loginDone = stageSuccess(row.login_status);
-
-  if (loginDone) {
-    if (previousEmail != null && previousEmail !== rowEmail) {
-      return ensureRowAccount(tabId, row, previousEmail);
-    }
-    sessionEmail = rowEmail;
-    return row;
-  }
-
-  if (previousEmail != null && previousEmail !== rowEmail) {
-    return ensureRowAccount(tabId, row, previousEmail);
-  }
-
-  await navigateTabToProfile(tabId);
-  return row;
+  // CRITICAL: never trust DB login_status or in-memory sessionEmail alone.
+  // Always open profile; logout+login when browser session != row email.
+  return ensureRowAccount(tabId, row, previousEmail || sessionEmail);
 }
 
-async function processBatchRow(row, tabId) {
+async function processBatchRow(row, tabId, previousEmail) {
   row = await getBatchRow(row.id);
   const rowNum = row.row_number;
   const now = isoNow();
   currentBatchRow = row;
+
+  if (batchLoginOnly) {
+    await processLoginOnlyRow(row, tabId);
+    return;
+  }
 
   if (
     stageSuccess(row.login_status) &&
@@ -491,78 +577,26 @@ async function processBatchRow(row, tabId) {
     return;
   }
 
+  // One account ensure per row: logout if needed → login → verify profile email.
   try {
-    row = await syncSessionForRow(row, tabId, sessionEmail);
+    row = await syncSessionForRow(row, tabId, previousEmail || sessionEmail);
   } catch (error) {
     if (error.cancelled) {
       await markRowStopped(row, "login");
       return;
     }
     const errMsg = error instanceof Error ? error.message : "Login failed";
-    await skipFailedRow(row, "login", errMsg);
+    await skipFailedRow(row, "login", errMsg, tabId);
     return;
   }
 
-  if (!stageSuccess(row.login_status)) {
-    throwIfCancelled();
-    emitStageProgress(
-      row,
-      "login",
-      "active",
-      `Row ${rowNum}: logging in as ${row.email}`,
-      row.email,
-    );
-    await patchStage(row.id, { login_status: "running", status: "in_progress" });
-    try {
-      await navigateTabToProfile(tabId);
-      const result = await runFlowStep(tabId, function () {
-        return sendBatchLoginToTab(tabId, {
-          email: row.email,
-          password: row.password,
-        });
-      });
-      await patchStage(row.id, {
-        login_status: "success",
-        login_at: now,
-        login_error: null,
-      });
-      sessionEmail = normalizeEmail(row.email);
-      if (result && result.skipped) {
-        emitStageProgress(
-          row,
-          "login",
-          "skipped",
-          `Row ${rowNum}: already logged in — skipped login`,
-          row.email,
-        );
-      } else {
-        emitStageProgress(
-          row,
-          "login",
-          "done",
-          `Row ${rowNum}: login successful`,
-          row.email,
-        );
-      }
-    } catch (error) {
-      if (error.cancelled) {
-        await markRowStopped(row, "login");
-        return;
-      }
-      const errMsg = error instanceof Error ? error.message : "Login failed";
-      await skipFailedRow(row, "login", errMsg);
-      return;
-    }
-  } else {
-    sessionEmail = normalizeEmail(row.email);
-    emitStageProgress(
-      row,
-      "login",
-      "skipped",
-      `Row ${rowNum}: login already successful — skipping`,
-      row.email,
-    );
-  }
+  emitStageProgress(
+    row,
+    "login",
+    "done",
+    `Row ${rowNum}: session confirmed as ${row.email}`,
+    row.email,
+  );
 
   row = await getBatchRow(row.id);
 
@@ -578,14 +612,16 @@ async function processBatchRow(row, tabId) {
     );
     await patchStage(row.id, { redeem_status: "running" });
     try {
+      // Account was verified once by ensureRowAccount immediately before this stage.
       await openCreditsPage(tabId);
-      await safeCaptureScreenshot(tabId, row, "before_redeem");
+      await captureRedeemScreenshot(tabId, row, "before_redeem");
       const result = await runFlowStep(tabId, function () {
         return sendBatchRedeemToTab(tabId, {
           email: row.email,
           password: row.password,
           giftCardNumber: row.gift_card_number,
           giftCardPin: row.gift_card_pin,
+          accountVerified: true,
         });
       });
       const redeemedAt = isoNow();
@@ -598,7 +634,7 @@ async function processBatchRow(row, tabId) {
       if (result && result.balanceAfter != null) patch.balance_after = result.balanceAfter;
       if (result && result.balanceDelta != null) patch.balance_delta = result.balanceDelta;
       await patchStage(row.id, patch);
-      await safeCaptureScreenshot(tabId, row, "after_redeem");
+      await captureRedeemScreenshot(tabId, row, "after_redeem");
       row = await getBatchRow(row.id);
       await safeNotifyRedeem(row);
       const popupMsg = result && result.popupMessage ? ` — ${result.popupMessage}` : "";
@@ -624,11 +660,11 @@ async function processBatchRow(row, tabId) {
         /already redeemed|gift card is already/i.test(errMsg);
       if (alreadyRedeemed) {
         await markAlreadyRedeemedRow(row, errMsg);
-        await safeCaptureScreenshot(tabId, row, "after_redeem");
+        await captureRedeemScreenshot(tabId, row, "after_redeem");
         row = await getBatchRow(row.id);
         await safeNotifyRedeem(row);
       } else {
-        await skipFailedRow(row, "redeem", errMsg);
+        await skipFailedRow(row, "redeem", errMsg, tabId);
         return;
       }
     }
@@ -717,7 +753,7 @@ async function processBatchRow(row, tabId) {
         return;
       }
       const errMsg = error instanceof Error ? error.message : "Order failed";
-      await skipFailedRow(row, "order", errMsg);
+      await skipFailedRow(row, "order", errMsg, tabId);
     }
     return;
   }
@@ -750,9 +786,11 @@ async function runSelectedRows(batchId, rowIds, options) {
   batchRunActive = true;
   currentBatchRow = null;
   sessionEmail = null;
-  batchPlaceOrder = opts.placeOrder !== false;
+  batchPlaceOrder = opts.placeOrder === true;
   batchSendRedeemEmails = !!opts.sendRedeemEmails;
   batchSendOrderEmails = !!opts.sendOrderEmails;
+  batchHideWindow = !!opts.hideWindow;
+  batchLoginOnly = !!opts.loginOnly;
   await chrome.storage.local.set({
     [BATCH_RUN_KEY]: {
       batchId: batchId,
@@ -761,6 +799,8 @@ async function runSelectedRows(batchId, rowIds, options) {
       placeOrder: batchPlaceOrder,
       sendRedeemEmails: batchSendRedeemEmails,
       sendOrderEmails: batchSendOrderEmails,
+      hideWindow: batchHideWindow,
+      loginOnly: batchLoginOnly,
       runId: opts.runId || null,
     },
   });
@@ -772,7 +812,9 @@ async function runSelectedRows(batchId, rowIds, options) {
     status: "info",
     message:
       `Starting ${rowIds.length} selected row(s)` +
+      (batchLoginOnly ? " — LOGIN ONLY" : "") +
       (batchPlaceOrder ? " — place order on" : " — place order off") +
+      (batchHideWindow ? " — Noon window hidden" : " — Noon window visible") +
       (batchSendRedeemEmails ? " — redeem emails on" : " — redeem emails off") +
       (batchSendOrderEmails ? " — order emails on" : " — order emails off"),
   });
@@ -807,14 +849,16 @@ async function runSelectedRows(batchId, rowIds, options) {
 
     const tabId = await getOrCreateNoonTab({
       forceNewWindow: !!opts.forceNewWindow && i === 0,
+      hideWindow: batchHideWindow,
     });
     activeLoginTabId = tabId;
+    const previousEmail = sessionEmail;
     if (i > 0) {
       await resetTabForNewRow(tabId, row.row_number);
     } else {
       await recoverNoonTab(tabId);
     }
-    await processBatchRow(row, tabId);
+    await processBatchRow(row, tabId, previousEmail);
     const finishedAt = isoNow();
     const durationMs = Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt));
     await patchStage(row.id, {
@@ -843,7 +887,6 @@ async function runSelectedRows(batchId, rowIds, options) {
 
 function stopBatchRun() {
   batchRunCancelled = true;
-  batchRunActive = false;
   chrome.storage.local.remove(BATCH_RUN_KEY);
   if (activeLoginTabId != null) {
     cancelLoginOnTab(activeLoginTabId).catch(function () {});
