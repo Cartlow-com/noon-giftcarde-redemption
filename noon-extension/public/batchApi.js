@@ -32,7 +32,10 @@ async function getApiBaseUrl() {
 }
 
 async function batchApiRequestFromBase(base, path, options) {
-  const response = await fetch(`${base}${path}`, options);
+  const response = await fetch(
+    `${base}${path}`,
+    Object.assign({ credentials: "include" }, options || {}),
+  );
   if (!response.ok) {
     let detail = response.statusText;
     try {
@@ -70,7 +73,7 @@ async function uploadRowScreenshot(rowId, kind, blob) {
   form.append("file", blob, kind + ".png");
   const response = await fetch(
     `${base}/batches/rows/${encodeURIComponent(rowId)}/screenshots?kind=${encodeURIComponent(kind)}`,
-    { method: "POST", body: form },
+    { method: "POST", body: form, credentials: "include" },
   );
   if (!response.ok) {
     let detail = response.statusText;
