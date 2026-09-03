@@ -1,13 +1,37 @@
-async function getApiBaseUrl() {
-  const base = typeof NOON_API_BASE_URL === "string" ? NOON_API_BASE_URL : "";
-  if (!base.trim()) {
-    throw new Error("NOON_API_BASE_URL is not configured — set VITE_API_BASE_URL in .env and rebuild");
-  }
-  return base.trim().replace(/\/$/, "");
+let activeApiBaseUrl = null;
+
+function clearActiveApiBaseUrl() {
+  activeApiBaseUrl = null;
 }
 
-async function batchApiRequest(path, options) {
-  const base = await getApiBaseUrl();
+function configuredApiBaseUrls() {
+  const bases = [];
+  const primary = typeof NOON_API_BASE_URL === "string" ? NOON_API_BASE_URL : "";
+  if (primary.trim()) bases.push(primary.trim().replace(/\/$/, ""));
+  if (
+    typeof NOON_EXTRA_API_BASE_URLS !== "undefined" &&
+    Array.isArray(NOON_EXTRA_API_BASE_URLS)
+  ) {
+    NOON_EXTRA_API_BASE_URLS.forEach(function (base) {
+      if (typeof base === "string" && base.trim()) {
+        bases.push(base.trim().replace(/\/$/, ""));
+      }
+    });
+  }
+  return bases.filter(function (base, index, all) {
+    return all.indexOf(base) === index;
+  });
+}
+
+async function getApiBaseUrl() {
+  const bases = configuredApiBaseUrls();
+  if (!bases.length) {
+    throw new Error("NOON_API_BASE_URL is not configured — set VITE_API_BASE_URL in .env and rebuild");
+  }
+  return activeApiBaseUrl || bases[0];
+}
+
+async function batchApiRequestFromBase(base, path, options) {
   const response = await fetch(`${base}${path}`, options);
   if (!response.ok) {
     let detail = response.statusText;
@@ -21,6 +45,11 @@ async function batchApiRequest(path, options) {
   }
   if (response.status === 204) return null;
   return response.json();
+}
+
+async function batchApiRequest(path, options) {
+  const base = await getApiBaseUrl();
+  return batchApiRequestFromBase(base, path, options);
 }
 
 async function getBatchRow(rowId) {
@@ -118,7 +147,24 @@ async function createBatchRun(payload) {
 }
 
 async function getPendingRun() {
-  return batchApiRequest("/runs/pending");
+  const bases = configuredApiBaseUrls();
+  let firstEmpty = null;
+  let lastError = null;
+  for (let i = 0; i < bases.length; i++) {
+    try {
+      const run = await batchApiRequestFromBase(bases[i], "/runs/pending");
+      if (run && run.id) {
+        activeApiBaseUrl = bases[i];
+        return run;
+      }
+      if (firstEmpty === null) firstEmpty = run;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (firstEmpty !== null) return firstEmpty;
+  if (lastError) throw lastError;
+  return null;
 }
 
 async function getActiveRun() {
@@ -146,5 +192,20 @@ async function getRunsConfig() {
 }
 
 async function postExtensionHeartbeat() {
-  return batchApiRequest("/runs/extension/heartbeat", { method: "POST" });
+  const bases = configuredApiBaseUrls();
+  let firstOk = null;
+  let lastError = null;
+  for (let i = 0; i < bases.length; i++) {
+    try {
+      const result = await batchApiRequestFromBase(bases[i], "/runs/extension/heartbeat", {
+        method: "POST",
+      });
+      if (!firstOk) firstOk = result;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (firstOk) return firstOk;
+  if (lastError) throw lastError;
+  return null;
 }

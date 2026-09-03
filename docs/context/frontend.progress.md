@@ -7,6 +7,8 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-09-03 — Live heartbeat follow-up: scoped active API pin with dashboard-start lock and cleanup on claim/run exit
+- 2026-09-03 — Extension heartbeat now pings local and live `redeem.cartlow.com`; dashboard run routing clears after completion
 - 2026-09-03 — Login fix: batch opens/resets to profile, detects Noon email-link lockout as manual login required, and reduces login waits
 - 2026-09-03 — Extension popup simplified to dashboard-only notice; removed all popup inputs/actions
 - 2026-09-03 — Dashboard UI: removed Login only (test) control; runs now send login_only=false

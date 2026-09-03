@@ -1,5 +1,6 @@
 let dashboardRunId = null;
 let runPollBusy = false;
+let dashboardStartBusy = false;
 let stopWatchBusy = false;
 
 const DASHBOARD_POLL_ALARM = "noon_dashboard_poll";
@@ -8,7 +9,7 @@ const DASHBOARD_POLL_PERIOD_MINUTES = 0.5;
 
 async function startDashboardRun(run) {
   if (!run || !run.id) return;
-  if (isBatchRunActive()) {
+  if (dashboardStartBusy || isBatchRunActive()) {
     emitBatch({
       type: "BATCH_PROGRESS",
       stage: "system",
@@ -18,6 +19,7 @@ async function startDashboardRun(run) {
     return;
   }
 
+  dashboardStartBusy = true;
   let claimed;
   try {
     claimed = await claimBatchRun(run.id);
@@ -28,6 +30,11 @@ async function startDashboardRun(run) {
       error: error instanceof Error ? error.message : "Failed to claim run",
     });
     return;
+  } finally {
+    if (!claimed) {
+      dashboardStartBusy = false;
+      clearActiveApiBaseUrl();
+    }
   }
 
   dashboardRunId = claimed.id;
@@ -66,6 +73,8 @@ async function startDashboardRun(run) {
     });
   } finally {
     dashboardRunId = null;
+    dashboardStartBusy = false;
+    clearActiveApiBaseUrl();
   }
 }
 
@@ -110,7 +119,7 @@ async function pollDashboardRuns() {
     }
 
     await checkDashboardStop();
-    if (isBatchRunActive()) return;
+    if (dashboardStartBusy || isBatchRunActive()) return;
 
     const pending = await getPendingRun();
     if (pending && pending.id) {

@@ -10,7 +10,11 @@
     "https://account.noon.com/*"
   ],
   "externally_connectable": {
-    "matches": ["http://127.0.0.1:8000/*", "http://localhost:8000/*"]
+    "matches": [
+      "https://redeem.cartlow.com/*",
+      "http://127.0.0.1:8000/*",
+      "http://localhost:8000/*"
+    ]
   },
   "action": {
     "default_title": "Noon Automation — open side panel"
