@@ -22,21 +22,34 @@ def _ensure_sqlite_columns() -> None:
     if not settings.DATABASE_URL.startswith("sqlite"):
         return
     inspector = inspect(engine)
-    if "batch_rows" not in inspector.get_table_names():
-        return
-    existing = {col["name"] for col in inspector.get_columns("batch_rows")}
-    alters = {
-        "screenshot_before_redeem": "ALTER TABLE batch_rows ADD COLUMN screenshot_before_redeem TEXT",
-        "screenshot_after_redeem": "ALTER TABLE batch_rows ADD COLUMN screenshot_after_redeem TEXT",
-        "screenshot_after_order": "ALTER TABLE batch_rows ADD COLUMN screenshot_after_order TEXT",
-        "run_started_at": "ALTER TABLE batch_rows ADD COLUMN run_started_at DATETIME",
-        "run_finished_at": "ALTER TABLE batch_rows ADD COLUMN run_finished_at DATETIME",
-        "duration_ms": "ALTER TABLE batch_rows ADD COLUMN duration_ms INTEGER",
-    }
-    with engine.begin() as conn:
-        for name, sql in alters.items():
-            if name not in existing:
-                conn.execute(text(sql))
+    tables = inspector.get_table_names()
+
+    if "batch_rows" in tables:
+        existing = {col["name"] for col in inspector.get_columns("batch_rows")}
+        alters = {
+            "screenshot_before_redeem": "ALTER TABLE batch_rows ADD COLUMN screenshot_before_redeem TEXT",
+            "screenshot_after_redeem": "ALTER TABLE batch_rows ADD COLUMN screenshot_after_redeem TEXT",
+            "screenshot_after_order": "ALTER TABLE batch_rows ADD COLUMN screenshot_after_order TEXT",
+            "run_started_at": "ALTER TABLE batch_rows ADD COLUMN run_started_at DATETIME",
+            "run_finished_at": "ALTER TABLE batch_rows ADD COLUMN run_finished_at DATETIME",
+            "duration_ms": "ALTER TABLE batch_rows ADD COLUMN duration_ms INTEGER",
+            "screenshot_on_failure": "ALTER TABLE batch_rows ADD COLUMN screenshot_on_failure TEXT",
+        }
+        with engine.begin() as conn:
+            for name, sql in alters.items():
+                if name not in existing:
+                    conn.execute(text(sql))
+
+    if "batch_runs" in tables:
+        run_cols = {col["name"] for col in inspector.get_columns("batch_runs")}
+        run_alters = {
+            "hide_window": "ALTER TABLE batch_runs ADD COLUMN hide_window INTEGER DEFAULT 0",
+            "login_only": "ALTER TABLE batch_runs ADD COLUMN login_only INTEGER DEFAULT 0",
+        }
+        with engine.begin() as conn:
+            for name, sql in run_alters.items():
+                if name not in run_cols:
+                    conn.execute(text(sql))
 
 
 def init_db() -> None:

@@ -11,6 +11,7 @@ let batchHideWindow = false;
 let batchLoginOnly = false;
 
 const NOON_CREDITS_URL = "https://account.noon.com/uae-en/credits/";
+const NOON_PROFILE_URL = "https://account.noon.com/uae-en/profile/";
 
 async function openCreditsPage(tabId) {
   await chrome.tabs.update(tabId, { url: NOON_CREDITS_URL });
@@ -256,12 +257,9 @@ async function resetTabForNewRow(tabId, rowNumber) {
     await chrome.tabs.sendMessage(tabId, { type: "CLEAR_BATCH_FLOW" });
   } catch (_) {}
   try {
-    await chrome.tabs.update(tabId, { url: NOON_HOME });
+    await chrome.tabs.update(tabId, { url: NOON_PROFILE_URL });
     await waitForTabComplete(tabId);
-    await delay(700);
-    await hardRefreshTab(tabId);
-    await waitForTabComplete(tabId);
-    await delay(900);
+    await delay(400);
   } catch (_) {}
 }
 

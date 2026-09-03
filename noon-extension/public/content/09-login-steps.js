@@ -98,7 +98,7 @@ async function openLoginModal() {
   for (let attempt = 0; attempt < 2; attempt++) {
     flow().check();
     await clickLogin();
-    await pause(2);
+    await pause(0.4);
 
     const networkError = getByText(NETWORK_ERROR);
     if ((networkError && isVisible(networkError)) || hasPageFetchError()) {
@@ -130,6 +130,7 @@ async function openLoginModal() {
 }
 
 async function enterEmailAndContinue(email) {
+  throwIfManualLoginRequired();
   await ensurePasswordTab();
 
   const emailInput = findEmailInput();
@@ -139,7 +140,8 @@ async function enterEmailAndContinue(email) {
   await mouse().type(emailInput, email);
   logStep("Email entered");
 
-  await pause();
+  await pause(0.3);
+  throwIfManualLoginRequired();
 
   if (findPasswordInput()) {
     logStep("Password form ready");
@@ -147,14 +149,15 @@ async function enterEmailAndContinue(email) {
   }
 
   let continueBtn = queryByRole("button", { name: "Continue" });
-  if (continueBtn && isDisabled(continueBtn)) await pause(2);
+  if (continueBtn && isDisabled(continueBtn)) await pause(0.8);
   continueBtn = queryByRole("button", { name: "Continue" });
   if (!continueBtn) throw new Error("Continue button not found");
 
   logStep("Moving to Continue…");
   await mouse().click(continueBtn);
   logStep("Clicked Continue");
-  await pause(2);
+  await pause(0.5);
+  throwIfManualLoginRequired();
 
   // After Continue: use password if available (even when OTP UI is also shown).
   if (findPasswordInput()) {
@@ -172,6 +175,7 @@ async function enterEmailAndContinue(email) {
 }
 
 async function loginWithPassword(password) {
+  throwIfManualLoginRequired();
   await ensurePasswordTab();
 
   let passwordInput = findPasswordInput();
@@ -192,7 +196,8 @@ async function loginWithPassword(password) {
   logStep("Typing password…");
   await mouse().type(passwordInput, password, { masked: true });
   logStep("Password entered");
-  await pause();
+  await pause(0.3);
+  throwIfManualLoginRequired();
 
   let loginBtn = findLoginSubmitButton();
   if (loginBtn && isDisabled(loginBtn)) await pause(1.5);
@@ -205,12 +210,17 @@ async function loginWithPassword(password) {
 
   const success = await waitFor(
     function () {
-      return getByText("Hi,");
+      const manualError = getManualLoginRequiredMessage();
+      if (manualError) return "manual";
+      if (getByText("Hi,")) return "success";
+      if (readEmailFromProfilePage()) return "success";
+      return null;
     },
-    30000,
+    18000,
     300,
   );
-  if (!success) throw new Error("Login did not complete — Hi greeting not found");
+  if (success === "manual") throwIfManualLoginRequired();
+  if (!success) throw new Error("Login did not complete — manual login may be required");
   logStep("Logged in successfully");
 }
 

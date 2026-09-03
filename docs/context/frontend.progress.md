@@ -4,9 +4,28 @@
 
 | Slot | Agent | Trigger | Spec | Task | Status |
 |---|---|---|---|---|---|
-| FE-1 | frontend-engineer | -q | none | Dashboard login + extension-online gate | in_progress |
+| FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-09-03 — Login fix: batch opens/resets to profile, detects Noon email-link lockout as manual login required, and reduces login waits
+- 2026-09-03 — Extension popup simplified to dashboard-only notice; removed all popup inputs/actions
+- 2026-09-03 — Dashboard UI: removed Login only (test) control; runs now send login_only=false
+- 2026-09-03 — Redeem fix: preserved accountVerified into batch redeem/resume and wait for Redeem Giftcards before failing
+- 2026-09-03 — Batch redeem: removed duplicate profile checks after row login; fixed credits screenshot prep to stay on credits page
+- 2026-09-03 — Logout: click Hi menu → Sign out only (no cookie wipe fallback)
+- 2026-09-03 — CRITICAL: logout keyed on profile email (not Hi,); cookie wipe fallback; previousEmail kept across rows; single ensure/login per row
+- 2026-09-03 — Fix: CLEAR_BATCH_FLOW no longer aborts flow (was false "Login cancelled"); hard account switch + verify before login success
+- 2026-09-03 — OTP screen: if "Log in with password" exists → use it; only OTP-only → manual login error
+- 2026-09-03 — After Continue: if no password field (OTP-only) → error "OTP is required — manual login required"
+- 2026-09-03 — Navbar Log In click: resolve real control + elementFromPoint/PointerEvent so click registers
+- 2026-09-03 — Account required: click navbar Log In (not LOGIN/SIGNUP); before_redeem only after session email verified
+- 2026-09-03 — CRITICAL: always verify live Noon profile email == row email before redeem/order; refuse mismatch
+- 2026-09-03 — Account switch: handle Account required gate + in-place login; harden on_failure screenshots
+- 2026-09-03 — Dashboard "Login only (test)" toggle; capture On failure screenshot on stage fail
+- 2026-09-03 — Dashboard "Hide Noon window" toggle; extension minimizes and briefly restores for screenshots
+- 2026-09-03 — Redeem screenshots: wait for credits/balance load; after redeem refresh then capture (success or already redeemed)
+- 2026-09-03 — MV3: chrome.alarms wake poller (setInterval dies when SW sleeps); `<all_urls>` for screenshots
+- 2026-09-03 — Stop: clear activeRun pill immediately; skip late row patches when cancelled
 - 2026-09-03 — Dashboard controls: upload, sample CSV, row select/run/stop, place-order + email toggles, delete; extension polls `/runs`
 - 2026-09-03 — Dashboard moved to `http://127.0.0.1:8000/` (assets `/assets`)
 - 2026-09-03 — Read-only admin UI at `/admin` (extension palette; batches/rows/emails/screenshots)

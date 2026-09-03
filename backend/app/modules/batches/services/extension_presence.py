@@ -3,8 +3,6 @@ from pathlib import Path
 
 from app.config.settings import settings
 
-_HEARTBEAT_FILE = Path("storage/extension_heartbeat.txt")
-
 
 def _path() -> Path:
     return Path(settings.SCREENSHOT_STORAGE_DIR).resolve().parent / "extension_heartbeat.txt"
@@ -16,6 +14,12 @@ def touch_extension_heartbeat() -> datetime:
     now = datetime.now(UTC)
     path.write_text(now.isoformat(), encoding="utf-8")
     return now
+
+
+def clear_extension_heartbeat() -> None:
+    path = _path()
+    if path.is_file():
+        path.unlink()
 
 
 def get_extension_last_seen() -> datetime | None:

@@ -27,7 +27,7 @@ def compute_row_status(
     if redeem_status == STAGE_ALREADY_REDEEMED:
         if purchase_status == STAGE_SUCCESS:
             return ROW_COMPLETED
-        if purchase_status == STAGE_FAILED:
+        if purchase_status in (STAGE_FAILED, STAGE_SKIPPED, STAGE_PAYMENT_ISSUE):
             return ROW_PARTIAL
         return ROW_IN_PROGRESS
 

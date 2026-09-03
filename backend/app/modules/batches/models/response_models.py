@@ -31,6 +31,7 @@ class BatchRowResponse(BaseModel):
     screenshot_before_redeem: str | None = None
     screenshot_after_redeem: str | None = None
     screenshot_after_order: str | None = None
+    screenshot_on_failure: str | None = None
     run_started_at: datetime | None = None
     run_finished_at: datetime | None = None
     duration_ms: int | None = None
@@ -81,6 +82,8 @@ class BatchRunResponse(BaseModel):
     place_order: bool
     send_redeem_emails: bool
     send_order_emails: bool
+    hide_window: bool = False
+    login_only: bool = False
     status: str
     message: str | None
     stop_requested: bool

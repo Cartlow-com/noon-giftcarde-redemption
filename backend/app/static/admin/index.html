@@ -23,6 +23,7 @@
         </div>
         <div class="topbar-meta">
           <span id="health" class="pill pill-muted">Checking…</span>
+          <span id="ext-pill" class="pill pill-muted">Extension…</span>
           <span id="run-pill" class="pill pill-muted">No active run</span>
           <button type="button" id="btn-refresh" class="btn-text">Refresh</button>
         </div>
@@ -38,7 +39,8 @@
           <button type="button" id="btn-delete-batch" class="btn-danger" disabled>Delete batch</button>
         </div>
         <div class="controls-right">
-          <label class="check"><input id="opt-place-order" type="checkbox" checked /> Place order</label>
+          <label class="check"><input id="opt-place-order" type="checkbox" /> Place order</label>
+          <label class="check"><input id="opt-hide-window" type="checkbox" /> Hide Noon window</label>
           <label class="check"><input id="opt-redeem-email" type="checkbox" /> Redeem email</label>
           <label class="check"><input id="opt-order-email" type="checkbox" /> Order email</label>
           <button type="button" id="btn-run" class="btn-primary" disabled>Run selected</button>
@@ -46,7 +48,8 @@
         </div>
       </section>
       <p id="run-hint" class="run-hint muted">
-        Extension must be installed in this Chrome. Run queues a job — the extension opens a Noon window and starts.
+        Top bar shows <strong>API online/offline</strong> and <strong>Extension online/offline</strong>.
+        Load the Noon Automation extension in this Chrome — then Run queues a job and the extension opens Noon.
       </p>
 
       <main class="layout">

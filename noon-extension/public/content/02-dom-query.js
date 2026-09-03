@@ -163,6 +163,33 @@ function throwIfOtpOnlyLogin() {
   }
 }
 
+function getManualLoginRequiredMessage() {
+  const nodes = document.querySelectorAll(
+    '[role="alert"], [aria-live], [class*="error" i], [class*="Error" i], p, span, div',
+  );
+  for (let i = 0; i < nodes.length; i++) {
+    const el = nodes[i];
+    if (!isVisible(el)) continue;
+    const text = normalizeText(el.textContent);
+    if (!text || text.length > 260) continue;
+    const lower = text.toLowerCase();
+    if (
+      lower.indexOf("too many failed attempts") !== -1 ||
+      lower.indexOf("link sent to your email address") !== -1
+    ) {
+      return "Too many failed attempts. Please use the email link to log in manually.";
+    }
+  }
+  return null;
+}
+
+function throwIfManualLoginRequired() {
+  const message = getManualLoginRequiredMessage();
+  if (message) {
+    throw new Error("Manual login required — " + message);
+  }
+}
+
 function findLoginSubmitButton() {
   const exact = queryByRole("button", { name: "Log in", exact: true });
   if (exact) return exact;

@@ -6,6 +6,8 @@ from app.modules.batches.models.db_models import BatchRow
 from app.modules.batches.models.request_models import UpdateRowRequest
 from app.modules.batches.models.response_models import BatchRowResponse
 
+STAGE_FIELDS = frozenset({"login_status", "redeem_status", "purchase_status"})
+
 
 def update_batch_row(row_id: str, payload: UpdateRowRequest, db: Session) -> BatchRowResponse:
     row = db.get(BatchRow, row_id)
@@ -14,19 +16,21 @@ def update_batch_row(row_id: str, payload: UpdateRowRequest, db: Session) -> Bat
 
     data = payload.model_dump(exclude_unset=True)
     explicit_status = data.pop("status", None)
+    touches_stages = bool(STAGE_FIELDS & data.keys())
 
     for field, value in data.items():
         setattr(row, field, value)
 
     if explicit_status is not None:
         row.status = explicit_status
-    else:
+    elif touches_stages:
         row.status = compute_row_status(
             row.login_status,
             row.redeem_status,
             row.purchase_status,
             current=row.status,
         )
+    # Timing-only patches keep the existing terminal/overall status.
 
     db.commit()
     db.refresh(row)

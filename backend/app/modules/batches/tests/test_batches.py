@@ -125,6 +125,37 @@ def test_already_redeemed_not_failed(client) -> None:
     assert body["status"] != "failed"
 
 
+def test_already_redeemed_order_skipped_is_partial(client) -> None:
+    upload = _upload_csv(client, SAMPLE_CSV)
+    batch_id = upload.json()["batch"]["id"]
+    row_id = client.get(f"/batches/{batch_id}/rows").json()["rows"][0]["id"]
+
+    patched = client.patch(
+        f"/batches/rows/{row_id}",
+        json={
+            "login_status": "success",
+            "redeem_status": "already_redeemed",
+            "purchase_status": "skipped",
+            "purchase_error": "Place order skipped by user",
+            "status": "partial",
+        },
+    )
+    assert patched.status_code == 200
+    assert patched.json()["status"] == "partial"
+
+    # Timing-only PATCH must not recompute back to in_progress.
+    timed = client.patch(
+        f"/batches/rows/{row_id}",
+        json={
+            "run_finished_at": "2026-09-03T10:02:00Z",
+            "duration_ms": 73000,
+        },
+    )
+    assert timed.status_code == 200
+    assert timed.json()["status"] == "partial"
+    assert timed.json()["duration_ms"] == 73000
+
+
 def test_payment_issue_marks_partial(client) -> None:
     upload = _upload_csv(client, SAMPLE_CSV)
     batch_id = upload.json()["batch"]["id"]

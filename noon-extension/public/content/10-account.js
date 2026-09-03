@@ -20,19 +20,19 @@ function readEmailFromProfilePage() {
   const scopes = [
     document.querySelector("main"),
     document.querySelector('[class*="profile" i]'),
-    document.body,
   ];
   for (let s = 0; s < scopes.length; s++) {
     const scope = scopes[s];
     if (!scope) continue;
     const inputs = scope.querySelectorAll("input");
     for (let i = 0; i < inputs.length; i++) {
+      if (inputs[i].closest('[role="dialog"], [aria-modal="true"]')) continue;
       const val = (inputs[i].value || "").trim().toLowerCase();
       if (/^[\w.+-]+@[\w.-]+\.\w+$/.test(val)) return val;
     }
   }
-  const main = document.querySelector("main") || document.body;
-  return findEmailInText(main.textContent);
+  const main = document.querySelector("main");
+  return main ? findEmailInText(main.textContent) : null;
 }
 
 function hasActiveNoonSession() {

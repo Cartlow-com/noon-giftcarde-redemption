@@ -23,6 +23,7 @@ class UpdateRowRequest(BaseModel):
     screenshot_before_redeem: str | None = None
     screenshot_after_redeem: str | None = None
     screenshot_after_order: str | None = None
+    screenshot_on_failure: str | None = None
 
     run_started_at: datetime | None = None
     run_finished_at: datetime | None = None
@@ -34,9 +35,11 @@ class UpdateRowRequest(BaseModel):
 class CreateRunRequest(BaseModel):
     batch_id: str
     row_ids: list[str] = Field(min_length=1)
-    place_order: bool = True
+    place_order: bool = False
     send_redeem_emails: bool = False
     send_order_emails: bool = False
+    hide_window: bool = False
+    login_only: bool = False
 
 
 class UpdateRunRequest(BaseModel):

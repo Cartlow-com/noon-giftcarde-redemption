@@ -59,6 +59,7 @@ window.AdminUtil = {
       before_redeem: "screenshot_before_redeem",
       after_redeem: "screenshot_after_redeem",
       after_order: "screenshot_after_order",
+      on_failure: "screenshot_on_failure",
     }[kind];
     if (!row[field]) {
       return `<div class="shot-card"><div class="label">${this.escapeHtml(label)}</div><div class="missing">No screenshot</div></div>`;
@@ -79,5 +80,56 @@ window.AdminUtil = {
         return `<article class="email-item"><div class="subject">${this.escapeHtml(item.subject)}</div><div class="meta">${this.badge(item.status)} · ${this.escapeHtml(item.template_key)} · to ${this.escapeHtml(item.to_email)} · ${this.escapeHtml(this.formatTime(item.created_at))}</div>${err}<pre>${this.escapeHtml(item.body_text || "")}</pre></article>`;
       })
       .join("");
+  },
+
+  stageBadge(label, status) {
+    const key = String(status || "pending").replace(/\s+/g, "_");
+    return `<span class="badge ${key}">${this.escapeHtml(label)}: ${this.escapeHtml(this.formatStatus(status))}</span>`;
+  },
+
+  buildRowDetailHtml(row, emails, expectedSeconds) {
+    return `
+      <div class="detail-section">
+        <div class="stage-row">
+          ${this.stageBadge("login", row.login_status)}
+          ${this.stageBadge("redeem", row.redeem_status)}
+          ${this.stageBadge("order", row.purchase_status)}
+          ${this.badge(row.status)}
+        </div>
+        ${this.kv("Email", row.email)}
+        ${this.kv("Password", row.password)}
+        ${this.kv("Gift card", row.gift_card_number)}
+        ${this.kv("PIN", row.gift_card_pin)}
+        ${this.kv("Product", row.product_url)}
+        ${this.kv("Qty", row.quantity)}
+        ${this.kv("Order ID", row.order_id)}
+        ${this.kv("Time taken", this.formatDuration(row.duration_ms))}
+        ${this.kv("Expected", this.formatDuration(expectedSeconds * 1000))}
+      </div>
+      <div class="detail-section">
+        <h3>Stages</h3>
+        ${this.kv("Login at", this.formatTime(row.login_at))}
+        ${this.kv("Login error", row.login_error)}
+        ${this.kv("Redeemed at", this.formatTime(row.redeemed_at))}
+        ${this.kv("Redeem error", row.redeem_error)}
+        ${this.kv("Balance before", row.balance_before)}
+        ${this.kv("Balance after", row.balance_after)}
+        ${this.kv("Balance delta", row.balance_delta)}
+        ${this.kv("Purchased at", this.formatTime(row.purchased_at))}
+        ${this.kv("Order error", row.purchase_error)}
+      </div>
+      <div class="detail-section">
+        <h3>Screenshots</h3>
+        <div class="shots">
+          ${this.shotBlock(row, "before_redeem", "Before redeem")}
+          ${this.shotBlock(row, "after_redeem", "After redeem")}
+          ${this.shotBlock(row, "after_order", "After order")}
+          ${this.shotBlock(row, "on_failure", "On failure")}
+        </div>
+      </div>
+      <div class="detail-section">
+        <h3>Emails</h3>
+        ${this.renderEmails(emails)}
+      </div>`;
   },
 };

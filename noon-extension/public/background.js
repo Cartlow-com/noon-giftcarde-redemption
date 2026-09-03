@@ -239,7 +239,7 @@ async function getOrCreateNoonTab(options) {
     } catch (_) {}
 
     const win = await chrome.windows.create({
-      url: NOON_HOME,
+      url: NOON_PROFILE,
       focused: !hideWindow,
       type: "normal",
       state: "normal",
@@ -284,7 +284,7 @@ async function getOrCreateNoonTab(options) {
     return tabId;
   }
 
-  const tab = await chrome.tabs.create({ url: NOON_HOME, active: true });
+  const tab = await chrome.tabs.create({ url: NOON_PROFILE, active: true });
   if (tab.id == null) throw new Error("Failed to open Noon tab");
   await waitForTabComplete(tab.id);
   await delay(400);

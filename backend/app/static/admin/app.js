@@ -11,10 +11,12 @@
     loading: false,
     expectedRowSeconds: 180,
     activeRun: null,
+    extensionOnline: false,
   };
 
   const el = {
     health: document.getElementById("health"),
+    extPill: document.getElementById("ext-pill"),
     runPill: document.getElementById("run-pill"),
     refresh: document.getElementById("btn-refresh"),
     batchList: document.getElementById("batch-list"),
@@ -48,6 +50,8 @@
     renderRows,
     updateActionButtons,
     setActiveRun,
+    setExtensionOnline,
+    checkExtension,
   };
 
   function showError(message) {
@@ -67,6 +71,18 @@
     el.ok.classList.add("hidden");
   }
 
+  function setExtensionOnline(online) {
+    state.extensionOnline = !!online;
+    if (el.extPill) {
+      el.extPill.textContent = online ? "Extension online" : "Extension offline";
+      el.extPill.className = `pill ${online ? "pill-ok" : "pill-bad"}`;
+      el.extPill.title = online
+        ? "Extension is polling the backend"
+        : "Open Chrome with Noon Automation loaded (reload extension after rebuild)";
+    }
+    updateActionButtons();
+  }
+
   function setActiveRun(run) {
     state.activeRun = run;
     if (!run) {
@@ -84,7 +100,7 @@
     const hasSel = state.selectedIds.size > 0;
     const running = !!(state.activeRun && ["queued", "claimed", "running", "stopping"].includes(state.activeRun.status));
     el.btnDelete.disabled = !hasBatch || running;
-    el.btnRun.disabled = !hasBatch || !hasSel || running;
+    el.btnRun.disabled = !hasBatch || !hasSel || running || !state.extensionOnline;
     el.btnStop.disabled = !running;
     el.selCount.textContent = `${state.selectedIds.size} selected`;
   }
@@ -170,48 +186,7 @@
       showError(err.message);
     }
     if (token !== state.detailToken || state.selectedRowId !== row.id) return;
-    el.detailBody.innerHTML = `
-      <div class="detail-section">
-        <div class="stage-row">
-          <span class="badge ${String(row.login_status).replace(/\s+/g, "_")}">login: ${U.escapeHtml(U.formatStatus(row.login_status))}</span>
-          <span class="badge ${String(row.redeem_status).replace(/\s+/g, "_")}">redeem: ${U.escapeHtml(U.formatStatus(row.redeem_status))}</span>
-          <span class="badge ${String(row.purchase_status).replace(/\s+/g, "_")}">order: ${U.escapeHtml(U.formatStatus(row.purchase_status))}</span>
-          ${U.badge(row.status)}
-        </div>
-        ${U.kv("Email", row.email)}
-        ${U.kv("Password", row.password)}
-        ${U.kv("Gift card", row.gift_card_number)}
-        ${U.kv("PIN", row.gift_card_pin)}
-        ${U.kv("Product", row.product_url)}
-        ${U.kv("Qty", row.quantity)}
-        ${U.kv("Order ID", row.order_id)}
-        ${U.kv("Time taken", U.formatDuration(row.duration_ms))}
-        ${U.kv("Expected", U.formatDuration(state.expectedRowSeconds * 1000))}
-      </div>
-      <div class="detail-section">
-        <h3>Stages</h3>
-        ${U.kv("Login at", U.formatTime(row.login_at))}
-        ${U.kv("Login error", row.login_error)}
-        ${U.kv("Redeemed at", U.formatTime(row.redeemed_at))}
-        ${U.kv("Redeem error", row.redeem_error)}
-        ${U.kv("Balance before", row.balance_before)}
-        ${U.kv("Balance after", row.balance_after)}
-        ${U.kv("Balance delta", row.balance_delta)}
-        ${U.kv("Purchased at", U.formatTime(row.purchased_at))}
-        ${U.kv("Order error", row.purchase_error)}
-      </div>
-      <div class="detail-section">
-        <h3>Screenshots</h3>
-        <div class="shots">
-          ${U.shotBlock(row, "before_redeem", "Before redeem")}
-          ${U.shotBlock(row, "after_redeem", "After redeem")}
-          ${U.shotBlock(row, "after_order", "After order")}
-        </div>
-      </div>
-      <div class="detail-section">
-        <h3>Emails</h3>
-        ${U.renderEmails(emails)}
-      </div>`;
+    el.detailBody.innerHTML = U.buildRowDetailHtml(row, emails, state.expectedRowSeconds);
   }
 
   async function loadRows({ silent = false } = {}) {
@@ -264,11 +239,20 @@
     try {
       const data = await U.api("/health");
       const ok = data.status === "ok";
-      el.health.textContent = ok ? "API online" : "API issue";
+      el.health.textContent = ok ? "API online" : "API offline";
       el.health.className = `pill ${ok ? "pill-ok" : "pill-bad"}`;
     } catch (_) {
       el.health.textContent = "API offline";
       el.health.className = "pill pill-bad";
+    }
+  }
+
+  async function checkExtension() {
+    try {
+      const status = await U.api("/runs/extension/status");
+      setExtensionOnline(!!status.online);
+    } catch (_) {
+      setExtensionOnline(false);
     }
   }
 
@@ -328,11 +312,13 @@
 
   el.refresh.addEventListener("click", () => {
     checkHealth();
+    checkExtension();
     loadBatches();
   });
 
   async function boot() {
     await checkHealth();
+    await checkExtension();
     try {
       const cfg = await U.api("/runs/config");
       state.expectedRowSeconds = cfg.expected_row_seconds || 180;
@@ -340,6 +326,7 @@
     await loadBatches({ keepSelection: false });
     setInterval(() => {
       checkHealth();
+      checkExtension();
       loadBatches({ keepSelection: true, silent: true });
     }, 5000);
   }

@@ -11,6 +11,7 @@ SCREENSHOT_KINDS = {
     "before_redeem": "screenshot_before_redeem",
     "after_redeem": "screenshot_after_redeem",
     "after_order": "screenshot_after_order",
+    "on_failure": "screenshot_on_failure",
 }
 
 

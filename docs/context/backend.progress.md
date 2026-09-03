@@ -4,7 +4,9 @@
 
 | Slot | Agent | Trigger | Spec | Task | Status |
 |---|---|---|---|---|---|
-| BE-1 | backend-engineer | -q | none | Extension heartbeat + dashboard auth | in_progress |
+| BE-1 | — | — | — | — | idle |
+| BE-2 | — | — | — | — | idle |
+| BE-3 | — | — | — | — | idle |
 | BE-2 | — | — | — | — | idle |
 | BE-3 | — | — | — | — | idle |
 
@@ -27,6 +29,10 @@ FastAPI backend with login + batch modules. Extension connects to backend for CS
 
 ## Recent Changes
 
+- 2026-09-03 — Run flags `login_only` + `screenshot_on_failure` kind for stage failures
+- 2026-09-03 — Run flag `hide_window` + SQLite column; dashboard/extension minimize Noon window
+- 2026-09-03 — Heartbeat TTL 90s (matches MV3 alarm wake); already_redeemed+skipped→partial; timing PATCH keeps status
+- 2026-09-03 — Stop API finalizes stuck in-progress rows immediately (status→stopped); reject late run PATCH
 - 2026-09-03 — Dashboard: upload/sample CSV, select+run/stop, email/place-order toggles, delete batch; `/runs` job API + row timing
 - 2026-09-03 — Dashboard served at `/` (port 8000 root); assets under `/assets`
 - 2026-09-03 — Read-only `/admin` dashboard + `GET` screenshot files for row images

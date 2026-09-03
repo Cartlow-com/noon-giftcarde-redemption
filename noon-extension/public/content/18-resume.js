@@ -14,9 +14,12 @@
   try {
     emit("LOGIN_PROGRESS", { message: "Resuming after navigation…" });
 
-    if (state.flowType === "batch_account" && state.step === "login_home") {
+    if (
+      state.flowType === "batch_account" &&
+      (state.step === "login_profile" || state.step === "login_home")
+    ) {
       await enableCursor();
-      await loginOnHomepage(state.email, state.password);
+      await loginFromProfilePage(state.email, state.password);
       const required = String(state.email || "").trim().toLowerCase();
       await openProfilePage();
       const profileEmail = await waitForReadableProfileEmail(8000);

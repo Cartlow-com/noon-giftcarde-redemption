@@ -26,6 +26,13 @@ async function loginOnHomepage(email, password) {
   await pause(0.4);
 }
 
+async function loginFromProfilePage(email, password) {
+  await openProfilePage();
+  await acceptCookies();
+  await loginFromCurrentPage(email, password);
+  await pause(0.2);
+}
+
 async function loginFromCurrentPage(email, password) {
   await acceptCookies();
   // On Account required (and any logged-out page): open navbar Log In popup — never the blue LOGIN/SIGNUP.
@@ -44,7 +51,7 @@ async function persistBatchAccountLogin(payload) {
     flowType: "batch_account",
     email: payload.email || "",
     password: payload.password || "",
-    step: "login_home",
+    step: "login_profile",
   });
 }
 
@@ -125,10 +132,6 @@ async function runBatchAccount(payload) {
     // Logged out (or account-required) → login as row.
     logStep("Logging in as " + required + "…");
     try {
-      if (!isAccountRequiredPage() && location.href.indexOf("www.noon.com") === -1) {
-        location.href = NOON_HOME;
-        await waitForPageReady();
-      }
       await loginFromCurrentPage(payload.email, payload.password);
       await openProfilePage();
       const afterEmail = await waitForReadableProfileEmail(8000);
@@ -148,19 +151,24 @@ async function runBatchAccount(payload) {
         switched: true,
       };
     } catch (localErr) {
-      if (localErr && localErr.message && localErr.message.indexOf("OTP is required") !== -1) {
+      if (
+        localErr &&
+        localErr.message &&
+        (localErr.message.indexOf("OTP is required") !== -1 ||
+          localErr.message.indexOf("Manual login required") !== -1)
+      ) {
         throw localErr;
       }
       logStep(
         "In-place login failed (" +
           (localErr instanceof Error ? localErr.message : "error") +
-          ") — continuing on homepage",
+          ") — retrying from profile",
       );
     }
 
     await clearFlowDone();
     await persistBatchAccountLogin(payload);
-    location.href = NOON_HOME;
+    location.href = NOON_PROFILE;
     return { ok: true, pending: true };
   } finally {
     flow().running = false;

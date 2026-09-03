@@ -3,6 +3,8 @@
 ## Extension UX
 
 - **Visible ghost cursor** during automation (Claude-style) — user wants to see what the bot is doing
+- **Dashboard "Hide Noon window"** — optional minimize during runs; briefly restores for screenshots
+- **Hard account match** — before redeem/order, live profile email must equal row email or bot logs out and logs in as the row (never redeem into wrong account)
 - **Pointer only** — arrow cursor, no hand icon on clickables; I-beam OK on text inputs
 - **Cancel button** — user can abort mid-flow
 - **Skip login** when already logged in (`Hi,` in header)

@@ -8,6 +8,7 @@
   const btnStop = document.getElementById("btn-stop");
   const btnDelete = document.getElementById("btn-delete-batch");
   const optPlace = document.getElementById("opt-place-order");
+  const optHideWindow = document.getElementById("opt-hide-window");
   const optRedeem = document.getElementById("opt-redeem-email");
   const optOrder = document.getElementById("opt-order-email");
 
@@ -17,6 +18,15 @@
       ui().setActiveRun(run);
     } catch (_) {
       ui().setActiveRun(null);
+    }
+  }
+
+  async function refreshExtensionStatus() {
+    try {
+      const status = await U.api("/runs/extension/status");
+      ui().setExtensionOnline(!!status.online);
+    } catch (_) {
+      ui().setExtensionOnline(false);
     }
   }
 
@@ -56,6 +66,10 @@
     const s = state();
     const rowIds = [...s.selectedIds];
     if (!s.selectedBatchId || rowIds.length === 0) return;
+    if (!s.extensionOnline) {
+      ui().showError("Extension is offline — keep Chrome open with Noon Automation loaded");
+      return;
+    }
     try {
       const run = await U.api("/runs", {
         method: "POST",
@@ -64,16 +78,23 @@
           batch_id: s.selectedBatchId,
           row_ids: rowIds,
           place_order: optPlace.checked,
+          hide_window: optHideWindow.checked,
+          login_only: false,
           send_redeem_emails: optRedeem.checked,
           send_order_emails: optOrder.checked,
         }),
       });
       ui().setActiveRun(run);
+      const modeBits = [];
+      if (optHideWindow.checked) modeBits.push("hidden window");
       ui().showOk(
-        `Queued ${rowIds.length} row(s). Keep Chrome open with the Noon extension — it will claim the run and open a Noon window.`,
+        `Queued ${rowIds.length} row(s)` +
+          (modeBits.length ? ` (${modeBits.join(", ")})` : "") +
+          ". Extension will claim the run.",
       );
     } catch (err) {
       ui().showError(err.message);
+      refreshExtensionStatus();
     }
   });
 
@@ -82,13 +103,16 @@
     if (!run) return;
     try {
       const updated = await U.api(`/runs/${encodeURIComponent(run.id)}/stop`, { method: "POST" });
-      ui().setActiveRun(updated);
-      ui().showOk("Stop requested — extension will halt after the current step");
+      ui().setActiveRun(updated.status === "stopped" ? null : updated);
+      ui().showOk(updated.message || "Stopped");
+      await ui().loadBatches({ keepSelection: true });
     } catch (err) {
       ui().showError(err.message);
     }
   });
 
   refreshActiveRun();
+  refreshExtensionStatus();
   setInterval(refreshActiveRun, 2500);
+  setInterval(refreshExtensionStatus, 2500);
 })();

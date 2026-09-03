@@ -81,6 +81,8 @@ def create_run_route(
             place_order=payload.place_order,
             send_redeem_emails=payload.send_redeem_emails,
             send_order_emails=payload.send_order_emails,
+            hide_window=payload.hide_window,
+            login_only=payload.login_only,
             db=db,
         )
     except ValueError as exc:
@@ -95,6 +97,8 @@ def pending_run_route(
     db: Session = Depends(get_db),
     _: str | None = Depends(require_auth),
 ) -> BatchRunResponse | None:
+    # Polling proves the extension service worker is alive.
+    touch_extension_heartbeat()
     return get_pending_run(db)
 
 
