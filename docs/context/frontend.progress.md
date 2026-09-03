@@ -7,6 +7,7 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-09-03 — Live dashboard API calls now use credentialed fetch so Cloudflare/browser cookies can pass
 - 2026-09-03 — Live heartbeat follow-up: scoped active API pin with dashboard-start lock and cleanup on claim/run exit
 - 2026-09-03 — Extension heartbeat now pings local and live `redeem.cartlow.com`; dashboard run routing clears after completion
 - 2026-09-03 — Login fix: batch opens/resets to profile, detects Noon email-link lockout as manual login required, and reduces login waits

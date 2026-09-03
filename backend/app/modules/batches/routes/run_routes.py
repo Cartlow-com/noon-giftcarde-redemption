@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -47,7 +47,8 @@ def config_route() -> AppConfigResponse:
 
 
 @router.get("/extension/status", response_model=ExtensionStatusResponse)
-def extension_status_route() -> ExtensionStatusResponse:
+def extension_status_route(response: Response) -> ExtensionStatusResponse:
+    response.headers["Cache-Control"] = "no-store"
     last = get_extension_last_seen()
     return ExtensionStatusResponse(
         online=is_extension_online(),
@@ -58,8 +59,10 @@ def extension_status_route() -> ExtensionStatusResponse:
 
 @router.post("/extension/heartbeat", response_model=ExtensionStatusResponse)
 def extension_heartbeat_route(
+    response: Response,
     _: str | None = Depends(require_auth),
 ) -> ExtensionStatusResponse:
+    response.headers["Cache-Control"] = "no-store"
     last = touch_extension_heartbeat()
     return ExtensionStatusResponse(
         online=True,
