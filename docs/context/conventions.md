@@ -9,6 +9,7 @@
 | Input typing | React native value setter + InputEvent | Noon uses React-controlled inputs |
 | Navigation resume | `chrome.storage.local` keys | Content script reinjects on full page nav |
 | Credits entry | Direct URL nav | Faster, fewer flaky UI clicks |
+| Admin UI | Static pages on FastAPI `/` | Same port as API; extension palette |
 | Element finding | `findClickableByText(text, scope)` | Sidebar-scoped search misses main content/modals |
 
 ## Code Patterns

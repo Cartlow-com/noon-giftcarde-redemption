@@ -21,10 +21,14 @@ FastAPI backend with login + batch modules. Extension connects to backend for CS
 | User seed CSV | ✅ Done | `seeders/users.example.csv` → copy to `users.csv` |
 | Extension batch UI | ✅ Done | Upload + history in Batches tab |
 | Batch automation runner | ✅ Done | Upload → DB save → auto-start pull-next loop |
+| Admin dashboard | ✅ Done | Read-only `/` + screenshot GET |
 | Redeem verification | ⬜ Deferred | Balance/transaction check — later |
 
 ## Recent Changes
 
+- 2026-09-03 — Dashboard served at `/` (port 8000 root); assets under `/assets`
+- 2026-09-03 — Read-only `/admin` dashboard + `GET` screenshot files for row images
+- 2026-09-03 — Email module + screenshot APIs + history table; batch notify redeem/order
 - 2026-09-01 — Batch upload flow: save CSV to DB first, then auto-start row processing
 - 2026-09-01 — Batch module: backend APIs + extension Batches tab (upload/history, no verification)
 - 2026-09-01 — Documented backend as reference-only; extension is primary deliverable

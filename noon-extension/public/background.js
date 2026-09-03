@@ -347,11 +347,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "START_BATCH_RUN") {
     (async () => {
       try {
-        await runSelectedRows(
-          message.batchId,
-          message.rowIds || [],
-          message.placeOrder,
-        );
+        await runSelectedRows(message.batchId, message.rowIds || [], {
+          placeOrder: message.placeOrder,
+          sendRedeemEmails: message.sendRedeemEmails,
+          sendOrderEmails: message.sendOrderEmails,
+        });
         sendResponse({ ok: true });
       } catch (error) {
         sendResponse({

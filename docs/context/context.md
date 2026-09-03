@@ -49,7 +49,8 @@ noon_automation/
 | Cross-page resume | ✅ Done | `chrome.storage.local` flow state |
 | Backend API | ✅ Done | FastAPI — login + batches |
 | Batch upload/history UI | ✅ Done | Extension Batches tab |
-| Batch runner (pull-next) | ⬜ Not started | Extension automation loop |
+| Batch runner (pull-next) | ✅ Done | Extension automation loop |
+| Admin dashboard (read-only) | ✅ Done | FastAPI `/` — status, emails, screenshots |
 
 ## Gift Card Flow (current)
 

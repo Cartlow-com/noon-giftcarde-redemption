@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Noon Automation — Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/assets/styles.css" />
+    <link rel="stylesheet" href="/assets/detail.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">noon</span>
+          <span class="brand-sub">Automation</span>
+        </div>
+        <div class="topbar-meta">
+          <span id="health" class="pill pill-muted">Checking…</span>
+          <button type="button" id="btn-refresh" class="btn-text">Refresh</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <aside class="panel batches-panel">
+          <div class="panel-head">
+            <h1>Batches</h1>
+            <span id="batch-count" class="muted"></span>
+          </div>
+          <div id="batch-list" class="batch-list"></div>
+          <p id="batch-empty" class="empty hidden">No batches yet</p>
+        </aside>
+
+        <section class="panel rows-panel">
+          <div class="panel-head">
+            <div>
+              <h2 id="rows-title">Select a batch</h2>
+              <p id="rows-sub" class="muted"></p>
+            </div>
+            <div class="filters" id="status-filters" hidden>
+              <button type="button" data-status="" class="chip active">All</button>
+              <button type="button" data-status="pending" class="chip">Pending</button>
+              <button type="button" data-status="in_progress" class="chip">In progress</button>
+              <button type="button" data-status="completed" class="chip">Completed</button>
+              <button type="button" data-status="partial" class="chip">Partial</button>
+              <button type="button" data-status="failed" class="chip">Failed</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="rows-table" class="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Email</th>
+                  <th>Login</th>
+                  <th>Redeem</th>
+                  <th>Order</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="rows-body"></tbody>
+            </table>
+            <p id="rows-empty" class="empty">Pick a batch to inspect rows</p>
+          </div>
+        </section>
+
+        <aside class="panel detail-panel" id="detail-panel">
+          <div class="panel-head">
+            <h2 id="detail-title">Row detail</h2>
+          </div>
+          <div id="detail-body" class="detail-body">
+            <p class="empty">Select a row</p>
+          </div>
+        </aside>
+      </main>
+
+      <p id="global-error" class="toast error hidden"></p>
+    </div>
+    <script src="/assets/util.js"></script>
+    <script src="/assets/app.js"></script>
+  </body>
+</html>

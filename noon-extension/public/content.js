@@ -1153,6 +1153,37 @@
     return { redeemed: false, alreadyRedeemed: false, error: "Unknown redeem popup" };
   }
 
+  function extractOrderIdFromUrl(url) {
+    const text = String(url || location.href || "");
+    const patterns = [
+      /[?&]order(?:[_-]?id|[_-]?number|No)?=([A-Z0-9-]{5,})/i,
+      /\/orders?\/([A-Z0-9-]{5,})/i,
+      /\/confirmation\/([A-Z0-9-]{5,})/i,
+      /\/thank[_-]?you\/([A-Z0-9-]{5,})/i,
+    ];
+    for (let i = 0; i < patterns.length; i++) {
+      const match = text.match(patterns[i]);
+      if (match && match[1]) return match[1].trim();
+    }
+    return null;
+  }
+
+  function extractOrderIdFromPage() {
+    const fromUrl = extractOrderIdFromUrl(location.href);
+    if (fromUrl) return fromUrl;
+    const text = document.body.textContent || "";
+    const patterns = [
+      /order\s*(?:#|no\.?\s*|number\s*:?\s*)([A-Z0-9-]{5,})/i,
+      /order\s*id\s*:?\s*([A-Z0-9-]{5,})/i,
+      /(N[A-Z0-9]{8,})/,
+    ];
+    for (let i = 0; i < patterns.length; i++) {
+      const match = text.match(patterns[i]);
+      if (match && match[1]) return match[1].trim();
+    }
+    return null;
+  }
+
   async function waitForOrderConfirmation() {
     logStep("Waiting for order confirmation…");
     await waitFor(
@@ -1166,21 +1197,10 @@
       45000,
       400,
     );
-    return extractOrderIdFromPage();
-  }
-
-  function extractOrderIdFromPage() {
-    const text = document.body.textContent || "";
-    const patterns = [
-      /order\s*(?:#|no\.?\s*|number\s*:?\s*)([A-Z0-9-]{5,})/i,
-      /order\s*id\s*:?\s*([A-Z0-9-]{5,})/i,
-      /(N[A-Z0-9]{8,})/,
-    ];
-    for (let i = 0; i < patterns.length; i++) {
-      const match = text.match(patterns[i]);
-      if (match && match[1]) return match[1].trim();
-    }
-    return null;
+    return {
+      orderId: extractOrderIdFromPage(),
+      confirmationUrl: location.href,
+    };
   }
 
   let batchFlowMode = false;
@@ -1299,9 +1319,14 @@
         return;
       }
       if (cartResult === true) return;
-      const orderId = await waitForOrderConfirmation();
+      const confirmation = await waitForOrderConfirmation();
+      const orderId = confirmation && confirmation.orderId;
       await disableCursor();
-      await markFlowComplete({ ok: true, orderId: orderId || null });
+      await markFlowComplete({
+        ok: true,
+        orderId: orderId || null,
+        confirmationUrl: confirmation && confirmation.confirmationUrl,
+      });
       await clearFlowState();
       batchFlowMode = false;
       batchCartContext = null;
@@ -2712,11 +2737,20 @@
         return { ok: true, orderSkipped: true };
       }
       if (cartResult === true) return { ok: true, pending: true };
-      const orderId = await waitForOrderConfirmation();
+      const confirmation = await waitForOrderConfirmation();
+      const orderId = confirmation && confirmation.orderId;
       await disableCursor();
-      await markFlowComplete({ ok: true, orderId: orderId || null });
+      await markFlowComplete({
+        ok: true,
+        orderId: orderId || null,
+        confirmationUrl: confirmation && confirmation.confirmationUrl,
+      });
       await clearFlowState();
-      return { ok: true, orderId: orderId || null };
+      return {
+        ok: true,
+        orderId: orderId || null,
+        confirmationUrl: confirmation && confirmation.confirmationUrl,
+      };
     } finally {
       batchFlowMode = false;
       batchCartContext = null;

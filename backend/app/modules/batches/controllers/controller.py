@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
@@ -16,7 +18,11 @@ from app.modules.batches.services.get_batch_rows import list_batch_rows
 from app.modules.batches.services.get_batches import list_batches
 from app.modules.batches.services.get_next_row import get_next_pending_row
 from app.modules.batches.services.get_row import get_row
+from app.modules.batches.services.get_screenshot import resolve_row_screenshot_path
+from app.modules.batches.services.notify_email import notify_order_email, notify_redeem_email
+from app.modules.batches.services.save_screenshot import save_row_screenshot
 from app.modules.batches.services.update_row import update_batch_row
+from app.modules.email.models.response_models import SendEmailResponse
 
 
 def upload_batch(file: UploadFile, db: Session) -> UploadBatchResponse:
@@ -56,3 +62,24 @@ def patch_row(row_id: str, payload: UpdateRowRequest, db: Session) -> BatchRowRe
 
 def remove_batch(batch_id: str, db: Session) -> None:
     delete_batch(batch_id, db)
+
+
+def upload_screenshot(
+    row_id: str,
+    kind: str,
+    file: UploadFile,
+    db: Session,
+) -> BatchRowResponse:
+    return save_row_screenshot(row_id, kind, file, db)
+
+
+def get_screenshot(row_id: str, kind: str, db: Session) -> Path:
+    return resolve_row_screenshot_path(row_id, kind, db)
+
+
+def send_redeem_notification(row_id: str, db: Session) -> SendEmailResponse:
+    return notify_redeem_email(row_id, db)
+
+
+def send_order_notification(row_id: str, db: Session) -> SendEmailResponse:
+    return notify_order_email(row_id, db)

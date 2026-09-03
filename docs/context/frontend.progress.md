@@ -7,6 +7,9 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-09-03 — Dashboard moved to `http://127.0.0.1:8000/` (assets `/assets`)
+- 2026-09-03 — Read-only admin UI at `/admin` (extension palette; batches/rows/emails/screenshots)
+- 2026-09-03 — Email checkboxes (default off) + screenshot capture/upload + order_id from URL
 - 2026-09-02 — Checkout: detect "Select Payment Method" → `payment_issue` status, skip row, retry on re-run
 - 2026-09-02 — Backend URL moved from extension UI to `noon-extension/.env` (`VITE_API_BASE_URL`)
 | FE-2 | — | — | — | — | idle |

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -7,10 +8,14 @@ from app.modules.batches.controllers.controller import (
     get_batch,
     get_batch_rows,
     get_batches,
+    get_screenshot,
     patch_row,
     pull_next_row,
     remove_batch,
+    send_order_notification,
+    send_redeem_notification,
     upload_batch,
+    upload_screenshot,
 )
 from app.modules.batches.helpers.auth import require_auth
 from app.modules.batches.models.request_models import UpdateRowRequest
@@ -21,6 +26,7 @@ from app.modules.batches.models.response_models import (
     BatchRowResponse,
     UploadBatchResponse,
 )
+from app.modules.email.models.response_models import SendEmailResponse
 
 router = APIRouter(prefix="/batches", tags=["batches"])
 
@@ -92,6 +98,70 @@ def patch_row_route(
         return patch_row(row_id, payload, db)
     except ValueError as exc:
         raise _not_found(exc) from exc
+
+
+@router.post("/rows/{row_id}/screenshots", response_model=BatchRowResponse)
+def upload_screenshot_route(
+    row_id: str,
+    kind: str = Query(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: str | None = Depends(require_auth),
+) -> BatchRowResponse:
+    try:
+        return upload_screenshot(row_id, kind, file, db)
+    except ValueError as exc:
+        detail = str(exc)
+        if detail == "Row not found":
+            raise _not_found(exc) from exc
+        raise _bad_request(exc) from exc
+
+
+@router.get("/rows/{row_id}/screenshots/{kind}")
+def get_screenshot_route(
+    row_id: str,
+    kind: str,
+    db: Session = Depends(get_db),
+    _: str | None = Depends(require_auth),
+) -> FileResponse:
+    try:
+        path = get_screenshot(row_id, kind, db)
+    except ValueError as exc:
+        detail = str(exc)
+        if detail in {"Row not found", "Screenshot not found"}:
+            raise _not_found(exc) from exc
+        raise _bad_request(exc) from exc
+    return FileResponse(path, media_type="image/png", filename=f"{kind}.png")
+
+
+@router.post("/rows/{row_id}/notify/redeem", response_model=SendEmailResponse)
+def notify_redeem_route(
+    row_id: str,
+    db: Session = Depends(get_db),
+    _: str | None = Depends(require_auth),
+) -> SendEmailResponse:
+    try:
+        return send_redeem_notification(row_id, db)
+    except ValueError as exc:
+        detail = str(exc)
+        if detail == "Row not found":
+            raise _not_found(exc) from exc
+        raise _bad_request(exc) from exc
+
+
+@router.post("/rows/{row_id}/notify/order", response_model=SendEmailResponse)
+def notify_order_route(
+    row_id: str,
+    db: Session = Depends(get_db),
+    _: str | None = Depends(require_auth),
+) -> SendEmailResponse:
+    try:
+        return send_order_notification(row_id, db)
+    except ValueError as exc:
+        detail = str(exc)
+        if detail == "Row not found":
+            raise _not_found(exc) from exc
+        raise _bad_request(exc) from exc
 
 
 @router.get("/{batch_id}", response_model=BatchDetailResponse)

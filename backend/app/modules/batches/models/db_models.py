@@ -72,6 +72,10 @@ class BatchRow(Base):
     purchase_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     order_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
+    screenshot_before_redeem: Mapped[str | None] = mapped_column(Text, nullable=True)
+    screenshot_after_redeem: Mapped[str | None] = mapped_column(Text, nullable=True)
+    screenshot_after_order: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     status: Mapped[str] = mapped_column(String(16), default=ROW_PENDING, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(

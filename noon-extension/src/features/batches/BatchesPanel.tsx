@@ -26,6 +26,8 @@ export default function BatchesPanel() {
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [stopping, setStopping] = useState(false);
   const [placeOrderEnabled, setPlaceOrderEnabled] = useState(true);
+  const [sendRedeemEmails, setSendRedeemEmails] = useState(false);
+  const [sendOrderEmails, setSendOrderEmails] = useState(false);
   const [placeOrderConfirm, setPlaceOrderConfirm] = useState<{
     message: string;
     rowNumber?: number;
@@ -34,6 +36,29 @@ export default function BatchesPanel() {
   const runningBatchIdRef = useRef<string | null>(null);
   runningBatchIdRef.current = runningBatchId;
   const [listVersion, setListVersion] = useState(0);
+
+  const EMAIL_PREFS_KEY = "noon_email_prefs";
+
+  useEffect(() => {
+    chrome.storage.local.get(EMAIL_PREFS_KEY, (data) => {
+      const prefs = data[EMAIL_PREFS_KEY] as
+        | { sendRedeemEmails?: boolean; sendOrderEmails?: boolean }
+        | undefined;
+      if (prefs) {
+        setSendRedeemEmails(!!prefs.sendRedeemEmails);
+        setSendOrderEmails(!!prefs.sendOrderEmails);
+      }
+    });
+  }, []);
+
+  function persistEmailPrefs(nextRedeem: boolean, nextOrder: boolean) {
+    chrome.storage.local.set({
+      [EMAIL_PREFS_KEY]: {
+        sendRedeemEmails: nextRedeem,
+        sendOrderEmails: nextOrder,
+      },
+    });
+  }
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -143,6 +168,8 @@ export default function BatchesPanel() {
         batchId,
         rowIds,
         placeOrder: placeOrderEnabled,
+        sendRedeemEmails,
+        sendOrderEmails,
       } satisfies RuntimeMessage,
       (response: { ok?: boolean; error?: string } | undefined) => {
         if (chrome.runtime.lastError || (response && response.ok === false)) {
@@ -229,6 +256,46 @@ export default function BatchesPanel() {
           <span className="text-slate-100 font-medium">Place order at checkout</span>
           <span className="block text-[10px] text-slate-400 mt-0.5">
             Applies to all rows in the run. Uncheck to stop at checkout without submitting.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 rounded-lg border border-slate-600 bg-surface/40 px-3 py-2 text-xs text-slate-300 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 accent-[#FEEE00]"
+          checked={sendRedeemEmails}
+          disabled={!!runningBatchId}
+          onChange={(e) => {
+            const next = e.target.checked;
+            setSendRedeemEmails(next);
+            persistEmailPrefs(next, sendOrderEmails);
+          }}
+        />
+        <span>
+          <span className="text-slate-100 font-medium">Send redeem emails</span>
+          <span className="block text-[10px] text-slate-400 mt-0.5">
+            On redeem success / already redeemed — emails the Noon row address with screenshots.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 rounded-lg border border-slate-600 bg-surface/40 px-3 py-2 text-xs text-slate-300 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 accent-[#FEEE00]"
+          checked={sendOrderEmails}
+          disabled={!!runningBatchId}
+          onChange={(e) => {
+            const next = e.target.checked;
+            setSendOrderEmails(next);
+            persistEmailPrefs(sendRedeemEmails, next);
+          }}
+        />
+        <span>
+          <span className="text-slate-100 font-medium">Send order emails</span>
+          <span className="block text-[10px] text-slate-400 mt-0.5">
+            On order success — emails order number, product URL, and confirmation screenshot.
           </span>
         </span>
       </label>

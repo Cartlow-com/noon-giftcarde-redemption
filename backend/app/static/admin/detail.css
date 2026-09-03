@@ -1,0 +1,117 @@
+.detail-body {
+  overflow: auto;
+  padding: 1rem;
+  flex: 1;
+}
+
+.detail-section { margin-bottom: 1.1rem; }
+
+.detail-section h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  margin-bottom: 0.35rem;
+}
+
+.kv dt { color: var(--muted); }
+
+.kv dd {
+  margin: 0;
+  word-break: break-all;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.stage-row {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.shots { display: grid; gap: 0.65rem; }
+
+.shot-card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0.5rem;
+}
+
+.shot-card .label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.shot-card img {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+  background: #0b1220;
+  border: 1px solid var(--border);
+}
+
+.shot-card .missing {
+  font-size: 0.75rem;
+  color: var(--muted);
+  padding: 1.25rem 0.5rem;
+  text-align: center;
+}
+
+.email-item {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.email-item .subject {
+  font-weight: 600;
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.email-item .meta {
+  color: var(--muted);
+  font-size: 0.7rem;
+  margin-bottom: 0.35rem;
+}
+
+.email-item pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: #cbd5e1;
+  max-height: 140px;
+  overflow: auto;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  padding: 0.55rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  z-index: 20;
+}
+
+.toast.error {
+  background: color-mix(in srgb, var(--danger) 18%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--border));
+  color: #fecaca;
+}

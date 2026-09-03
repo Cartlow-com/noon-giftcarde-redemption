@@ -14,5 +14,16 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     AUTH_REQUIRED: bool = False
 
+    SCREENSHOT_STORAGE_DIR: str = "storage/screenshots"
+
+    FAILOVER_MAIL_PROVIDER: str = "amazon-ses"
+    FAILOVER_MAIL_HOST: str = ""
+    FAILOVER_MAIL_PORT: int = 587
+    FAILOVER_MAIL_USERNAME: str = ""
+    FAILOVER_MAIL_PASSWORD: str = ""
+    FAILOVER_MAIL_ENCRYPTION: str = "tls"
+    FAILOVER_MAIL_FROM_ADDRESS: str = "notification@cartlow.com"
+    FAILOVER_MAIL_FROM_NAME: str = "Cartlow"
+
 
 settings = Settings()

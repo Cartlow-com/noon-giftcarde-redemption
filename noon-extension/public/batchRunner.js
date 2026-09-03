@@ -5,6 +5,122 @@ let batchRunActive = false;
 let currentBatchRow = null;
 let sessionEmail = null;
 let batchPlaceOrder = true;
+let batchSendRedeemEmails = false;
+let batchSendOrderEmails = false;
+
+const NOON_CREDITS_URL = "https://account.noon.com/uae-en/credits/";
+
+async function openCreditsPage(tabId) {
+  await chrome.tabs.update(tabId, { url: NOON_CREDITS_URL });
+  await waitForTabComplete(tabId);
+  await delay(900);
+}
+
+async function safeCaptureScreenshot(tabId, row, kind) {
+  try {
+    await captureAndUploadScreenshot(tabId, row.id, kind);
+    emitStageProgress(
+      row,
+      kind.indexOf("order") !== -1 ? "order" : "redeem",
+      "info",
+      `Row ${row.row_number}: saved ${kind.replace(/_/g, " ")} screenshot`,
+    );
+  } catch (error) {
+    emitStageProgress(
+      row,
+      "system",
+      "info",
+      `Row ${row.row_number}: screenshot ${kind} failed — ${
+        error instanceof Error ? error.message : "unknown error"
+      }`,
+    );
+  }
+}
+
+async function safeNotifyRedeem(row) {
+  if (!batchSendRedeemEmails) return;
+  try {
+    const result = await notifyRedeemEmail(row.id);
+    if (result && result.history && result.history.status === "sent") {
+      emitStageProgress(
+        row,
+        "redeem",
+        "info",
+        `Row ${row.row_number}: redeem email sent to ${row.email}`,
+      );
+      return;
+    }
+    const err =
+      (result && result.history && result.history.error) ||
+      (result && result.message) ||
+      "unknown error";
+    emitStageProgress(
+      row,
+      "redeem",
+      "info",
+      `Row ${row.row_number}: redeem email failed — ${err}`,
+    );
+  } catch (error) {
+    emitStageProgress(
+      row,
+      "redeem",
+      "info",
+      `Row ${row.row_number}: redeem email failed — ${
+        error instanceof Error ? error.message : "unknown error"
+      }`,
+    );
+  }
+}
+
+async function safeNotifyOrder(row) {
+  if (!batchSendOrderEmails) return;
+  try {
+    const result = await notifyOrderEmail(row.id);
+    if (result && result.history && result.history.status === "sent") {
+      emitStageProgress(
+        row,
+        "order",
+        "info",
+        `Row ${row.row_number}: order email sent to ${row.email}`,
+      );
+      return;
+    }
+    const err =
+      (result && result.history && result.history.error) ||
+      (result && result.message) ||
+      "unknown error";
+    emitStageProgress(
+      row,
+      "order",
+      "info",
+      `Row ${row.row_number}: order email failed — ${err}`,
+    );
+  } catch (error) {
+    emitStageProgress(
+      row,
+      "order",
+      "info",
+      `Row ${row.row_number}: order email failed — ${
+        error instanceof Error ? error.message : "unknown error"
+      }`,
+    );
+  }
+}
+
+function orderIdFromUrl(url) {
+  const text = String(url || "");
+  const patterns = [
+    /[?&]order(?:[_-]?id|[_-]?number|No)?=([A-Z0-9-]{5,})/i,
+    /\/orders?\/([A-Z0-9-]{5,})/i,
+    /\/confirmation\/([A-Z0-9-]{5,})/i,
+    /\/thank[_-]?you\/([A-Z0-9-]{5,})/i,
+  ];
+  for (let i = 0; i < patterns.length; i++) {
+    const match = text.match(patterns[i]);
+    if (match && match[1]) return match[1].trim();
+  }
+  return null;
+}
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
@@ -462,6 +578,8 @@ async function processBatchRow(row, tabId) {
     );
     await patchStage(row.id, { redeem_status: "running" });
     try {
+      await openCreditsPage(tabId);
+      await safeCaptureScreenshot(tabId, row, "before_redeem");
       const result = await runFlowStep(tabId, function () {
         return sendBatchRedeemToTab(tabId, {
           email: row.email,
@@ -480,6 +598,9 @@ async function processBatchRow(row, tabId) {
       if (result && result.balanceAfter != null) patch.balance_after = result.balanceAfter;
       if (result && result.balanceDelta != null) patch.balance_delta = result.balanceDelta;
       await patchStage(row.id, patch);
+      await safeCaptureScreenshot(tabId, row, "after_redeem");
+      row = await getBatchRow(row.id);
+      await safeNotifyRedeem(row);
       const popupMsg = result && result.popupMessage ? ` — ${result.popupMessage}` : "";
       const balanceMsg =
         result && result.balanceBefore != null && result.balanceAfter != null
@@ -503,6 +624,9 @@ async function processBatchRow(row, tabId) {
         /already redeemed|gift card is already/i.test(errMsg);
       if (alreadyRedeemed) {
         await markAlreadyRedeemedRow(row, errMsg);
+        await safeCaptureScreenshot(tabId, row, "after_redeem");
+        row = await getBatchRow(row.id);
+        await safeNotifyRedeem(row);
       } else {
         await skipFailedRow(row, "redeem", errMsg);
         return;
@@ -561,7 +685,10 @@ async function processBatchRow(row, tabId) {
         await markOrderSkippedRow(row, row.product_url);
         return;
       }
-      const orderId = (result && result.orderId) || null;
+      const orderId =
+        (result && result.orderId) ||
+        orderIdFromUrl(result && result.confirmationUrl) ||
+        null;
       await patchStage(row.id, {
         purchase_status: "success",
         purchased_at: now,
@@ -569,6 +696,9 @@ async function processBatchRow(row, tabId) {
         order_id: orderId,
         status: "completed",
       });
+      await safeCaptureScreenshot(tabId, row, "after_order");
+      row = await getBatchRow(row.id);
+      await safeNotifyOrder(row);
       emitBatch({
         type: "BATCH_ROW_DONE",
         batchId: row.batch_id,
@@ -610,22 +740,27 @@ async function processBatchRow(row, tabId) {
   });
 }
 
-async function runSelectedRows(batchId, rowIds, placeOrder) {
+async function runSelectedRows(batchId, rowIds, options) {
   if (!rowIds || rowIds.length === 0) {
     throw new Error("No rows selected");
   }
 
+  const opts = options || {};
   batchRunCancelled = false;
   batchRunActive = true;
   currentBatchRow = null;
   sessionEmail = null;
-  batchPlaceOrder = placeOrder !== false;
+  batchPlaceOrder = opts.placeOrder !== false;
+  batchSendRedeemEmails = !!opts.sendRedeemEmails;
+  batchSendOrderEmails = !!opts.sendOrderEmails;
   await chrome.storage.local.set({
     [BATCH_RUN_KEY]: {
       batchId: batchId,
       rowIds: rowIds,
       active: true,
       placeOrder: batchPlaceOrder,
+      sendRedeemEmails: batchSendRedeemEmails,
+      sendOrderEmails: batchSendOrderEmails,
     },
   });
 
@@ -634,9 +769,11 @@ async function runSelectedRows(batchId, rowIds, placeOrder) {
     batchId: batchId,
     stage: "system",
     status: "info",
-    message: batchPlaceOrder
-      ? `Starting ${rowIds.length} selected row(s) — place order enabled`
-      : `Starting ${rowIds.length} selected row(s) — place order disabled (skip at checkout)`,
+    message:
+      `Starting ${rowIds.length} selected row(s)` +
+      (batchPlaceOrder ? " — place order on" : " — place order off") +
+      (batchSendRedeemEmails ? " — redeem emails on" : " — redeem emails off") +
+      (batchSendOrderEmails ? " — order emails on" : " — order emails off"),
   });
 
   let processed = 0;

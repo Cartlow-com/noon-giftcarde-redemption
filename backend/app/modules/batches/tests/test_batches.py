@@ -132,3 +132,32 @@ def test_payment_issue_marks_partial(client) -> None:
     body = patched.json()
     assert body["purchase_status"] == "payment_issue"
     assert body["status"] == "partial"
+
+
+def test_get_screenshot_served_and_missing(client, tmp_path, monkeypatch) -> None:
+    upload = _upload_csv(client, SAMPLE_CSV)
+    batch_id = upload.json()["batch"]["id"]
+    row_id = client.get(f"/batches/{batch_id}/rows").json()["rows"][0]["id"]
+
+    missing = client.get(f"/batches/rows/{row_id}/screenshots/before_redeem")
+    assert missing.status_code == 404
+
+    bad_kind = client.get(f"/batches/rows/{row_id}/screenshots/not_a_kind")
+    assert bad_kind.status_code == 400
+
+    png_bytes = b"\x89PNG\r\n\x1a\nfake-shot"
+    monkeypatch.setattr(
+        "app.modules.batches.services.save_screenshot.settings.SCREENSHOT_STORAGE_DIR",
+        str(tmp_path / "shots"),
+    )
+    uploaded = client.post(
+        f"/batches/rows/{row_id}/screenshots",
+        params={"kind": "before_redeem"},
+        files={"file": ("before.png", png_bytes, "image/png")},
+    )
+    assert uploaded.status_code == 200
+
+    served = client.get(f"/batches/rows/{row_id}/screenshots/before_redeem")
+    assert served.status_code == 200
+    assert served.headers["content-type"].startswith("image/png")
+    assert served.content == png_bytes

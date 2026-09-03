@@ -37,6 +37,9 @@ export interface BatchRow {
   purchased_at: string | null;
   purchase_error: string | null;
   order_id: string | null;
+  screenshot_before_redeem?: string | null;
+  screenshot_after_redeem?: string | null;
+  screenshot_after_order?: string | null;
   status: string;
 }
 

@@ -28,6 +28,9 @@ class BatchRowResponse(BaseModel):
     purchased_at: datetime | None
     purchase_error: str | None
     order_id: str | None
+    screenshot_before_redeem: str | None = None
+    screenshot_after_redeem: str | None = None
+    screenshot_after_order: str | None = None
     status: str
     created_at: datetime
     updated_at: datetime

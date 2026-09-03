@@ -53,13 +53,18 @@ export default function BatchRowDetail({ row, onClose }: BatchRowDetailProps) {
           <DetailRow label="Product URL" value={row.product_url} />
           <DetailRow label="Quantity" value={row.quantity} />
           <DetailRow label="Order ID" value={row.order_id} />
+          <DetailRow label="Login at" value={row.login_at} />
           <DetailRow label="Login error" value={row.login_error} />
           <DetailRow label="Redeem error" value={row.redeem_error} />
           <DetailRow label="Redeemed at" value={row.redeemed_at} />
           <DetailRow label="Balance before" value={row.balance_before != null ? String(row.balance_before) : null} />
           <DetailRow label="Balance after" value={row.balance_after != null ? String(row.balance_after) : null} />
           <DetailRow label="Balance delta" value={row.balance_delta != null ? String(row.balance_delta) : null} />
+          <DetailRow label="Purchased at" value={row.purchased_at} />
           <DetailRow label="Order error" value={row.purchase_error} />
+          <DetailRow label="SS before redeem" value={row.screenshot_before_redeem} />
+          <DetailRow label="SS after redeem" value={row.screenshot_after_redeem} />
+          <DetailRow label="SS after order" value={row.screenshot_after_order} />
         </div>
       </div>
     </div>
