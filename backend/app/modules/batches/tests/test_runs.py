@@ -195,9 +195,12 @@ def test_create_run_hide_window(client) -> None:
 def test_heartbeat_marks_extension_online(client) -> None:
     clear_extension_heartbeat()
     before = client.get("/runs/extension/status")
+    assert before.headers["cache-control"] == "no-store"
     assert before.json()["online"] is False
     beat = client.post("/runs/extension/heartbeat")
     assert beat.status_code == 200
+    assert beat.headers["cache-control"] == "no-store"
     assert beat.json()["online"] is True
     after = client.get("/runs/extension/status")
+    assert after.headers["cache-control"] == "no-store"
     assert after.json()["online"] is True

@@ -1,6 +1,6 @@
 window.AdminUtil = {
   async api(path, init) {
-    const options = Object.assign({ cache: "no-store" }, init || {});
+    const options = Object.assign({}, init || {}, { cache: "no-store" });
     const response = await fetch(path, options);
     if (response.status === 204) return null;
     if (!response.ok) {

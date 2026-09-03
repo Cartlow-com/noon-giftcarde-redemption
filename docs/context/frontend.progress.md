@@ -7,6 +7,8 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-09-03 — Live dashboard assets now use cache-busting query strings and `/` serves no-store to load fresh status JS
+- 2026-09-03 — Live dashboard status: no-store extension status/heartbeat responses and admin fetches to avoid stale offline badge
 - 2026-09-03 — Live dashboard API calls now use credentialed fetch so Cloudflare/browser cookies can pass
 - 2026-09-03 — Live heartbeat follow-up: scoped active API pin with dashboard-start lock and cleanup on claim/run exit
 - 2026-09-03 — Extension heartbeat now pings local and live `redeem.cartlow.com`; dashboard run routing clears after completion

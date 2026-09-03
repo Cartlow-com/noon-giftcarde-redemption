@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -53,8 +53,9 @@ def health_check() -> dict[str, str]:
 
 
 @app.get("/")
-def dashboard() -> FileResponse:
+def dashboard(response: Response) -> FileResponse:
     index = ADMIN_DIR / "index.html"
     if not index.is_file():
         raise HTTPException(status_code=404, detail="Dashboard not found")
-    return FileResponse(index)
+    response.headers["Cache-Control"] = "no-store"
+    return FileResponse(index, headers={"Cache-Control": "no-store"})
