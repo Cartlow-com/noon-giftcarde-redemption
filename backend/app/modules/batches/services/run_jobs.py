@@ -28,6 +28,7 @@ from app.modules.batches.models.response_models import BatchRunResponse
 ACTIVE_STATUSES = ("queued", "claimed", "running", "stopping")
 TERMINAL_STATUSES = frozenset({"completed", "stopped", "failed"})
 STOP_MESSAGE = "Stopped by user"
+STALE_HEARTBEAT_MESSAGE = "Extension heartbeat expired"
 
 
 def _to_response(run: BatchRun) -> BatchRunResponse:
@@ -61,6 +62,7 @@ def create_batch_run(
     user_id: str | None = None,
 ) -> BatchRunResponse:
     owner_id = resolve_owner_user_id(user_id, db)
+    reclaim_stale_user_runs(db, owner_id)
     batch = get_owned_batch(db, batch_id, owner_id)
     if not row_ids:
         raise ValueError("At least one row_id is required")
@@ -118,6 +120,8 @@ def get_run(run_id: str, db: Session, user_id: str | None = None) -> BatchRunRes
 
 
 def get_active_run(db: Session, user_id: str | None = None) -> BatchRunResponse | None:
+    if user_id:
+        reclaim_stale_user_runs(db, user_id)
     query = (
         select(BatchRun)
         .where(BatchRun.status.in_(ACTIVE_STATUSES))
@@ -127,6 +131,28 @@ def get_active_run(db: Session, user_id: str | None = None) -> BatchRunResponse 
         query = query.where(BatchRun.user_id == user_id)
     run = db.scalars(query.limit(1)).first()
     return _to_response(run) if run else None
+
+
+def reclaim_stale_user_runs(db: Session, user_id: str) -> int:
+    """Stop active runs when extension presence is missing or past TTL."""
+    if is_extension_online(db, user_id):
+        return 0
+    runs = db.scalars(
+        select(BatchRun).where(
+            BatchRun.user_id == user_id,
+            BatchRun.status.in_(ACTIVE_STATUSES),
+        )
+    ).all()
+    reclaimed = 0
+    for run in runs:
+        stop_batch_run(
+            run.id,
+            db,
+            user_id=user_id,
+            reason=STALE_HEARTBEAT_MESSAGE,
+        )
+        reclaimed += 1
+    return reclaimed
 
 
 def claim_batch_run(run_id: str, db: Session, user_id: str | None = None) -> BatchRunResponse:
@@ -141,7 +167,12 @@ def claim_batch_run(run_id: str, db: Session, user_id: str | None = None) -> Bat
     return _to_response(run)
 
 
-def _finalize_interrupted_rows(run: BatchRun, db: Session) -> int:
+def _finalize_interrupted_rows(
+    run: BatchRun,
+    db: Session,
+    *,
+    stage_error: str = STOP_MESSAGE,
+) -> int:
     """Clear stuck in-progress/running stages for rows in this run."""
     try:
         row_ids = json.loads(run.row_ids_json)
@@ -165,17 +196,17 @@ def _finalize_interrupted_rows(run: BatchRun, db: Session) -> int:
         if row.login_status == STAGE_RUNNING:
             row.login_status = STAGE_FAILED
             row.login_at = now
-            row.login_error = STOP_MESSAGE
+            row.login_error = stage_error
             touched = True
         if row.redeem_status == STAGE_RUNNING:
             row.redeem_status = STAGE_FAILED
             row.redeemed_at = now
-            row.redeem_error = STOP_MESSAGE
+            row.redeem_error = stage_error
             touched = True
         if row.purchase_status == STAGE_RUNNING:
             row.purchase_status = STAGE_SKIPPED
             row.purchased_at = now
-            row.purchase_error = STOP_MESSAGE
+            row.purchase_error = stage_error
             touched = True
         if touched or row.status == ROW_IN_PROGRESS:
             row.status = compute_row_status(
@@ -201,9 +232,16 @@ def _finalize_interrupted_rows(run: BatchRun, db: Session) -> int:
     return changed
 
 
-def stop_batch_run(run_id: str, db: Session, user_id: str | None = None) -> BatchRunResponse:
+def stop_batch_run(
+    run_id: str,
+    db: Session,
+    user_id: str | None = None,
+    *,
+    reason: str | None = None,
+) -> BatchRunResponse:
     run = get_owned_run(db, run_id, user_id)
-    interrupted = _finalize_interrupted_rows(run, db)
+    stage_error = reason or STOP_MESSAGE
+    interrupted = _finalize_interrupted_rows(run, db, stage_error=stage_error)
 
     if run.status in TERMINAL_STATUSES:
         if interrupted:
@@ -216,11 +254,18 @@ def stop_batch_run(run_id: str, db: Session, user_id: str | None = None) -> Batc
 
     run.stop_requested = 1
     run.status = "stopped"
-    run.message = (
-        f"Stopped — finalized {interrupted} in-progress row(s)"
-        if interrupted
-        else "Stopped"
-    )
+    if reason:
+        run.message = (
+            f"{reason} — finalized {interrupted} in-progress row(s)"
+            if interrupted
+            else reason
+        )
+    else:
+        run.message = (
+            f"Stopped — finalized {interrupted} in-progress row(s)"
+            if interrupted
+            else "Stopped"
+        )
     run.updated_at = datetime.now(UTC)
     db.commit()
     refresh_batch_counts(db, run.batch_id)

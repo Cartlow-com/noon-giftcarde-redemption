@@ -30,7 +30,7 @@
     }
 
     if (data.extension) ui.setExtensionOnline(!!data.extension.online);
-    ui.setActiveRun(data.active_run || null);
+    if ("active_run" in data) ui.setActiveRun(data.active_run || null);
 
     if (Array.isArray(data.batches)) {
       state.batches = data.batches;
@@ -60,7 +60,6 @@
         state.selectedRowId = state.rows[0]?.id || null;
       }
       ui.renderRows();
-      // Table updates from SSE; detail/emails load only on row click or REST loadRows.
       const row = state.rows.find((r) => r.id === state.selectedRowId);
       if (!row && detailTitle && detailBody) {
         detailTitle.textContent = "Row detail";
@@ -70,6 +69,78 @@
       state.rows = [];
       ui.renderRows();
       if (detailBody) detailBody.innerHTML = `<p class="empty">Select a row</p>`;
+    } else if (data.health === "error") {
+      state.rows = [];
+      ui.renderRows();
+    }
+  }
+
+  function mergeById(existing, incoming, replace) {
+    if (replace || !Array.isArray(existing) || !existing.length) {
+      return Array.isArray(incoming) ? incoming.slice() : [];
+    }
+    const map = new Map(existing.map((item) => [item.id, item]));
+    for (const item of incoming || []) {
+      if (!item || !item.id) continue;
+      map.set(item.id, { ...(map.get(item.id) || {}), ...item });
+    }
+    return Array.from(map.values());
+  }
+
+  async function applyDashboardDelta(data) {
+    const state = window.AdminState;
+    const ui = window.AdminUI;
+    if (!state || !ui || !data) return;
+    if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) return;
+
+    const health = document.getElementById("health");
+    if (data.health === "ok" && health) {
+      health.textContent = "API online";
+      health.className = "pill pill-ok";
+    } else if (data.health === "error" && health) {
+      health.textContent = "API offline";
+      health.className = "pill pill-bad";
+    }
+
+    if (data.extension) ui.setExtensionOnline(!!data.extension.online);
+    if ("active_run" in data) ui.setActiveRun(data.active_run || null);
+
+    if (Array.isArray(data.batches)) {
+      if (data.batches_replace) {
+        state.batches = data.batches.slice();
+      } else {
+        state.batches = mergeById(state.batches, data.batches, false);
+        state.batches.sort((a, b) =>
+          String(b.created_at || "").localeCompare(String(a.created_at || ""))
+        );
+      }
+      if (!state.batches.some((b) => b.id === state.selectedBatchId)) {
+        state.selectedBatchId = state.batches[0]?.id || null;
+        state.selectedRowId = null;
+        state.selectedIds = new Set();
+        if (window.AdminSSE) window.AdminSSE.setBatchId(state.selectedBatchId);
+      }
+      ui.renderBatches();
+    }
+
+    const rowsPayload = data.rows;
+    if (
+      rowsPayload &&
+      rowsPayload.batch_id === state.selectedBatchId &&
+      Array.isArray(rowsPayload.rows)
+    ) {
+      let merged = mergeById(state.rows, rowsPayload.rows, !!rowsPayload.replace);
+      if (state.statusFilter) {
+        merged = merged.filter((r) => r.status === state.statusFilter);
+      }
+      merged.sort((a, b) => (a.row_number || 0) - (b.row_number || 0));
+      state.rows = merged;
+      const valid = new Set(state.rows.map((r) => r.id));
+      state.selectedIds = new Set([...state.selectedIds].filter((id) => valid.has(id)));
+      if (!state.rows.some((r) => r.id === state.selectedRowId)) {
+        state.selectedRowId = state.rows[0]?.id || null;
+      }
+      ui.renderRows();
     }
   }
 
@@ -129,9 +200,10 @@
     syncLiveStream();
   }
 
-  window.AdminLive = { applyDashboardSnapshot, syncLiveStream };
+  window.AdminLive = { applyDashboardSnapshot, applyDashboardDelta, syncLiveStream };
   if (window.AdminUI) {
     window.AdminUI.applyDashboardSnapshot = applyDashboardSnapshot;
+    window.AdminUI.applyDashboardDelta = applyDashboardDelta;
     window.AdminUI.syncLiveStream = syncLiveStream;
   }
 

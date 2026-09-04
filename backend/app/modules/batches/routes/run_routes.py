@@ -21,6 +21,7 @@ from app.modules.batches.services.run_jobs import (
     get_active_run,
     get_pending_run,
     get_run,
+    reclaim_stale_user_runs,
     stop_batch_run,
     update_batch_run,
 )
@@ -57,6 +58,7 @@ def extension_status_route(
             last_seen_at=None,
             ttl_seconds=settings.EXTENSION_HEARTBEAT_TTL_SECONDS,
         )
+    reclaim_stale_user_runs(db, user_id)
     last = get_extension_last_seen(db, user_id)
     return ExtensionStatusResponse(
         online=is_extension_online(db, user_id),

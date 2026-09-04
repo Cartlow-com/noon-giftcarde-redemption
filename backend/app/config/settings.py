@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite:///./app.db"
     SECRET_KEY: str = "change-me-in-production"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days (unattended batches)
     AUTH_REQUIRED: bool = True
     EXTENSION_API_TOKEN: str = ""
     EXTENSION_HEARTBEAT_TTL_SECONDS: int = 90

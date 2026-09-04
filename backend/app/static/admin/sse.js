@@ -112,9 +112,17 @@
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         buffer = parseSseChunk(buffer, (eventName, data) => {
-          if (eventName !== "dashboard") return;
-          if (window.AdminUI && typeof window.AdminUI.applyDashboardSnapshot === "function") {
-            window.AdminUI.applyDashboardSnapshot(data);
+          if (eventName === "ping") return;
+          if (eventName === "dashboard") {
+            if (window.AdminUI && typeof window.AdminUI.applyDashboardSnapshot === "function") {
+              window.AdminUI.applyDashboardSnapshot(data);
+            }
+            return;
+          }
+          if (eventName === "dashboard_delta") {
+            if (window.AdminUI && typeof window.AdminUI.applyDashboardDelta === "function") {
+              window.AdminUI.applyDashboardDelta(data);
+            }
           }
         });
       }

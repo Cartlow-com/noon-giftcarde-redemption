@@ -28,6 +28,9 @@ FastAPI backend with login + batch modules. Extension connects to backend for CS
 
 ## Recent Changes
 
+- 2026-09-04 — Reclaim active runs when extension heartbeat expires (auto-stop + finalize in_progress rows)
+- 2026-09-04 — Access token TTL 60m → 7 days (unattended batches; no refresh wiring)
+- 2026-09-04 — SSE: watermark + delta events (idle `ping`; no full JSON every 2s); redact password/PIN from SSE rows
 - 2026-09-03 — Per-row run attempt history API + dashboard; skip complete when redeem+order done; always email-verify before redeem/order; partial re-runs order
 - 2026-09-03 — Admin dashboard live updates via SSE (`GET /admin/events`); removed GET poll intervals
 - 2026-09-03 — Multi-user auth (no roles): AUTH_REQUIRED=true; per-user batches/runs/presence; dashboard login bridges JWT to extension

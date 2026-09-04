@@ -227,3 +227,74 @@ def test_heartbeat_marks_extension_online(client) -> None:
     after = client.get("/runs/extension/status", headers=headers)
     assert after.headers["cache-control"] == "no-store"
     assert after.json()["online"] is True
+
+
+def test_stale_heartbeat_reclaims_active_run_and_in_progress_row(client, db_session) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select
+
+    from app.config.settings import settings
+    from app.modules.batches.models.db_models import ExtensionPresence, ROW_IN_PROGRESS
+    from app.modules.batches.services.run_jobs import STALE_HEARTBEAT_MESSAGE
+    from app.modules.login.models.db_models import User
+
+    headers = login(client)
+    _mark_extension_online(client, headers)
+    upload = _upload(client, headers)
+    batch_id = upload.json()["batch"]["id"]
+    row_id = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"][0]["id"]
+
+    created = client.post(
+        "/runs",
+        headers=headers,
+        json={"batch_id": batch_id, "row_ids": [row_id]},
+    )
+    assert created.status_code == 201
+    run_id = created.json()["id"]
+    claimed = client.post(f"/runs/{run_id}/claim", headers=headers)
+    assert claimed.status_code == 200
+    assert claimed.json()["status"] == "running"
+
+    # Simulate mid-row work
+    patched = client.patch(
+        f"/batches/rows/{row_id}",
+        headers=headers,
+        json={"login_status": "running", "status": "in_progress"},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["status"] == ROW_IN_PROGRESS
+
+    user = db_session.scalar(select(User).where(User.email == "user@example.com"))
+    assert user is not None
+    presence = db_session.get(ExtensionPresence, user.id)
+    assert presence is not None
+    presence.last_seen_at = datetime.now(UTC) - timedelta(
+        seconds=settings.EXTENSION_HEARTBEAT_TTL_SECONDS + 5
+    )
+    db_session.commit()
+
+    active = client.get("/runs/active", headers=headers)
+    assert active.status_code == 200
+    assert active.json() is None
+
+    stopped = client.get(f"/runs/{run_id}", headers=headers)
+    assert stopped.status_code == 200
+    assert stopped.json()["status"] == "stopped"
+    assert STALE_HEARTBEAT_MESSAGE in (stopped.json()["message"] or "")
+
+    row = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"][0]
+    assert row["id"] == row_id
+    assert row["status"] != ROW_IN_PROGRESS
+    assert row["login_status"] == "failed"
+    assert row["login_error"] == STALE_HEARTBEAT_MESSAGE
+
+    # After reclaim + fresh heartbeat, a new run can start
+    _mark_extension_online(client, headers)
+    again = client.post(
+        "/runs",
+        headers=headers,
+        json={"batch_id": batch_id, "row_ids": [row_id]},
+    )
+    assert again.status_code == 201
+    assert again.json()["status"] == "queued"
