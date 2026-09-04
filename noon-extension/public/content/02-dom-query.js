@@ -151,6 +151,20 @@ function isLoginLockoutError() {
   return !!getManualLoginRequiredMessage();
 }
 
+/** True for lockout / OTP / any "stop and do not retry login" failure. */
+function isTerminalLoginError(error) {
+  const msg = String(
+    (error && error.message) || (typeof error === "string" ? error : "") || "",
+  ).toLowerCase();
+  if (!msg) return false;
+  return (
+    msg.indexOf("too many failed attempts") !== -1 ||
+    msg.indexOf("link sent to your email") !== -1 ||
+    msg.indexOf("manual login required") !== -1 ||
+    msg.indexOf("otp is required") !== -1
+  );
+}
+
 function throwIfManualLoginRequired() {
   const message = getManualLoginRequiredMessage();
   if (message) {

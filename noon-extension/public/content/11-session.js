@@ -49,13 +49,17 @@ async function waitForLoginRequiredScreen() {
 
 async function loginFromCurrentPage(email, password) {
   await acceptCookies();
+  throwIfManualLoginRequired();
   if (!findEmailInput()) {
     await waitForLoginRequiredScreen();
   }
+  throwIfManualLoginRequired();
   if (!findEmailInput()) {
     await openLoginModal();
   }
+  throwIfManualLoginRequired();
   await enterEmailAndContinue(email);
+  throwIfManualLoginRequired();
   await loginWithPassword(password);
 }
 
@@ -167,15 +171,8 @@ async function matchOrLoginOnProfile(payload) {
     await setSessionEmail(required);
     return { ok: true, skipped: false, switched: true };
   } catch (localErr) {
-    if (
-      localErr &&
-      localErr.message &&
-      (localErr.message.indexOf("OTP is required") !== -1 ||
-        localErr.message.indexOf("Manual login required") !== -1 ||
-        localErr.message.indexOf("Too many failed attempts") !== -1)
-    ) {
-      throw localErr;
-    }
+    // Never reload/retry login for lockout / OTP / manual-login failures.
+    if (isTerminalLoginError(localErr)) throw localErr;
     logStep(
       "In-place login failed (" +
         (localErr instanceof Error ? localErr.message : "error") +

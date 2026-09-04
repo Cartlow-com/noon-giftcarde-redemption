@@ -150,21 +150,25 @@ async function enterEmailAndContinue(email) {
   await mouse().click(continueBtn, { fast: true });
   logStep("Clicked Continue");
 
-  const lockout = await waitFor(
+  // Stop on first lockout — never click Log In / email / Continue again.
+  const afterContinue = await waitFor(
     function () {
       if (getManualLoginRequiredMessage()) return "lockout";
       if (findPasswordInput()) return "password";
       return null;
     },
-    2500,
+    4000,
     50,
   );
-  throwIfManualLoginRequired();
-  if (lockout === "password") {
+  if (afterContinue === "lockout" || getManualLoginRequiredMessage()) {
+    throwIfManualLoginRequired();
+  }
+  if (afterContinue === "password") {
     logStep("Password form ready");
     return;
   }
 
+  throwIfManualLoginRequired();
   const passwordReady = await preferPasswordLogin(8000);
   throwIfManualLoginRequired();
   if (passwordReady) {

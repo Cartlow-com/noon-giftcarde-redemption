@@ -37,6 +37,7 @@
         emit("LOGIN_SUCCESS", { message: "Already logged in as " + required });
         return;
       }
+      throwIfManualLoginRequired();
       await loginFromCurrentPage(state.email, state.password);
       await openProfilePage();
       const profileEmail = await waitForReadableProfileEmail(8000);
