@@ -60,3 +60,17 @@ class CreateRowAttemptRequest(BaseModel):
     purchase_error: str | None = None
     order_id: str | None = None
     duration_ms: int | None = None
+
+
+class UpdateRowAttemptRequest(BaseModel):
+    outcome: str | None = None
+    message: str | None = None
+    login_status: str | None = None
+    redeem_status: str | None = None
+    purchase_status: str | None = None
+    status: str | None = None
+    login_error: str | None = None
+    redeem_error: str | None = None
+    purchase_error: str | None = None
+    order_id: str | None = None
+    duration_ms: int | None = None

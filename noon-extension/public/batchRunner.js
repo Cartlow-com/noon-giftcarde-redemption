@@ -11,6 +11,7 @@ let batchHideWindow = false;
 let batchLoginOnly = false;
 let activeBatchRunId = null;
 let pendingAttemptMeta = null;
+let activeAttemptId = null;
 
 const NOON_CREDITS_URL = "https://account.noon.com/uae-en/credits/";
 const NOON_PROFILE_URL = "https://account.noon.com/uae-en/profile/";
@@ -545,31 +546,62 @@ function stageOrderDone(status) {
   return status === "success";
 }
 
-async function recordRowAttempt(row, meta) {
+async function beginRowAttempt(row) {
+  if (!row || !row.id) return null;
+  const created = await batchApiRequest(`/batches/rows/${encodeURIComponent(row.id)}/attempts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      batch_run_id: activeBatchRunId || null,
+      outcome: "started",
+      message: "Row attempt started",
+      login_status: row.login_status || "pending",
+      redeem_status: row.redeem_status || "pending",
+      purchase_status: row.purchase_status || "pending",
+      status: "in_progress",
+    }),
+  });
+  activeAttemptId = created && created.id ? created.id : null;
+  return created;
+}
+
+async function finishRowAttempt(row, meta) {
   if (!row || !row.id) return null;
   const info = meta || {};
-  try {
-    return await batchApiRequest(`/batches/rows/${encodeURIComponent(row.id)}/attempts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        batch_run_id: activeBatchRunId || null,
-        outcome: info.outcome || row.status || "unknown",
-        message: info.message || null,
-        login_status: row.login_status,
-        redeem_status: row.redeem_status,
-        purchase_status: row.purchase_status,
-        status: row.status,
-        login_error: row.login_error || null,
-        redeem_error: row.redeem_error || null,
-        purchase_error: row.purchase_error || null,
-        order_id: row.order_id || null,
-        duration_ms: row.duration_ms != null ? row.duration_ms : null,
-      }),
-    });
-  } catch (_) {
-    return null;
+  const body = {
+    outcome: info.outcome || row.status || "unknown",
+    message: info.message || null,
+    login_status: row.login_status,
+    redeem_status: row.redeem_status,
+    purchase_status: row.purchase_status,
+    status: row.status,
+    login_error: row.login_error || null,
+    redeem_error: row.redeem_error || null,
+    purchase_error: row.purchase_error || null,
+    order_id: row.order_id || null,
+    duration_ms: row.duration_ms != null ? row.duration_ms : null,
+  };
+  if (activeAttemptId) {
+    const updated = await batchApiRequest(
+      `/batches/attempts/${encodeURIComponent(activeAttemptId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    activeAttemptId = null;
+    return updated;
   }
+  // Fallback if start failed: still record a completion attempt (and surface errors).
+  return batchApiRequest(`/batches/rows/${encodeURIComponent(row.id)}/attempts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      batch_run_id: activeBatchRunId || null,
+      ...body,
+    }),
+  });
 }
 
 function noteAttempt(meta) {
@@ -941,6 +973,18 @@ async function runSelectedRows(batchId, rowIds, options) {
       duration_ms: null,
     });
 
+    try {
+      await beginRowAttempt(row);
+    } catch (err) {
+      console.warn("[noon] beginRowAttempt failed", err);
+      emitBatch({
+        type: "BATCH_ERROR",
+        batchId: batchId,
+        rowId: row.id,
+        error: err instanceof Error ? err.message : "Failed to record attempt start",
+      });
+    }
+
     const tabId = await getOrCreateNoonTab({
       hideWindow: batchHideWindow,
     });
@@ -960,9 +1004,18 @@ async function runSelectedRows(batchId, rowIds, options) {
     }).catch(function () {});
     try {
       const finalRow = await getBatchRow(row.id);
-      await recordRowAttempt(finalRow, pendingAttemptMeta || { outcome: finalRow.status });
-    } catch (_) {}
+      await finishRowAttempt(finalRow, pendingAttemptMeta || { outcome: finalRow.status });
+    } catch (err) {
+      console.warn("[noon] finishRowAttempt failed", err);
+      emitBatch({
+        type: "BATCH_ERROR",
+        batchId: batchId,
+        rowId: row.id,
+        error: err instanceof Error ? err.message : "Failed to record attempt finish",
+      });
+    }
     pendingAttemptMeta = null;
+    activeAttemptId = null;
     activeLoginTabId = null;
     currentBatchRow = null;
     processed += 1;
@@ -972,6 +1025,7 @@ async function runSelectedRows(batchId, rowIds, options) {
   currentBatchRow = null;
   activeBatchRunId = null;
   pendingAttemptMeta = null;
+  activeAttemptId = null;
   await chrome.storage.local.remove(BATCH_RUN_KEY);
 
   emitBatch({

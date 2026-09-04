@@ -90,7 +90,7 @@ async function patchBatchRow(rowId, body) {
   });
 }
 
-async function uploadRowScreenshot(rowId, kind, blob) {
+async function uploadRowScreenshot(rowId, kind, blob, attemptId) {
   const base = await getApiBaseUrl();
   const token = await getAuthToken();
   if (!token) {
@@ -98,15 +98,17 @@ async function uploadRowScreenshot(rowId, kind, blob) {
   }
   const form = new FormData();
   form.append("file", blob, kind + ".png");
-  const response = await fetch(
-    `${base}/batches/rows/${encodeURIComponent(rowId)}/screenshots?kind=${encodeURIComponent(kind)}`,
-    {
-      method: "POST",
-      body: form,
-      credentials: "include",
-      headers: { Authorization: `Bearer ${token}` },
-    },
-  );
+  let url =
+    `${base}/batches/rows/${encodeURIComponent(rowId)}/screenshots?kind=${encodeURIComponent(kind)}`;
+  if (attemptId) {
+    url += `&attempt_id=${encodeURIComponent(attemptId)}`;
+  }
+  const response = await fetch(url, {
+    method: "POST",
+    body: form,
+    credentials: "include",
+    headers: { Authorization: `Bearer ${token}` },
+  });
   if (!response.ok) {
     let detail = response.statusText;
     try {
@@ -176,7 +178,12 @@ async function captureAndUploadScreenshot(tabId, rowId, kind) {
   if (!blob || blob.size === 0) {
     throw new Error("Screenshot blob was empty");
   }
-  return uploadRowScreenshot(rowId, kind, blob);
+  return uploadRowScreenshot(
+    rowId,
+    kind,
+    blob,
+    typeof activeAttemptId !== "undefined" ? activeAttemptId : null,
+  );
 }
 
 async function notifyRedeemEmail(rowId) {

@@ -12,6 +12,7 @@ from app.modules.batches.controllers.controller import (
     get_row_attempts,
     get_screenshot,
     patch_row,
+    patch_row_attempt,
     pull_next_row,
     remove_batch,
     send_order_notification,
@@ -21,12 +22,17 @@ from app.modules.batches.controllers.controller import (
 )
 from app.modules.batches.helpers.auth import require_auth
 from app.modules.batches.helpers.csv_parser import REQUIRED_COLUMNS
-from app.modules.batches.models.request_models import CreateRowAttemptRequest, UpdateRowRequest
+from app.modules.batches.models.request_models import (
+    CreateRowAttemptRequest,
+    UpdateRowAttemptRequest,
+    UpdateRowRequest,
+)
 from app.modules.batches.models.response_models import (
     BatchDetailResponse,
     BatchListResponse,
     BatchRowListResponse,
     BatchRowResponse,
+    BatchRowWorkResponse,
     RowAttemptListResponse,
     RowAttemptResponse,
     UploadBatchResponse,
@@ -36,10 +42,10 @@ from app.modules.email.models.response_models import SendEmailResponse
 router = APIRouter(prefix="/batches", tags=["batches"])
 
 SAMPLE_CSV_BODY = (
-    ",".join(REQUIRED_COLUMNS)
+    ",".join(REQUIRED_COLUMNS + ("face_value",))
     + "\n"
     + "user@example.com,YourPassword123,1100 1705 2778 3945,2724,"
-    + "https://www.noon.com/uae-en/product/N27674082A/p/,1\n"
+    + "https://www.noon.com/uae-en/product/N27674082A/p/,1,50\n"
 )
 
 
@@ -84,24 +90,24 @@ def list_batches_route(
     return get_batches(db, user_id=user_id, limit=limit, offset=offset)
 
 
-@router.get("/rows/next", response_model=BatchRowResponse)
+@router.get("/rows/next", response_model=BatchRowWorkResponse)
 def next_row_route(
     batch_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
     user_id: str | None = Depends(require_auth),
-) -> BatchRowResponse:
+) -> BatchRowWorkResponse:
     try:
         return pull_next_row(batch_id, db, user_id=user_id)
     except ValueError as exc:
         raise _not_found(exc) from exc
 
 
-@router.get("/rows/{row_id}", response_model=BatchRowResponse)
+@router.get("/rows/{row_id}", response_model=BatchRowWorkResponse)
 def get_row_route(
     row_id: str,
     db: Session = Depends(get_db),
     user_id: str | None = Depends(require_auth),
-) -> BatchRowResponse:
+) -> BatchRowWorkResponse:
     try:
         return fetch_row(row_id, db, user_id=user_id)
     except ValueError as exc:
@@ -134,6 +140,19 @@ def create_row_attempt_route(
         raise _not_found(exc) from exc
 
 
+@router.patch("/attempts/{attempt_id}", response_model=RowAttemptResponse)
+def patch_row_attempt_route(
+    attempt_id: str,
+    payload: UpdateRowAttemptRequest,
+    db: Session = Depends(get_db),
+    user_id: str | None = Depends(require_auth),
+) -> RowAttemptResponse:
+    try:
+        return patch_row_attempt(attempt_id, payload, db, user_id=user_id)
+    except ValueError as exc:
+        raise _not_found(exc) from exc
+
+
 @router.get("/rows/{row_id}/attempts", response_model=RowAttemptListResponse)
 def list_row_attempts_route(
     row_id: str,
@@ -151,15 +170,18 @@ def list_row_attempts_route(
 def upload_screenshot_route(
     row_id: str,
     kind: str = Query(...),
+    attempt_id: str | None = Query(default=None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user_id: str | None = Depends(require_auth),
 ) -> BatchRowResponse:
     try:
-        return upload_screenshot(row_id, kind, file, db, user_id=user_id)
+        return upload_screenshot(
+            row_id, kind, file, db, user_id=user_id, attempt_id=attempt_id
+        )
     except ValueError as exc:
         detail = str(exc)
-        if detail == "Row not found":
+        if detail in {"Row not found", "Attempt not found"}:
             raise _not_found(exc) from exc
         raise _bad_request(exc) from exc
 
@@ -168,14 +190,15 @@ def upload_screenshot_route(
 def get_screenshot_route(
     row_id: str,
     kind: str,
+    attempt_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
     user_id: str | None = Depends(require_auth),
 ) -> FileResponse:
     try:
-        path = get_screenshot(row_id, kind, db, user_id=user_id)
+        path = get_screenshot(row_id, kind, db, user_id=user_id, attempt_id=attempt_id)
     except ValueError as exc:
         detail = str(exc)
-        if detail in {"Row not found", "Screenshot not found"}:
+        if detail in {"Row not found", "Attempt not found", "Screenshot not found"}:
             raise _not_found(exc) from exc
         raise _bad_request(exc) from exc
     return FileResponse(path, media_type="image/png", filename=f"{kind}.png")

@@ -72,7 +72,7 @@ window.AdminUtil = {
     return `<div class="kv"><dt>${this.escapeHtml(label)}</dt><dd>${this.escapeHtml(value)}</dd></div>`;
   },
 
-  shotBlock(row, kind, label) {
+  shotBlock(row, kind, label, attemptId) {
     const field = {
       before_redeem: "screenshot_before_redeem",
       after_redeem: "screenshot_after_redeem",
@@ -82,8 +82,10 @@ window.AdminUtil = {
     if (!row[field]) {
       return `<div class="shot-card"><div class="label">${this.escapeHtml(label)}</div><div class="missing">No screenshot</div></div>`;
     }
-    const src = `/batches/rows/${encodeURIComponent(row.id)}/screenshots/${encodeURIComponent(kind)}`;
-    // data-shot-src loaded via fetch+Bearer — bare <img src> gets 401 when AUTH_REQUIRED
+    let src = `/batches/rows/${encodeURIComponent(row.id)}/screenshots/${encodeURIComponent(kind)}`;
+    if (attemptId) {
+      src += `?attempt_id=${encodeURIComponent(attemptId)}`;
+    }
     return `<div class="shot-card"><div class="label">${this.escapeHtml(label)}</div><a href="${src}" data-shot-link="${src}" target="_blank" rel="noopener"><img data-shot-src="${src}" alt="${this.escapeHtml(label)}" loading="lazy" /></a></div>`;
   },
 
@@ -166,6 +168,11 @@ window.AdminUtil = {
       balance_before: row.balance_before,
       balance_after: row.balance_after,
       balance_delta: row.balance_delta,
+      screenshot_before_redeem:
+        attempt.screenshot_before_redeem || null,
+      screenshot_after_redeem: attempt.screenshot_after_redeem || null,
+      screenshot_after_order: attempt.screenshot_after_order || null,
+      screenshot_on_failure: attempt.screenshot_on_failure || null,
     });
   },
 
@@ -197,9 +204,10 @@ window.AdminUtil = {
           ${this.badge(view.status)}
         </div>
         ${this.kv("Email", row.email)}
-        ${this.kv("Password", row.password)}
+        ${this.kv("Password", "••••••••")}
         ${this.kv("Gift card", row.gift_card_number)}
-        ${this.kv("PIN", row.gift_card_pin)}
+        ${this.kv("PIN", "••••")}
+        ${this.kv("Face value", row.face_value)}
         ${this.kv("Product", row.product_url)}
         ${this.kv("Qty", row.quantity)}
         ${this.kv("Order ID", view.order_id)}
@@ -214,6 +222,7 @@ window.AdminUtil = {
         ${this.kv("Balance before", row.balance_before)}
         ${this.kv("Balance after", row.balance_after)}
         ${this.kv("Balance delta", row.balance_delta)}
+        ${this.kv("Value match", row.value_match == null ? "—" : row.value_match ? "yes" : "no")}
         ${this.kv("Order error", view.purchase_error)}
         ${selected && selected.message ? this.kv("Message", selected.message) : ""}
       </div>
@@ -225,10 +234,10 @@ window.AdminUtil = {
       <div class="detail-section">
         <h3>Screenshots</h3>
         <div class="shots">
-          ${this.shotBlock(row, "before_redeem", "Before redeem")}
-          ${this.shotBlock(row, "after_redeem", "After redeem")}
-          ${this.shotBlock(row, "after_order", "After order")}
-          ${this.shotBlock(row, "on_failure", "On failure")}
+          ${this.shotBlock(view, "before_redeem", "Before redeem", selected && selected.id)}
+          ${this.shotBlock(view, "after_redeem", "After redeem", selected && selected.id)}
+          ${this.shotBlock(view, "after_order", "After order", selected && selected.id)}
+          ${this.shotBlock(view, "on_failure", "On failure", selected && selected.id)}
         </div>
       </div>
       <div class="detail-section">

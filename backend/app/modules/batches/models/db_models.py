@@ -56,6 +56,7 @@ class BatchRow(Base):
     gift_card_pin: Mapped[str] = mapped_column(String(16))
     product_url: Mapped[str] = mapped_column(Text)
     quantity: Mapped[int] = mapped_column(Integer, default=1)
+    face_value: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     login_status: Mapped[str] = mapped_column(String(16), default=STAGE_PENDING)
     login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -67,6 +68,7 @@ class BatchRow(Base):
     balance_before: Mapped[float | None] = mapped_column(Float, nullable=True)
     balance_after: Mapped[float | None] = mapped_column(Float, nullable=True)
     balance_delta: Mapped[float | None] = mapped_column(Float, nullable=True)
+    value_match: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     purchase_status: Mapped[str] = mapped_column(String(16), default=STAGE_PENDING)
     purchased_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -141,5 +143,9 @@ class BatchRowAttempt(Base):
     purchase_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     order_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    screenshot_before_redeem: Mapped[str | None] = mapped_column(Text, nullable=True)
+    screenshot_after_redeem: Mapped[str | None] = mapped_column(Text, nullable=True)
+    screenshot_after_order: Mapped[str | None] = mapped_column(Text, nullable=True)
+    screenshot_on_failure: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 

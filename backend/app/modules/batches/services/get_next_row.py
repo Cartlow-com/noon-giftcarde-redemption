@@ -9,14 +9,16 @@ from app.modules.batches.models.db_models import (
     Batch,
     BatchRow,
 )
-from app.modules.batches.models.response_models import BatchRowResponse
+from app.modules.batches.models.response_models import BatchRowWorkResponse
 
 
 def get_next_pending_row(
     batch_id: str | None,
     db: Session,
     user_id: str | None = None,
-) -> BatchRowResponse:
+) -> BatchRowWorkResponse:
+    if not user_id:
+        raise ValueError("Batch not found")
     if batch_id:
         get_owned_batch(db, batch_id, user_id)
 
@@ -24,10 +26,9 @@ def get_next_pending_row(
         select(BatchRow)
         .join(Batch, Batch.id == BatchRow.batch_id)
         .where(BatchRow.status.in_([ROW_PENDING, ROW_IN_PROGRESS]))
+        .where(Batch.user_id == user_id)
         .order_by(BatchRow.batch_id, BatchRow.row_number)
     )
-    if user_id:
-        query = query.where(Batch.user_id == user_id)
     if batch_id:
         query = query.where(BatchRow.batch_id == batch_id)
 
@@ -41,4 +42,4 @@ def get_next_pending_row(
         db.refresh(row)
         refresh_batch_counts(db, row.batch_id)
 
-    return BatchRowResponse.model_validate(row)
+    return BatchRowWorkResponse.model_validate(row)

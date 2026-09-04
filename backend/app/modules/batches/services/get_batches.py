@@ -7,19 +7,16 @@ from app.modules.batches.models.response_models import BatchListResponse, BatchS
 
 def list_batches(
     db: Session,
-    user_id: str | None = None,
+    user_id: str,
     limit: int = 50,
     offset: int = 0,
 ) -> BatchListResponse:
-    filters = []
-    if user_id:
-        filters.append(Batch.user_id == user_id)
+    if not user_id:
+        raise ValueError("Batch not found")
 
-    count_q = select(func.count()).select_from(Batch)
-    list_q = select(Batch).order_by(desc(Batch.created_at))
-    if filters:
-        count_q = count_q.where(*filters)
-        list_q = list_q.where(*filters)
+    filters = [Batch.user_id == user_id]
+    count_q = select(func.count()).select_from(Batch).where(*filters)
+    list_q = select(Batch).where(*filters).order_by(desc(Batch.created_at))
 
     total = db.scalar(count_q) or 0
     batches = db.scalars(list_q.limit(limit).offset(offset)).all()

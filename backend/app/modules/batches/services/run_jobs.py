@@ -107,9 +107,13 @@ def create_batch_run(
 
 
 def get_pending_run(db: Session, user_id: str | None = None) -> BatchRunResponse | None:
-    query = select(BatchRun).where(BatchRun.status == "queued").order_by(BatchRun.created_at.asc())
-    if user_id:
-        query = query.where(BatchRun.user_id == user_id)
+    if not user_id:
+        return None
+    query = (
+        select(BatchRun)
+        .where(BatchRun.status == "queued", BatchRun.user_id == user_id)
+        .order_by(BatchRun.created_at.asc())
+    )
     run = db.scalars(query.limit(1)).first()
     return _to_response(run) if run else None
 
@@ -120,15 +124,14 @@ def get_run(run_id: str, db: Session, user_id: str | None = None) -> BatchRunRes
 
 
 def get_active_run(db: Session, user_id: str | None = None) -> BatchRunResponse | None:
-    if user_id:
-        reclaim_stale_user_runs(db, user_id)
+    if not user_id:
+        return None
+    reclaim_stale_user_runs(db, user_id)
     query = (
         select(BatchRun)
-        .where(BatchRun.status.in_(ACTIVE_STATUSES))
+        .where(BatchRun.status.in_(ACTIVE_STATUSES), BatchRun.user_id == user_id)
         .order_by(BatchRun.created_at.desc())
     )
-    if user_id:
-        query = query.where(BatchRun.user_id == user_id)
     run = db.scalars(query.limit(1)).first()
     return _to_response(run) if run else None
 

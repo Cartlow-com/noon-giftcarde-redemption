@@ -11,6 +11,8 @@ REQUIRED_COLUMNS = (
     "quantity",
 )
 
+OPTIONAL_COLUMNS = ("face_value",)
+
 
 @dataclass
 class ParsedCsvRow:
@@ -21,6 +23,21 @@ class ParsedCsvRow:
     gift_card_pin: str
     product_url: str
     quantity: int
+    face_value: float | None = None
+
+
+def _parse_face_value(raw: str, index: int) -> float | None:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    cleaned = text.replace(",", "").replace("AED", "").replace("aed", "").strip()
+    try:
+        value = float(cleaned)
+    except ValueError as exc:
+        raise ValueError(f"Row {index}: face_value must be a number") from exc
+    if value < 0:
+        raise ValueError(f"Row {index}: face_value must be >= 0")
+    return value
 
 
 def parse_orders_csv(content: bytes) -> list[ParsedCsvRow]:
@@ -34,6 +51,8 @@ def parse_orders_csv(content: bytes) -> list[ParsedCsvRow]:
     if missing:
         raise ValueError(f"Missing required columns: {', '.join(missing)}")
 
+    face_header = normalized_headers.get("face_value")
+
     rows: list[ParsedCsvRow] = []
     for index, raw in enumerate(reader, start=1):
         if not any((value or "").strip() for value in raw.values()):
@@ -45,6 +64,7 @@ def parse_orders_csv(content: bytes) -> list[ParsedCsvRow]:
         gift_card_pin = (raw.get(normalized_headers["gift_card_pin"]) or "").strip()
         product_url = (raw.get(normalized_headers["product_url"]) or "").strip()
         quantity_raw = (raw.get(normalized_headers["quantity"]) or "1").strip()
+        face_raw = (raw.get(face_header) or "") if face_header else ""
 
         if not email or not password:
             raise ValueError(f"Row {index}: email and password are required")
@@ -69,6 +89,7 @@ def parse_orders_csv(content: bytes) -> list[ParsedCsvRow]:
                 gift_card_pin=gift_card_pin,
                 product_url=product_url,
                 quantity=quantity,
+                face_value=_parse_face_value(face_raw, index),
             )
         )
 

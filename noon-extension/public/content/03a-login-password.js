@@ -1,6 +1,6 @@
 /**
  * Split from content.js — classic content script (shared isolated world).
- * Part: 02b-login-password.js — OTP vs password preference on Noon login
+ * Part: 03a-login-password.js — OTP vs password preference on Noon login
  *
  * Rule:
  * - OTP + password on same screen → use password flow

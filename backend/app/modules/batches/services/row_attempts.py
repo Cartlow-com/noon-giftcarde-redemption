@@ -8,8 +8,8 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.modules.batches.helpers.ownership import get_owned_row
-from app.modules.batches.models.db_models import BatchRowAttempt
-from app.modules.batches.models.request_models import CreateRowAttemptRequest
+from app.modules.batches.models.db_models import Batch, BatchRowAttempt
+from app.modules.batches.models.request_models import CreateRowAttemptRequest, UpdateRowAttemptRequest
 from app.modules.batches.models.response_models import RowAttemptListResponse, RowAttemptResponse
 
 
@@ -31,6 +31,10 @@ def _to_response(row: BatchRowAttempt) -> RowAttemptResponse:
         purchase_error=row.purchase_error,
         order_id=row.order_id,
         duration_ms=row.duration_ms,
+        screenshot_before_redeem=row.screenshot_before_redeem,
+        screenshot_after_redeem=row.screenshot_after_redeem,
+        screenshot_after_order=row.screenshot_after_order,
+        screenshot_on_failure=row.screenshot_on_failure,
         created_at=row.created_at,
     )
 
@@ -69,6 +73,26 @@ def create_row_attempt(
         duration_ms=payload.duration_ms,
     )
     db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+    return _to_response(attempt)
+
+
+def update_row_attempt(
+    attempt_id: str,
+    payload: UpdateRowAttemptRequest,
+    db: Session,
+    user_id: str | None = None,
+) -> RowAttemptResponse:
+    attempt = db.get(BatchRowAttempt, attempt_id)
+    if not attempt:
+        raise ValueError("Attempt not found")
+    batch = db.get(Batch, attempt.batch_id)
+    if not batch or not user_id or batch.user_id != user_id:
+        raise ValueError("Attempt not found")
+    data = payload.model_dump(exclude_unset=True)
+    for field, value in data.items():
+        setattr(attempt, field, value)
     db.commit()
     db.refresh(attempt)
     return _to_response(attempt)

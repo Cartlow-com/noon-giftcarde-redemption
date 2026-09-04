@@ -34,6 +34,8 @@ def _ensure_sqlite_columns() -> None:
             "run_finished_at": "ALTER TABLE batch_rows ADD COLUMN run_finished_at DATETIME",
             "duration_ms": "ALTER TABLE batch_rows ADD COLUMN duration_ms INTEGER",
             "screenshot_on_failure": "ALTER TABLE batch_rows ADD COLUMN screenshot_on_failure TEXT",
+            "face_value": "ALTER TABLE batch_rows ADD COLUMN face_value FLOAT",
+            "value_match": "ALTER TABLE batch_rows ADD COLUMN value_match INTEGER",
         }
         with engine.begin() as conn:
             for name, sql in alters.items():
@@ -56,6 +58,19 @@ def _ensure_sqlite_columns() -> None:
         with engine.begin() as conn:
             for name, sql in run_alters.items():
                 if name not in run_cols:
+                    conn.execute(text(sql))
+
+    if "batch_row_attempts" in tables:
+        attempt_cols = {col["name"] for col in inspector.get_columns("batch_row_attempts")}
+        attempt_alters = {
+            "screenshot_before_redeem": "ALTER TABLE batch_row_attempts ADD COLUMN screenshot_before_redeem TEXT",
+            "screenshot_after_redeem": "ALTER TABLE batch_row_attempts ADD COLUMN screenshot_after_redeem TEXT",
+            "screenshot_after_order": "ALTER TABLE batch_row_attempts ADD COLUMN screenshot_after_order TEXT",
+            "screenshot_on_failure": "ALTER TABLE batch_row_attempts ADD COLUMN screenshot_on_failure TEXT",
+        }
+        with engine.begin() as conn:
+            for name, sql in attempt_alters.items():
+                if name not in attempt_cols:
                     conn.execute(text(sql))
 
 

@@ -3,12 +3,18 @@ from pathlib import Path
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
-from app.modules.batches.models.request_models import CreateRowAttemptRequest, UpdateRowRequest
+from app.modules.batches.helpers.auth import resolve_owner_user_id
+from app.modules.batches.models.request_models import (
+    CreateRowAttemptRequest,
+    UpdateRowAttemptRequest,
+    UpdateRowRequest,
+)
 from app.modules.batches.models.response_models import (
     BatchDetailResponse,
     BatchListResponse,
     BatchRowListResponse,
     BatchRowResponse,
+    BatchRowWorkResponse,
     RowAttemptListResponse,
     RowAttemptResponse,
     UploadBatchResponse,
@@ -22,7 +28,11 @@ from app.modules.batches.services.get_next_row import get_next_pending_row
 from app.modules.batches.services.get_row import get_row
 from app.modules.batches.services.get_screenshot import resolve_row_screenshot_path
 from app.modules.batches.services.notify_email import notify_order_email, notify_redeem_email
-from app.modules.batches.services.row_attempts import create_row_attempt, list_row_attempts
+from app.modules.batches.services.row_attempts import (
+    create_row_attempt,
+    list_row_attempts,
+    update_row_attempt,
+)
 from app.modules.batches.services.save_screenshot import save_row_screenshot
 from app.modules.batches.services.update_row import update_batch_row
 from app.modules.email.models.response_models import SendEmailResponse
@@ -39,7 +49,8 @@ def get_batches(
     limit: int,
     offset: int,
 ) -> BatchListResponse:
-    return list_batches(db, user_id=user_id, limit=limit, offset=offset)
+    owner_id = resolve_owner_user_id(user_id, db)
+    return list_batches(db, user_id=owner_id, limit=limit, offset=offset)
 
 
 def get_batch(
@@ -48,7 +59,8 @@ def get_batch(
     user_id: str | None,
     include_rows: bool,
 ) -> BatchDetailResponse:
-    return get_batch_detail(batch_id, db, user_id=user_id, include_rows=include_rows)
+    owner_id = resolve_owner_user_id(user_id, db)
+    return get_batch_detail(batch_id, db, user_id=owner_id, include_rows=include_rows)
 
 
 def get_batch_rows(
@@ -59,8 +71,9 @@ def get_batch_rows(
     limit: int,
     offset: int,
 ) -> BatchRowListResponse:
+    owner_id = resolve_owner_user_id(user_id, db)
     return list_batch_rows(
-        batch_id, db, user_id=user_id, status=status, limit=limit, offset=offset
+        batch_id, db, user_id=owner_id, status=status, limit=limit, offset=offset
     )
 
 
@@ -68,12 +81,14 @@ def pull_next_row(
     batch_id: str | None,
     db: Session,
     user_id: str | None = None,
-) -> BatchRowResponse:
-    return get_next_pending_row(batch_id, db, user_id=user_id)
+) -> BatchRowWorkResponse:
+    owner_id = resolve_owner_user_id(user_id, db)
+    return get_next_pending_row(batch_id, db, user_id=owner_id)
 
 
-def fetch_row(row_id: str, db: Session, user_id: str | None = None) -> BatchRowResponse:
-    return get_row(row_id, db, user_id=user_id)
+def fetch_row(row_id: str, db: Session, user_id: str | None = None) -> BatchRowWorkResponse:
+    owner_id = resolve_owner_user_id(user_id, db)
+    return get_row(row_id, db, user_id=owner_id)
 
 
 def patch_row(
@@ -82,11 +97,13 @@ def patch_row(
     db: Session,
     user_id: str | None = None,
 ) -> BatchRowResponse:
-    return update_batch_row(row_id, payload, db, user_id=user_id)
+    owner_id = resolve_owner_user_id(user_id, db)
+    return update_batch_row(row_id, payload, db, user_id=owner_id)
 
 
 def remove_batch(batch_id: str, db: Session, user_id: str | None = None) -> None:
-    delete_batch(batch_id, db, user_id=user_id)
+    owner_id = resolve_owner_user_id(user_id, db)
+    delete_batch(batch_id, db, user_id=owner_id)
 
 
 def upload_screenshot(
@@ -95,8 +112,12 @@ def upload_screenshot(
     file: UploadFile,
     db: Session,
     user_id: str | None = None,
+    attempt_id: str | None = None,
 ) -> BatchRowResponse:
-    return save_row_screenshot(row_id, kind, file, db, user_id=user_id)
+    owner_id = resolve_owner_user_id(user_id, db)
+    return save_row_screenshot(
+        row_id, kind, file, db, user_id=owner_id, attempt_id=attempt_id
+    )
 
 
 def get_screenshot(
@@ -104,8 +125,12 @@ def get_screenshot(
     kind: str,
     db: Session,
     user_id: str | None = None,
+    attempt_id: str | None = None,
 ) -> Path:
-    return resolve_row_screenshot_path(row_id, kind, db, user_id=user_id)
+    owner_id = resolve_owner_user_id(user_id, db)
+    return resolve_row_screenshot_path(
+        row_id, kind, db, user_id=owner_id, attempt_id=attempt_id
+    )
 
 
 def send_redeem_notification(
@@ -113,7 +138,8 @@ def send_redeem_notification(
     db: Session,
     user_id: str | None = None,
 ) -> SendEmailResponse:
-    return notify_redeem_email(row_id, db, user_id=user_id)
+    owner_id = resolve_owner_user_id(user_id, db)
+    return notify_redeem_email(row_id, db, user_id=owner_id)
 
 
 def send_order_notification(
@@ -121,7 +147,8 @@ def send_order_notification(
     db: Session,
     user_id: str | None = None,
 ) -> SendEmailResponse:
-    return notify_order_email(row_id, db, user_id=user_id)
+    owner_id = resolve_owner_user_id(user_id, db)
+    return notify_order_email(row_id, db, user_id=owner_id)
 
 
 def add_row_attempt(
@@ -130,7 +157,18 @@ def add_row_attempt(
     db: Session,
     user_id: str | None = None,
 ) -> RowAttemptResponse:
-    return create_row_attempt(row_id, payload, db, user_id=user_id)
+    owner_id = resolve_owner_user_id(user_id, db)
+    return create_row_attempt(row_id, payload, db, user_id=owner_id)
+
+
+def patch_row_attempt(
+    attempt_id: str,
+    payload: UpdateRowAttemptRequest,
+    db: Session,
+    user_id: str | None = None,
+) -> RowAttemptResponse:
+    owner_id = resolve_owner_user_id(user_id, db)
+    return update_row_attempt(attempt_id, payload, db, user_id=owner_id)
 
 
 def get_row_attempts(
@@ -139,4 +177,5 @@ def get_row_attempts(
     user_id: str | None = None,
     limit: int = 50,
 ) -> RowAttemptListResponse:
-    return list_row_attempts(row_id, db, user_id=user_id, limit=limit)
+    owner_id = resolve_owner_user_id(user_id, db)
+    return list_row_attempts(row_id, db, user_id=owner_id, limit=limit)

@@ -39,6 +39,7 @@ def create_batch_from_csv(
                 gift_card_pin=row.gift_card_pin,
                 product_url=row.product_url,
                 quantity=row.quantity,
+                face_value=row.face_value,
                 login_status=STAGE_PENDING,
                 redeem_status=STAGE_PENDING,
                 purchase_status=STAGE_PENDING,

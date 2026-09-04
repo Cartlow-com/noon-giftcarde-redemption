@@ -46,7 +46,7 @@
         "content/01-core.js",
         "content/02-dom-query.js",
         "content/03-dom-nav.js",
-        "content/02b-login-password.js",
+        "content/03a-login-password.js",
         "content/03b-signout.js",
         "content/04-state.js",
         "content/05-redeem-ui.js",

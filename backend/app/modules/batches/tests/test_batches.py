@@ -4,9 +4,9 @@ import pytest
 
 from conftest import login
 
-SAMPLE_CSV = """email,password,gift_card_number,gift_card_pin,product_url,quantity,redeemed_at,redeem_status,order_id,purchased_at,purchase_status,status
-msajjadawan@hotmail.com,sajjad@noon,1100 1705 2778 3945,2724,https://www.noon.com/uae-en/product/N27674082A/p/,1,,,,,,pending
-m.jammal@outlook.com,Jammal@12345,1100 1705 2260 5796,2257,https://www.noon.com/uae-en/product/N27674082A/p/,2,,,,,,pending
+SAMPLE_CSV = """email,password,gift_card_number,gift_card_pin,product_url,quantity,face_value
+demo1@example.com,secret1,1100 0000 0000 0001,1111,https://www.noon.com/uae-en/product/N27674082A/p/,1,50
+demo2@example.com,secret2,1100 0000 0000 0002,2222,https://www.noon.com/uae-en/product/N27674082A/p/,2,100
 """
 
 
@@ -36,6 +36,17 @@ def test_upload_list_and_rows(client) -> None:
     rows = client.get(f"/batches/{batch_id}/rows", headers=headers)
     assert rows.status_code == 200
     assert rows.json()["total"] == 2
+    for row in rows.json()["rows"]:
+        assert "password" not in row
+        assert "gift_card_pin" not in row
+        assert row["face_value"] in (50.0, 100.0)
+
+    work = client.get(f"/batches/rows/{rows.json()['rows'][0]['id']}", headers=headers)
+    assert work.status_code == 200
+    assert "password" in work.json()
+    assert "gift_card_pin" in work.json()
+    assert work.json()["password"]
+    assert work.json()["gift_card_pin"]
 
 
 def test_pull_next_and_patch(client) -> None:
@@ -67,6 +78,35 @@ def test_pull_next_and_patch(client) -> None:
     assert batch.json()["in_progress_count"] == 0
 
 
+def test_face_value_reconciles_balance_delta(client) -> None:
+    headers = login(client)
+    upload = _upload_csv(client, headers, SAMPLE_CSV)
+    batch_id = upload.json()["batch"]["id"]
+    row_id = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"][0]["id"]
+    # First row has face_value 50
+    ok = client.patch(
+        f"/batches/rows/{row_id}",
+        headers=headers,
+        json={
+            "redeem_status": "success",
+            "balance_before": 10,
+            "balance_after": 60,
+            "balance_delta": 50,
+        },
+    )
+    assert ok.status_code == 200
+    assert ok.json()["value_match"] is True
+
+    bad = client.patch(
+        f"/batches/rows/{row_id}",
+        headers=headers,
+        json={"balance_delta": 40, "redeem_status": "success"},
+    )
+    assert bad.status_code == 200
+    assert bad.json()["value_match"] is False
+    assert "Value mismatch" in (bad.json()["redeem_error"] or "")
+
+
 def test_upload_rejects_bad_csv(client) -> None:
     headers = login(client)
     response = _upload_csv(client, headers, "email,password\na@b.com,secret")
@@ -79,7 +119,7 @@ def test_sample_csv_download(client) -> None:
     assert response.status_code == 200
     assert "text/csv" in response.headers.get("content-type", "")
     body = response.text
-    assert "email,password,gift_card_number,gift_card_pin,product_url,quantity" in body
+    assert "email,password,gift_card_number,gift_card_pin,product_url,quantity,face_value" in body
     assert "redeem_status" not in body
     assert "order_id" not in body
     assert "status" not in body.split("\n")[0]

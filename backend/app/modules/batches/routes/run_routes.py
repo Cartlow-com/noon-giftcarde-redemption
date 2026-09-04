@@ -133,8 +133,9 @@ def get_run_route(
     db: Session = Depends(get_db),
     user_id: str | None = Depends(require_auth),
 ) -> BatchRunResponse:
+    owner_id = resolve_owner_user_id(user_id, db)
     try:
-        return get_run(run_id, db, user_id=user_id)
+        return get_run(run_id, db, user_id=owner_id)
     except ValueError as exc:
         raise _not_found(exc) from exc
 
@@ -145,8 +146,9 @@ def claim_run_route(
     db: Session = Depends(get_db),
     user_id: str | None = Depends(require_auth),
 ) -> BatchRunResponse:
+    owner_id = resolve_owner_user_id(user_id, db)
     try:
-        return claim_batch_run(run_id, db, user_id=user_id)
+        return claim_batch_run(run_id, db, user_id=owner_id)
     except ValueError as exc:
         detail = str(exc)
         if detail == "Run not found":
@@ -160,8 +162,9 @@ def stop_run_route(
     db: Session = Depends(get_db),
     user_id: str | None = Depends(require_auth),
 ) -> BatchRunResponse:
+    owner_id = resolve_owner_user_id(user_id, db)
     try:
-        return stop_batch_run(run_id, db, user_id=user_id)
+        return stop_batch_run(run_id, db, user_id=owner_id)
     except ValueError as exc:
         raise _not_found(exc) from exc
 
@@ -173,13 +176,14 @@ def patch_run_route(
     db: Session = Depends(get_db),
     user_id: str | None = Depends(require_auth),
 ) -> BatchRunResponse:
+    owner_id = resolve_owner_user_id(user_id, db)
     try:
         return update_batch_run(
             run_id,
             status=payload.status,
             message=payload.message,
             db=db,
-            user_id=user_id,
+            user_id=owner_id,
         )
     except ValueError as exc:
         raise _not_found(exc) from exc

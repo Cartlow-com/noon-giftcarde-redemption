@@ -7,6 +7,7 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-09-04 — Deleted dead `src/features/batches/` React tree; renamed content `02b` → `03a-login-password.js`
 - 2026-09-04 — Too many failed attempts: stop on first hit; no profile reload / second Log In+email try
 - 2026-09-04 — Stop instantly on Noon “Too many failed attempts”; no Continue/login retry
 - 2026-09-04 — Dashboard Run history is selectable; clicking Run #1/#2 shows that run’s stages and errors

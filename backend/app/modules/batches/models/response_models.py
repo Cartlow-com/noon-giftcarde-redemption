@@ -1,20 +1,21 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BatchRowResponse(BaseModel):
+    """Public row shape — never includes password / gift_card_pin."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str
     batch_id: str
     row_number: int
     email: str
-    password: str
     gift_card_number: str
-    gift_card_pin: str
     product_url: str
     quantity: int
+    face_value: float | None = None
     login_status: str
     login_at: datetime | None
     login_error: str | None
@@ -24,6 +25,7 @@ class BatchRowResponse(BaseModel):
     balance_before: float | None
     balance_after: float | None
     balance_delta: float | None
+    value_match: bool | None = None
     purchase_status: str
     purchased_at: datetime | None
     purchase_error: str | None
@@ -38,6 +40,22 @@ class BatchRowResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("value_match", mode="before")
+    @classmethod
+    def _coerce_value_match(cls, value: object) -> bool | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        return bool(int(value))
+
+
+class BatchRowWorkResponse(BatchRowResponse):
+    """Row payload for automation (get row / pull-next) — includes credentials."""
+
+    password: str
+    gift_card_pin: str
 
 
 class BatchSummaryResponse(BaseModel):
@@ -119,6 +137,10 @@ class RowAttemptResponse(BaseModel):
     purchase_error: str | None = None
     order_id: str | None = None
     duration_ms: int | None = None
+    screenshot_before_redeem: str | None = None
+    screenshot_after_redeem: str | None = None
+    screenshot_after_order: str | None = None
+    screenshot_on_failure: str | None = None
     created_at: datetime
 
 
