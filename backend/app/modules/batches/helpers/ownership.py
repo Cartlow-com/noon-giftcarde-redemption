@@ -1,6 +1,14 @@
 from sqlalchemy.orm import Session
 
 from app.modules.batches.models.db_models import Batch, BatchRow, BatchRun
+from app.modules.login.models.db_models import ROLE_SUPER_ADMIN, User
+
+
+def is_super_admin(db: Session, user_id: str | None) -> bool:
+    if not user_id:
+        return False
+    user = db.get(User, user_id)
+    return bool(user and user.role == ROLE_SUPER_ADMIN)
 
 
 def _require_scope(user_id: str | None) -> str:
@@ -11,27 +19,39 @@ def _require_scope(user_id: str | None) -> str:
 
 
 def get_owned_batch(db: Session, batch_id: str, user_id: str | None) -> Batch:
-    scope = _require_scope(user_id)
     batch = db.get(Batch, batch_id)
-    if not batch or batch.user_id != scope:
+    if not batch:
+        raise ValueError("Batch not found")
+    if is_super_admin(db, user_id):
+        return batch
+    scope = _require_scope(user_id)
+    if batch.user_id != scope:
         raise ValueError("Batch not found")
     return batch
 
 
 def get_owned_row(db: Session, row_id: str, user_id: str | None) -> BatchRow:
-    scope = _require_scope(user_id)
     row = db.get(BatchRow, row_id)
     if not row:
         raise ValueError("Row not found")
     batch = db.get(Batch, row.batch_id)
-    if not batch or batch.user_id != scope:
+    if not batch:
+        raise ValueError("Row not found")
+    if is_super_admin(db, user_id):
+        return row
+    scope = _require_scope(user_id)
+    if batch.user_id != scope:
         raise ValueError("Row not found")
     return row
 
 
 def get_owned_run(db: Session, run_id: str, user_id: str | None) -> BatchRun:
-    scope = _require_scope(user_id)
     run = db.get(BatchRun, run_id)
-    if not run or run.user_id != scope:
+    if not run:
+        raise ValueError("Run not found")
+    if is_super_admin(db, user_id):
+        return run
+    scope = _require_scope(user_id)
+    if run.user_id != scope:
         raise ValueError("Run not found")
     return run

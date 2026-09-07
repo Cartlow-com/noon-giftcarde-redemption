@@ -128,7 +128,13 @@ def test_dashboard_delta_changed_row_only_and_redacts_secrets(client, db_session
     assert user is not None
     user_id = user.id
 
-    before = compute_dashboard_revision(db_session, owner_id=user_id, batch_id=batch_id)
+    before = compute_dashboard_revision(
+        db_session,
+        actor_id=user_id,
+        owner_filter=user_id,
+        list_all=False,
+        batch_id=batch_id,
+    )
     snapshot = build_dashboard_snapshot(db_session, user_id=user_id, batch_id=batch_id)
     for row in (snapshot.get("rows") or {}).get("rows") or []:
         assert "password" not in row
@@ -143,7 +149,13 @@ def test_dashboard_delta_changed_row_only_and_redacts_secrets(client, db_session
     assert patched.status_code == 200
     db_session.expire_all()
 
-    after = compute_dashboard_revision(db_session, owner_id=user_id, batch_id=batch_id)
+    after = compute_dashboard_revision(
+        db_session,
+        actor_id=user_id,
+        owner_filter=user_id,
+        list_all=False,
+        batch_id=batch_id,
+    )
     assert after["key"] != before["key"]
 
     delta = build_dashboard_delta(

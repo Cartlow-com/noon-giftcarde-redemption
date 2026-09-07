@@ -16,9 +16,9 @@ def logout(refresh_token: str) -> dict[str, str]:
     return delete_session(refresh_token)
 
 
-def current_session(access_token: str) -> SessionResponse:
-    return get_session(access_token)
+def current_session(access_token: str, db: Session) -> SessionResponse:
+    return get_session(access_token, db)
 
 
-def refresh_session(payload: RefreshSessionRequest) -> TokenResponse:
-    return update_session(payload.refresh_token)
+def refresh_session(payload: RefreshSessionRequest, db: Session) -> TokenResponse:
+    return update_session(payload.refresh_token, db)

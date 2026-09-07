@@ -13,6 +13,7 @@ from app.modules.batches.routes.routes import router as batches_router
 from app.modules.batches.routes.run_routes import router as runs_router
 from app.modules.email.routes.routes import router as email_router
 from app.modules.login.routes.routes import router as login_router
+from app.modules.users.routes.routes import router as users_router
 from seeders.seed_users import seed_users
 
 ADMIN_DIR = Path(__file__).resolve().parent / "static" / "admin"
@@ -41,6 +42,7 @@ app.add_middleware(
 )
 
 app.include_router(login_router)
+app.include_router(users_router)
 app.include_router(batches_router)
 app.include_router(runs_router)
 app.include_router(email_router)

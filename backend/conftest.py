@@ -63,3 +63,7 @@ def login(
 
 def login_admin(client: TestClient) -> dict[str, str]:
     return login(client, email="admin@example.com", password="admin123")
+
+
+def login_super_admin(client: TestClient) -> dict[str, str]:
+    return login(client, email="cartlow@admin.com", password="admin@123")

@@ -10,4 +10,5 @@ class TokenResponse(BaseModel):
 class SessionResponse(BaseModel):
     user_id: str
     email: EmailStr
+    role: str = "user"
     is_active: bool = True

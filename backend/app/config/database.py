@@ -73,6 +73,13 @@ def _ensure_sqlite_columns() -> None:
                 if name not in attempt_cols:
                     conn.execute(text(sql))
 
+    if "users" in tables:
+        user_cols = {col["name"] for col in inspector.get_columns("users")}
+        if "role" not in user_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(32) DEFAULT 'user'"))
+                conn.execute(text("UPDATE users SET role = 'user' WHERE role IS NULL OR role = ''"))
+
 
 def _backfill_owner_user_ids() -> None:
     """Assign legacy rows with empty user_id to the seeded admin account."""

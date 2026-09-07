@@ -70,6 +70,8 @@ class BatchSummaryResponse(BaseModel):
     partial_count: int
     failed_count: int
     status: str
+    user_id: str | None = None
+    owner_email: str | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -6,23 +6,30 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.login.helpers.passwords import hash_password
-from app.modules.login.models.db_models import User
+from app.modules.login.models.db_models import ROLE_SUPER_ADMIN, ROLE_USER, User
 
 DEFAULT_USER_EMAIL = "user@example.com"
 DEFAULT_USER_PASSWORD = "password123"
 DEFAULT_ADMIN_EMAIL = "admin@example.com"
 DEFAULT_ADMIN_PASSWORD = "admin123"
+SUPER_ADMIN_EMAIL = "cartlow@admin.com"
+SUPER_ADMIN_PASSWORD = "admin@123"
 USERS_CSV = Path(__file__).resolve().parent / "users.csv"
 
 
-def _ensure_user(db: Session, email: str, password: str) -> User:
+def _ensure_user(db: Session, email: str, password: str, role: str = ROLE_USER) -> User:
     existing = db.scalar(select(User).where(User.email == email))
     if existing:
+        existing.role = role
+        if email == SUPER_ADMIN_EMAIL:
+            existing.hashed_password = hash_password(password)
+            existing.is_active = True
         return existing
     user = User(
         id=str(uuid.uuid4()),
         email=email,
         hashed_password=hash_password(password),
+        role=role,
         is_active=True,
     )
     db.add(user)
@@ -37,15 +44,20 @@ def seed_users(db: Session) -> None:
             for row in reader:
                 email = (row.get("email") or "").strip()
                 password = (row.get("password") or "").strip()
+                role = (row.get("role") or ROLE_USER).strip() or ROLE_USER
+                if email == SUPER_ADMIN_EMAIL:
+                    role = ROLE_SUPER_ADMIN
+                elif email in (DEFAULT_ADMIN_EMAIL, DEFAULT_USER_EMAIL):
+                    role = ROLE_USER
                 if email and password:
-                    _ensure_user(db, email, password)
+                    _ensure_user(db, email, password, role=role)
     else:
-        _ensure_user(db, DEFAULT_USER_EMAIL, DEFAULT_USER_PASSWORD)
-        _ensure_user(db, DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD)
+        _ensure_user(db, DEFAULT_USER_EMAIL, DEFAULT_USER_PASSWORD, role=ROLE_USER)
+        _ensure_user(db, DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD, role=ROLE_USER)
 
-    # Guarantee both seeded accounts exist even if CSV omits one.
-    _ensure_user(db, DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD)
-    _ensure_user(db, DEFAULT_USER_EMAIL, DEFAULT_USER_PASSWORD)
+    _ensure_user(db, DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD, role=ROLE_USER)
+    _ensure_user(db, DEFAULT_USER_EMAIL, DEFAULT_USER_PASSWORD, role=ROLE_USER)
+    _ensure_user(db, SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, role=ROLE_SUPER_ADMIN)
     db.commit()
 
 

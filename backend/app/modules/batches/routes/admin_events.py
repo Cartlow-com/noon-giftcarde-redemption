@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config.database import SessionLocal
-from app.modules.batches.helpers.auth import require_auth, resolve_owner_user_id
+from app.modules.batches.helpers.auth import require_auth, resolve_batch_list_scope, resolve_owner_user_id
 from app.modules.batches.services.dashboard_events import (
     build_dashboard_delta,
     build_dashboard_snapshot,
@@ -43,6 +43,7 @@ async def _dashboard_event_stream(
     *,
     user_id: str | None,
     batch_id: str | None,
+    filter_user_id: str | None,
     max_events: int | None,
 ) -> AsyncIterator[str]:
     factory = _session_factory(request)
@@ -58,16 +59,28 @@ async def _dashboard_event_stream(
         db = factory()
         try:
             if last_revision is None:
-                snapshot = build_dashboard_snapshot(db, user_id=user_id, batch_id=batch_id)
+                snapshot = build_dashboard_snapshot(
+                    db,
+                    user_id=user_id,
+                    batch_id=batch_id,
+                    filter_user_id=filter_user_id,
+                )
                 revision = snapshot.get("_revision") or {}
                 last_revision = revision
                 last_key = revision.get("key")
                 last_watermark = revision.get("watermark")
                 yield format_sse_event("dashboard", snapshot)
             else:
-                owner_id = resolve_owner_user_id(user_id, db)
+                actor_id = resolve_owner_user_id(user_id, db)
+                owner_filter, list_all = resolve_batch_list_scope(
+                    user_id, db, filter_user_id
+                )
                 revision = compute_dashboard_revision(
-                    db, owner_id=owner_id, batch_id=batch_id
+                    db,
+                    actor_id=actor_id,
+                    owner_filter=owner_filter,
+                    list_all=list_all,
+                    batch_id=batch_id,
                 )
                 if revision["key"] == last_key:
                     yield format_sse_event(
@@ -83,6 +96,7 @@ async def _dashboard_event_stream(
                         since=since,
                         prev=last_revision,
                         revision=revision,
+                        filter_user_id=filter_user_id,
                     )
                     last_revision = delta.get("_revision") or revision
                     last_key = last_revision.get("key")
@@ -117,6 +131,7 @@ async def _dashboard_event_stream(
 async def admin_events_route(
     request: Request,
     batch_id: str | None = Query(default=None),
+    filter_user_id: str | None = Query(default=None, alias="user_id"),
     max_events: int | None = Query(default=None, ge=1, le=10),
     user_id: str | None = Depends(require_auth),
 ) -> StreamingResponse:
@@ -124,6 +139,7 @@ async def admin_events_route(
         request,
         user_id=user_id,
         batch_id=batch_id,
+        filter_user_id=filter_user_id,
         max_events=max_events,
     )
     return StreamingResponse(

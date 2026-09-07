@@ -27,19 +27,25 @@ def login_route(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenRe
 
 
 @router.post("/refresh", response_model=TokenResponse)
-def refresh_route(payload: RefreshSessionRequest) -> TokenResponse:
+def refresh_route(
+    payload: RefreshSessionRequest,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
     try:
-        return refresh_session(payload)
+        return refresh_session(payload, db)
     except ValueError as exc:
         raise _auth_error(exc) from exc
 
 
 @router.get("/me", response_model=SessionResponse)
-def me_route(authorization: str | None = Header(default=None)) -> SessionResponse:
+def me_route(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> SessionResponse:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
     try:
-        return current_session(authorization.removeprefix("Bearer "))
+        return current_session(authorization.removeprefix("Bearer "), db)
     except ValueError as exc:
         raise _auth_error(exc) from exc
 

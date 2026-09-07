@@ -10,11 +10,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config.settings import settings
-from app.modules.batches.helpers.auth import resolve_owner_user_id
+from app.modules.batches.helpers.auth import resolve_batch_list_scope, resolve_owner_user_id
+from app.modules.batches.helpers.ownership import is_super_admin
 from app.modules.batches.models.db_models import Batch, BatchRow, BatchRun, ExtensionPresence
 from app.modules.batches.models.response_models import (
     BatchRowResponse,
-    BatchSummaryResponse,
     ExtensionStatusResponse,
 )
 from app.modules.batches.services.extension_presence import (
@@ -60,19 +60,34 @@ def _naive_utc(value: datetime) -> datetime:
     return aware.replace(tzinfo=None)
 
 
+def _batch_owner_filter(owner_filter: str | None, list_all: bool):
+    if list_all and owner_filter is None:
+        return None
+    return owner_filter
+
+
 def compute_dashboard_revision(
     db: Session,
     *,
-    owner_id: str,
+    actor_id: str,
+    owner_filter: str | None,
+    list_all: bool,
     batch_id: str | None = None,
 ) -> dict[str, Any]:
-    batch_max = db.scalar(
-        select(func.max(Batch.updated_at)).where(Batch.user_id == owner_id)
-    )
+    batch_scope = _batch_owner_filter(owner_filter, list_all)
+    # Presence/active-run: filtered owner when set; else the logged-in actor's machine.
+    presence_id = owner_filter or actor_id
+    batch_q = select(func.max(Batch.updated_at))
+    count_q = select(func.count()).select_from(Batch)
+    if batch_scope is not None:
+        batch_q = batch_q.where(Batch.user_id == batch_scope)
+        count_q = count_q.where(Batch.user_id == batch_scope)
+
+    batch_max = db.scalar(batch_q)
     run_max = db.scalar(
-        select(func.max(BatchRun.updated_at)).where(BatchRun.user_id == owner_id)
+        select(func.max(BatchRun.updated_at)).where(BatchRun.user_id == presence_id)
     )
-    presence = db.get(ExtensionPresence, owner_id)
+    presence = db.get(ExtensionPresence, presence_id)
     presence_seen = _aware(presence.last_seen_at) if presence else None
 
     rows_max = None
@@ -88,11 +103,9 @@ def compute_dashboard_revision(
             or 0
         )
 
-    batches_total = (
-        db.scalar(select(func.count()).select_from(Batch).where(Batch.user_id == owner_id)) or 0
-    )
-    active = get_active_run(db, user_id=owner_id)
-    extension_online = is_extension_online(db, owner_id)
+    batches_total = db.scalar(count_q) or 0
+    active = get_active_run(db, user_id=presence_id)
+    extension_online = is_extension_online(db, presence_id)
 
     watermark = _max_timestamp(batch_max, run_max, presence_seen, rows_max)
     key = "|".join(
@@ -103,6 +116,7 @@ def compute_dashboard_revision(
             active.id if active else "",
             "1" if extension_online else "0",
             _iso(presence_seen) if presence_seen else "",
+            batch_scope or ("*" if list_all else ""),
         ]
     )
     return {
@@ -114,6 +128,8 @@ def compute_dashboard_revision(
         "extension_online": extension_online,
         "extension_seen": presence_seen,
         "active_run": active,
+        "owner_filter": owner_filter,
+        "list_all": list_all,
     }
 
 
@@ -122,16 +138,27 @@ def build_dashboard_snapshot(
     *,
     user_id: str | None,
     batch_id: str | None = None,
+    filter_user_id: str | None = None,
 ) -> dict[str, Any]:
-    owner_id = resolve_owner_user_id(user_id, db)
+    actor_id = resolve_owner_user_id(user_id, db)
+    owner_filter, list_all = resolve_batch_list_scope(user_id, db, filter_user_id)
     from app.modules.batches.services.run_jobs import reclaim_stale_user_runs
 
-    reclaim_stale_user_runs(db, owner_id)
-    revision = compute_dashboard_revision(db, owner_id=owner_id, batch_id=batch_id)
-    batches = list_batches(db, user_id=owner_id, limit=100)
+    reclaim_stale_user_runs(db, actor_id)
+    revision = compute_dashboard_revision(
+        db,
+        actor_id=actor_id,
+        owner_filter=owner_filter,
+        list_all=list_all,
+        batch_id=batch_id,
+    )
+    batches = list_batches(
+        db, user_id=owner_filter, limit=100, list_all=list_all
+    )
+    presence_id = owner_filter or actor_id
     extension = ExtensionStatusResponse(
         online=revision["extension_online"],
-        last_seen_at=get_extension_last_seen(db, owner_id),
+        last_seen_at=get_extension_last_seen(db, presence_id),
         ttl_seconds=settings.EXTENSION_HEARTBEAT_TTL_SECONDS,
     )
     active = revision["active_run"]
@@ -139,7 +166,7 @@ def build_dashboard_snapshot(
     rows_payload: dict[str, Any] | None = None
     if batch_id:
         try:
-            rows = list_batch_rows(batch_id, db, user_id=owner_id, limit=500)
+            rows = list_batch_rows(batch_id, db, user_id=actor_id, limit=500)
             rows_payload = {
                 "batch_id": batch_id,
                 "rows": [_redact_row(row) for row in rows.rows],
@@ -157,6 +184,7 @@ def build_dashboard_snapshot(
         "batches": [b.model_dump(mode="json") for b in batches.batches],
         "batches_total": batches.total,
         "rows": rows_payload,
+        "is_super_admin": is_super_admin(db, actor_id),
         "_revision": revision,
     }
 
@@ -169,10 +197,18 @@ def build_dashboard_delta(
     since: datetime,
     prev: dict[str, Any],
     revision: dict[str, Any] | None = None,
+    filter_user_id: str | None = None,
 ) -> dict[str, Any]:
-    owner_id = resolve_owner_user_id(user_id, db)
+    actor_id = resolve_owner_user_id(user_id, db)
+    owner_filter, list_all = resolve_batch_list_scope(user_id, db, filter_user_id)
     if revision is None:
-        revision = compute_dashboard_revision(db, owner_id=owner_id, batch_id=batch_id)
+        revision = compute_dashboard_revision(
+            db,
+            actor_id=actor_id,
+            owner_filter=owner_filter,
+            list_all=list_all,
+            batch_id=batch_id,
+        )
     since_naive = _naive_utc(since)
     since_aware = _aware(since) or _EPOCH
     payload: dict[str, Any] = {
@@ -187,7 +223,7 @@ def build_dashboard_delta(
     ):
         payload["extension"] = ExtensionStatusResponse(
             online=revision["extension_online"],
-            last_seen_at=get_extension_last_seen(db, owner_id),
+            last_seen_at=get_extension_last_seen(db, owner_filter or actor_id),
             ttl_seconds=settings.EXTENSION_HEARTBEAT_TTL_SECONDS,
         ).model_dump(mode="json")
 
@@ -199,28 +235,27 @@ def build_dashboard_delta(
         if run_updated and run_updated > since_aware:
             payload["active_run"] = revision["active_run"].model_dump(mode="json")
 
+    batch_scope = _batch_owner_filter(owner_filter, list_all)
     if revision["batches_total"] != prev.get("batches_total"):
-        batches = list_batches(db, user_id=owner_id, limit=100)
+        batches = list_batches(db, user_id=owner_filter, limit=100, list_all=list_all)
         payload["batches"] = [b.model_dump(mode="json") for b in batches.batches]
         payload["batches_total"] = batches.total
         payload["batches_replace"] = True
     else:
-        changed = db.scalars(
-            select(Batch)
-            .where(Batch.user_id == owner_id, Batch.updated_at > since_naive)
-            .order_by(Batch.updated_at.desc())
-            .limit(100)
-        ).all()
+        changed_q = select(Batch).where(Batch.updated_at > since_naive)
+        if batch_scope is not None:
+            changed_q = changed_q.where(Batch.user_id == batch_scope)
+        changed = db.scalars(changed_q.order_by(Batch.updated_at.desc()).limit(100)).all()
         if changed:
-            payload["batches"] = [
-                BatchSummaryResponse.model_validate(b).model_dump(mode="json") for b in changed
-            ]
+            from app.modules.batches.services.get_batches import _summaries
+
+            payload["batches"] = [b.model_dump(mode="json") for b in _summaries(db, list(changed))]
             payload["batches_total"] = revision["batches_total"]
 
     if batch_id:
         if revision["rows_total"] != prev.get("rows_total"):
             try:
-                rows = list_batch_rows(batch_id, db, user_id=owner_id, limit=500)
+                rows = list_batch_rows(batch_id, db, user_id=actor_id, limit=500)
                 payload["rows"] = {
                     "batch_id": batch_id,
                     "rows": [_redact_row(row) for row in rows.rows],

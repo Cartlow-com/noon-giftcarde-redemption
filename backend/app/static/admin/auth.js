@@ -19,6 +19,7 @@
     accessToken: localStorage.getItem(ACCESS_KEY) || "",
     refreshToken: localStorage.getItem(REFRESH_KEY) || "",
     email: "",
+    role: "user",
     ready: false,
     extensionInstalled: false,
     extensionConnected: false,
@@ -58,11 +59,13 @@
     }
   }
 
-  function renderSession(email) {
+  function renderSession(email, role) {
     state.email = email || "";
+    state.role = role || "user";
     if (el.sessionEmail) {
       if (state.email) {
-        el.sessionEmail.textContent = state.email;
+        const roleLabel = state.role === "super_admin" ? " · super admin" : "";
+        el.sessionEmail.textContent = `${state.email}${roleLabel}`;
         el.sessionEmail.classList.remove("hidden");
       } else {
         el.sessionEmail.textContent = "";
@@ -77,14 +80,22 @@
       if (el.connect) el.connect.classList.add("hidden");
       if (el.connectPill) el.connectPill.classList.add("hidden");
     }
+    if (window.AdminUsers && typeof window.AdminUsers.setVisible === "function") {
+      window.AdminUsers.setVisible(state.role === "super_admin");
+    }
+    document.querySelector(".layout")?.classList.toggle(
+      "super-admin",
+      state.role === "super_admin",
+    );
   }
 
-  function emitAuthChange(authenticated, email) {
+  function emitAuthChange(authenticated, email, role) {
     window.dispatchEvent(
       new CustomEvent("noon-auth-changed", {
         detail: {
           authenticated: !!authenticated,
           email: email || "",
+          role: role || "user",
           extensionConnected: state.extensionConnected,
         },
       }),
@@ -94,7 +105,7 @@
   function showLogin(message) {
     setBodyLocked(true);
     if (el.overlay) el.overlay.classList.remove("hidden");
-    renderSession("");
+    renderSession("", "user");
     setError(message || "");
     if (el.email && !el.email.value) {
       el.email.focus();
@@ -126,114 +137,30 @@
 
   function clearTokens() {
     persistTokens({ accessToken: "", refreshToken: "" });
-    renderSession("");
+    renderSession("", "user");
   }
 
-  function postToExtension(type, payload) {
-    const message = Object.assign({ type: type }, payload || {});
-    try {
-      window.postMessage(message, window.location.origin);
-    } catch (_) {}
-  }
-
-  function waitForAuthResult(requestId) {
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        state.pendingAuth.delete(requestId);
-        resolve({
-          ok: false,
-          error:
-            "No reply from extension — install/reload Noon Automation in this Chrome, then try again",
-        });
-      }, CONNECT_TIMEOUT_MS);
-      state.pendingAuth.set(requestId, (result) => {
-        clearTimeout(timer);
-        resolve(result);
-      });
-    });
-  }
-
-  function detectExtensionInstalled() {
-    state.extensionInstalled = !!(
-      window.__noonExtension && window.__noonExtension.online
-    );
-    return state.extensionInstalled;
-  }
-
-  async function pingExtension() {
-    detectExtensionInstalled();
-    const requestId = `ping-${Date.now()}`;
-    const resultPromise = waitForAuthResult(requestId);
-    postToExtension("NOON_EXT_PING", { requestId });
-    const result = await resultPromise;
-    state.extensionInstalled = !!(result && result.ok);
-    return state.extensionInstalled;
-  }
-
-  async function connectExtension() {
-    if (!state.accessToken) {
-      setConnectStatus("missing", "Sign in first");
-      return false;
-    }
-    setConnectStatus("connecting", "Connecting…");
-    const installed = detectExtensionInstalled() || (await pingExtension());
-    if (!installed) {
-      setConnectStatus(
-        "missing",
-        "Extension not found — load unpacked in this Chrome",
-      );
-      if (window.AdminUI && window.AdminUI.showError) {
-        window.AdminUI.showError(
-          "Extension not detected in this Chrome. Load Noon Automation, then click Connect extension.",
-        );
-      }
-      return false;
-    }
-
-    const requestId = `auth-${Date.now()}`;
-    const resultPromise = waitForAuthResult(requestId);
-    postToExtension("NOON_AUTH", {
-      requestId,
-      accessToken: state.accessToken,
-      refreshToken: state.refreshToken || null,
-    });
-    const result = await resultPromise;
-    if (!result.ok) {
-      setConnectStatus("missing", "Connect failed");
-      if (window.AdminUI && window.AdminUI.showError) {
-        window.AdminUI.showError(result.error || "Could not onboard extension");
-      }
-      return false;
-    }
-
-    setConnectStatus("connected", "Extension connected");
-    if (window.AdminUI && window.AdminUI.showOk) {
-      window.AdminUI.showOk("Extension onboarded — it can claim your runs on this PC");
-    }
-    if (window.AdminUI && typeof window.AdminUI.checkExtension === "function") {
-      window.AdminUI.checkExtension();
-    }
-    emitAuthChange(true, state.email);
-    return true;
-  }
-
-  async function clearExtensionTokens() {
-    const requestId = `clear-${Date.now()}`;
-    const resultPromise = waitForAuthResult(requestId);
-    postToExtension("NOON_AUTH_CLEAR", { requestId });
-    await resultPromise;
-    state.extensionConnected = false;
-  }
+  const extension = window.NoonAuthExtension.attach({
+    state,
+    setConnectStatus,
+    emitAuthChange,
+    connectTimeoutMs: CONNECT_TIMEOUT_MS,
+  });
+  const {
+    detectExtensionInstalled,
+    connectExtension,
+    clearExtensionTokens,
+  } = extension;
 
   async function loadSession() {
     if (!state.accessToken) {
-      emitAuthChange(false, "");
+      emitAuthChange(false, "", "user");
       showLogin();
       return false;
     }
     try {
       const me = await window.AdminUtil.api("/login/me");
-      renderSession(me.email);
+      renderSession(me.email, me.role || "user");
       hideLogin();
       detectExtensionInstalled();
       setConnectStatus(
@@ -242,12 +169,12 @@
           ? "Extension ready — click Connect"
           : "Extension not found in this Chrome",
       );
-      emitAuthChange(true, me.email);
+      emitAuthChange(true, me.email, me.role || "user");
       return true;
     } catch (err) {
       clearTokens();
       await clearExtensionTokens();
-      emitAuthChange(false, "");
+      emitAuthChange(false, "", "user");
       showLogin("Session expired. Sign in again.");
       return false;
     }
@@ -295,35 +222,16 @@
     } catch (_) {}
     clearTokens();
     await clearExtensionTokens();
-    emitAuthChange(false, "");
+    emitAuthChange(false, "", "user");
     showLogin("Signed out.");
   }
 
   async function handleUnauthorized() {
     clearTokens();
     await clearExtensionTokens();
-    emitAuthChange(false, "");
+    emitAuthChange(false, "", "user");
     showLogin("Session expired. Sign in again.");
   }
-
-  window.addEventListener("message", (event) => {
-    if (event.source !== window) return;
-    if (event.origin !== window.location.origin) return;
-    const data = event.data;
-    if (!data || typeof data !== "object") return;
-
-    if (data.type === "NOON_AUTH_RESULT" || data.type === "NOON_EXT_PONG") {
-      const requestId = data.requestId;
-      if (!requestId || !state.pendingAuth.has(requestId)) return;
-      const resolve = state.pendingAuth.get(requestId);
-      state.pendingAuth.delete(requestId);
-      resolve({
-        ok: !!data.ok,
-        error: data.error || null,
-        cleared: !!data.cleared,
-      });
-    }
-  });
 
   async function boot() {
     setBodyLocked(true);
@@ -365,6 +273,12 @@
     },
     getRefreshToken() {
       return state.refreshToken;
+    },
+    getRole() {
+      return state.role || "user";
+    },
+    isSuperAdmin() {
+      return state.role === "super_admin";
     },
     isAuthenticated() {
       return !!state.accessToken;

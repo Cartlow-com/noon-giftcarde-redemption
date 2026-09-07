@@ -16,6 +16,6 @@ def create_session(payload: LoginRequest, db: Session) -> TokenResponse:
         raise ValueError("Invalid credentials")
 
     return TokenResponse(
-        access_token=create_access_token(user.id, user.email),
+        access_token=create_access_token(user.id, user.email, user.role),
         refresh_token=create_refresh_token(user.id),
     )

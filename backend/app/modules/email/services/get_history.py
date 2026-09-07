@@ -1,6 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.modules.batches.helpers.ownership import is_super_admin
 from app.modules.batches.models.db_models import Batch, BatchRow
 from app.modules.email.models.db_models import EmailSendHistory
 from app.modules.email.models.response_models import EmailHistoryListResponse, EmailHistoryResponse
@@ -18,7 +19,7 @@ def list_email_history(
     query = select(EmailSendHistory)
     count_query = select(func.count()).select_from(EmailSendHistory)
 
-    if user_id:
+    if user_id and not is_super_admin(db, user_id):
         owned_batch_ids = select(Batch.id).where(Batch.user_id == user_id)
         owned_row_ids = (
             select(BatchRow.id).join(Batch, Batch.id == BatchRow.batch_id).where(Batch.user_id == user_id)

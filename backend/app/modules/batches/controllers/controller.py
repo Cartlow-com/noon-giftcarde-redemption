@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
-from app.modules.batches.helpers.auth import resolve_owner_user_id
+from app.modules.batches.helpers.auth import resolve_batch_list_scope, resolve_owner_user_id
 from app.modules.batches.models.request_models import (
     CreateRowAttemptRequest,
     UpdateRowAttemptRequest,
@@ -48,9 +48,16 @@ def get_batches(
     user_id: str | None,
     limit: int,
     offset: int,
+    filter_user_id: str | None = None,
 ) -> BatchListResponse:
-    owner_id = resolve_owner_user_id(user_id, db)
-    return list_batches(db, user_id=owner_id, limit=limit, offset=offset)
+    owner_filter, list_all = resolve_batch_list_scope(user_id, db, filter_user_id)
+    return list_batches(
+        db,
+        user_id=owner_filter,
+        limit=limit,
+        offset=offset,
+        list_all=list_all,
+    )
 
 
 def get_batch(

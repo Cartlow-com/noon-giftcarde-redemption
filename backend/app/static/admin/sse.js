@@ -4,6 +4,7 @@
 
   let abort = null;
   let batchId = null;
+  let filterUserId = null;
   let reconnectMs = RECONNECT_BASE_MS;
   let reconnectTimer = null;
   let running = false;
@@ -79,6 +80,7 @@
 
     const params = new URLSearchParams();
     if (batchId) params.set("batch_id", batchId);
+    if (filterUserId) params.set("user_id", filterUserId);
     const url = `/admin/events${params.toString() ? `?${params}` : ""}`;
 
     try {
@@ -151,5 +153,15 @@
     connect();
   }
 
-  window.AdminSSE = { start, stop, setBatchId };
+  function setFilterUserId(nextId) {
+    const normalized = nextId || null;
+    if (normalized === filterUserId) return;
+    filterUserId = normalized;
+    if (!running) return;
+    clearReconnect();
+    reconnectMs = RECONNECT_BASE_MS;
+    connect();
+  }
+
+  window.AdminSSE = { start, stop, setBatchId, setFilterUserId };
 })();

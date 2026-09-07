@@ -84,10 +84,17 @@ def sample_csv_route(user_id: str | None = Depends(require_auth)) -> Response:
 def list_batches_route(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    filter_user_id: str | None = Query(default=None, alias="user_id"),
     db: Session = Depends(get_db),
     user_id: str | None = Depends(require_auth),
 ) -> BatchListResponse:
-    return get_batches(db, user_id=user_id, limit=limit, offset=offset)
+    return get_batches(
+        db,
+        user_id=user_id,
+        limit=limit,
+        offset=offset,
+        filter_user_id=filter_user_id,
+    )
 
 
 @router.get("/rows/next", response_model=BatchRowWorkResponse)

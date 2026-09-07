@@ -10,6 +10,7 @@
     detailAttempts: [],
     selectedIds: new Set(),
     statusFilter: "",
+    ownerFilter: "",
     detailToken: 0,
     loading: false,
     expectedRowSeconds: 180,
@@ -54,13 +55,11 @@
     el.error.classList.remove("hidden");
     el.ok.classList.add("hidden");
   }
-
   function showOk(message) {
     el.ok.textContent = message;
     el.ok.classList.remove("hidden");
     el.error.classList.add("hidden");
   }
-
   function clearError() {
     el.error.classList.add("hidden");
     el.ok.classList.add("hidden");
@@ -77,7 +76,6 @@
     }
     updateActionButtons();
   }
-
   function setActiveRun(run) {
     state.activeRun = run;
     if (!run) {
@@ -100,7 +98,6 @@
     el.btnStop.disabled = !running;
     el.selCount.textContent = `${state.selectedIds.size} selected`;
   }
-
   function countPills(batch) {
     return [
       ["P", batch.pending_count],
@@ -123,10 +120,15 @@
       return;
     }
     el.batchEmpty.classList.add("hidden");
+    const showOwner = window.AdminAuth && window.AdminAuth.isSuperAdmin();
     el.batchList.innerHTML = state.batches
       .map((batch) => {
         const active = batch.id === state.selectedBatchId ? "active" : "";
-        return `<button type="button" class="batch-item ${active}" data-batch-id="${U.escapeHtml(batch.id)}"><div class="name">${U.escapeHtml(batch.filename)}</div><div class="counts">${U.badge(batch.status)}<span class="pill">${batch.total_rows} rows</span>${countPills(batch)}</div><div class="muted" style="margin-top:0.35rem">${U.escapeHtml(U.formatTime(batch.created_at))}</div></button>`;
+        const owner =
+          showOwner && batch.owner_email
+            ? `<div class="owner">${U.escapeHtml(batch.owner_email)}</div>`
+            : "";
+        return `<button type="button" class="batch-item ${active}" data-batch-id="${U.escapeHtml(batch.id)}"><div class="name">${U.escapeHtml(batch.filename)}</div>${owner}<div class="counts">${U.badge(batch.status)}<span class="pill">${batch.total_rows} rows</span>${countPills(batch)}</div><div class="muted" style="margin-top:0.35rem">${U.escapeHtml(U.formatTime(batch.created_at))}</div></button>`;
       })
       .join("");
     updateActionButtons();
@@ -226,7 +228,9 @@
     state.loading = true;
     if (!silent) clearError();
     try {
-      const data = await U.api("/batches?limit=100");
+      const params = new URLSearchParams({ limit: "100" });
+      if (state.ownerFilter) params.set("user_id", state.ownerFilter);
+      const data = await U.api(`/batches?${params}`);
       state.batches = data.batches || [];
       if (!keepSelection || !state.batches.some((b) => b.id === state.selectedBatchId)) {
         state.selectedBatchId = state.batches[0]?.id || null;
@@ -240,7 +244,12 @@
         renderRows();
         el.detailBody.innerHTML = `<p class="empty">Select a row</p>`;
       }
-      if (window.AdminSSE) window.AdminSSE.setBatchId(state.selectedBatchId);
+      if (window.AdminSSE) {
+        window.AdminSSE.setBatchId(state.selectedBatchId);
+        if (typeof window.AdminSSE.setFilterUserId === "function") {
+          window.AdminSSE.setFilterUserId(state.ownerFilter || null);
+        }
+      }
     } catch (err) {
       showError(err.message);
     } finally {
@@ -258,8 +267,7 @@
       return;
     }
     try {
-      const status = await U.api("/runs/extension/status");
-      setExtensionOnline(!!status.online);
+      setExtensionOnline(!!(await U.api("/runs/extension/status")).online);
     } catch (_) {
       setExtensionOnline(false);
     }
@@ -288,8 +296,7 @@
     if (!id || id === state.selectedAttemptId) return;
     state.selectedAttemptId = id;
     const row = state.rows.find((r) => r.id === state.selectedRowId);
-    if (!row) return;
-    await paintDetail(row, state.detailEmails, state.detailAttempts);
+    if (row) await paintDetail(row, state.detailEmails, state.detailAttempts);
   });
 
   el.rowsBody.addEventListener("click", async (event) => {
@@ -337,6 +344,7 @@
     checkHealth();
     checkExtension();
     loadBatches();
+    if (window.AdminUsers && window.AdminAuth?.isSuperAdmin()) window.AdminUsers.loadUsers();
     if (window.AdminLive) window.AdminLive.syncLiveStream();
   });
 })();

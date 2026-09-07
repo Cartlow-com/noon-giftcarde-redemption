@@ -14,9 +14,10 @@
 | Element finding | `findClickableByText(text, scope)` | Sidebar-scoped search misses main content/modals |
 | Navbar Log In | Click once; if popup closed, click once more (no refresh) | Extra clicks were toggling the modal shut |
 | Row re-runs | Attempt at start + PATCH finish (`batch_row_attempts`) | Covers mid-row crashes, not only completions |
+| Screenshots | Per attempt `{batch}/{row}/{attempt}/{kind}.png`; row keeps latest | Selecting a run shows that run’s shots |
 | Skip rules | Redeem done + order success → skip row; always email-match before redeem/order | Safe multi-run of same CSV |
-| Auth | `AUTH_REQUIRED=true` JWT; access token TTL 7 days; dashboard login only | Per-user data isolation; unattended batches without refresh |
-| Tenancy | Ownership default-closed; stale presence auto-stops runs | No silent unscoped queries |
+| Auth | `AUTH_REQUIRED=true` JWT; access token TTL 7 days; dashboard login only; `/me` + protected routes re-check DB `is_active`+`role` | Per-user data isolation; deactivate/demote revoke mid-token |
+| Tenancy | Ownership default-closed; stale presence auto-stops runs; `super_admin` can list/operate across users (+ optional `user_id` filter) | Ops visibility without weakening normal users |
 | Row API secrets | List/SSE omit password+PIN; work payload only on get-row + pull-next | Listing is not a credential dump |
 | Face value | Optional CSV `face_value`; `value_match` vs `balance_delta` | Stored-value reconciliation |
 | Extension auth | Token bridged from dashboard → `chrome.storage.local` | No extension login form |

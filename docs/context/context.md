@@ -52,6 +52,7 @@ noon_automation/
 | Batch runner (pull-next) | ✅ Done | Extension automation loop |
 | Admin dashboard | ✅ Done | FastAPI `/` — login + upload/run/stop + screenshots/emails |
 | Multi-user isolation | ✅ Done | Per-user data + concurrent runs; dashboard→extension token bridge |
+| Super-admin users | ✅ Done | `cartlow@admin.com` only; `/users` CRUD; global batches + owner filter |
 
 ## Gift Card Flow (current)
 
