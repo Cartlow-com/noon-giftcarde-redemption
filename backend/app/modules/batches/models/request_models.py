@@ -4,6 +4,14 @@ from pydantic import BaseModel, Field
 
 
 class UpdateRowRequest(BaseModel):
+    email: str | None = None
+    password: str | None = None
+    gift_card_number: str | None = None
+    gift_card_pin: str | None = None
+    product_url: str | None = None
+    quantity: int | None = Field(default=None, ge=1)
+    face_value: float | None = None
+
     login_status: str | None = None
     login_at: datetime | None = None
     login_error: str | None = None

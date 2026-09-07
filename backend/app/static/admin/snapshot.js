@@ -18,8 +18,6 @@
     if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) return;
 
     const health = document.getElementById("health");
-    const detailTitle = document.getElementById("detail-title");
-    const detailBody = document.getElementById("detail-body");
 
     if (data.health === "ok" && health) {
       health.textContent = "API online";
@@ -60,15 +58,9 @@
         state.selectedRowId = state.rows[0]?.id || null;
       }
       ui.renderRows();
-      const row = state.rows.find((r) => r.id === state.selectedRowId);
-      if (!row && detailTitle && detailBody) {
-        detailTitle.textContent = "Row detail";
-        detailBody.innerHTML = `<p class="empty">Select a row</p>`;
-      }
     } else if (!state.selectedBatchId) {
       state.rows = [];
       ui.renderRows();
-      if (detailBody) detailBody.innerHTML = `<p class="empty">Select a row</p>`;
     } else if (data.health === "error") {
       state.rows = [];
       ui.renderRows();
@@ -159,10 +151,6 @@
     ui.setExtensionOnline(false);
     ui.renderBatches();
     ui.renderRows();
-    const detailTitle = document.getElementById("detail-title");
-    const detailBody = document.getElementById("detail-body");
-    if (detailTitle) detailTitle.textContent = "Row detail";
-    if (detailBody) detailBody.innerHTML = `<p class="empty">Select a row</p>`;
   }
 
   let bootStarted = false;

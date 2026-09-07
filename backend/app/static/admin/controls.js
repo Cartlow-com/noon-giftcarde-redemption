@@ -58,7 +58,16 @@
   btnDelete.addEventListener("click", async () => {
     const batchId = state().selectedBatchId;
     if (!batchId) return;
-    if (!confirm("Delete this batch and all rows?")) return;
+    const ask = window.AdminConfirm?.ask;
+    const ok = ask
+      ? await ask({
+          title: "Delete batch?",
+          message: "This permanently deletes the batch and all of its rows.",
+          okLabel: "Delete batch",
+          danger: true,
+        })
+      : false;
+    if (!ok) return;
     try {
       await U.api(`/batches/${encodeURIComponent(batchId)}`, { method: "DELETE" });
       ui().showOk("Batch deleted");

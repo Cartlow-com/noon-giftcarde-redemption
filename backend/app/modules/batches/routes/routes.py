@@ -15,6 +15,7 @@ from app.modules.batches.controllers.controller import (
     patch_row_attempt,
     pull_next_row,
     remove_batch,
+    remove_row,
     send_order_notification,
     send_redeem_notification,
     upload_batch,
@@ -130,6 +131,21 @@ def patch_row_route(
 ) -> BatchRowResponse:
     try:
         return patch_row(row_id, payload, db, user_id=user_id)
+    except ValueError as exc:
+        msg = str(exc)
+        if "not found" in msg.lower():
+            raise _not_found(exc) from exc
+        raise _bad_request(exc) from exc
+
+
+@router.delete("/rows/{row_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_row_route(
+    row_id: str,
+    db: Session = Depends(get_db),
+    user_id: str | None = Depends(require_auth),
+) -> None:
+    try:
+        remove_row(row_id, db, user_id=user_id)
     except ValueError as exc:
         raise _not_found(exc) from exc
 

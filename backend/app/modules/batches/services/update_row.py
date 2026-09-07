@@ -42,6 +42,33 @@ def update_batch_row(
     explicit_status = data.pop("status", None)
     touches_stages = bool(STAGE_FIELDS & data.keys())
 
+    if "email" in data and data["email"] is not None:
+        data["email"] = str(data["email"]).strip()
+        if not data["email"]:
+            raise ValueError("email is required")
+    if "password" in data:
+        password = data["password"]
+        if password is None or str(password).strip() == "":
+            data.pop("password")
+        else:
+            data["password"] = str(password)
+    if "gift_card_pin" in data:
+        pin = data["gift_card_pin"]
+        if pin is None or str(pin).strip() == "":
+            data.pop("gift_card_pin")
+        else:
+            data["gift_card_pin"] = str(pin).strip()
+    if "gift_card_number" in data and data["gift_card_number"] is not None:
+        data["gift_card_number"] = str(data["gift_card_number"]).strip()
+        if not data["gift_card_number"]:
+            raise ValueError("gift_card_number is required")
+    if "product_url" in data and data["product_url"] is not None:
+        data["product_url"] = str(data["product_url"]).strip()
+        if not data["product_url"]:
+            raise ValueError("product_url is required")
+    if "quantity" in data and data["quantity"] is not None and int(data["quantity"]) < 1:
+        raise ValueError("quantity must be >= 1")
+
     for field, value in data.items():
         setattr(row, field, value)
 

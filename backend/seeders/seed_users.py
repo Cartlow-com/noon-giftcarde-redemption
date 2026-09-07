@@ -12,8 +12,9 @@ DEFAULT_USER_EMAIL = "user@example.com"
 DEFAULT_USER_PASSWORD = "password123"
 DEFAULT_ADMIN_EMAIL = "admin@example.com"
 DEFAULT_ADMIN_PASSWORD = "admin123"
-SUPER_ADMIN_EMAIL = "cartlow@admin.com"
+SUPER_ADMIN_EMAIL = "admin@innovidio.com"
 SUPER_ADMIN_PASSWORD = "admin@123"
+LEGACY_SUPER_ADMIN_EMAIL = "cartlow@admin.com"
 USERS_CSV = Path(__file__).resolve().parent / "users.csv"
 
 
@@ -47,7 +48,7 @@ def seed_users(db: Session) -> None:
                 role = (row.get("role") or ROLE_USER).strip() or ROLE_USER
                 if email == SUPER_ADMIN_EMAIL:
                     role = ROLE_SUPER_ADMIN
-                elif email in (DEFAULT_ADMIN_EMAIL, DEFAULT_USER_EMAIL):
+                elif email in (DEFAULT_ADMIN_EMAIL, DEFAULT_USER_EMAIL, LEGACY_SUPER_ADMIN_EMAIL):
                     role = ROLE_USER
                 if email and password:
                     _ensure_user(db, email, password, role=role)
@@ -57,6 +58,9 @@ def seed_users(db: Session) -> None:
 
     _ensure_user(db, DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD, role=ROLE_USER)
     _ensure_user(db, DEFAULT_USER_EMAIL, DEFAULT_USER_PASSWORD, role=ROLE_USER)
+    legacy = db.scalar(select(User).where(User.email == LEGACY_SUPER_ADMIN_EMAIL))
+    if legacy:
+        legacy.role = ROLE_USER
     _ensure_user(db, SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, role=ROLE_SUPER_ADMIN)
     db.commit()
 

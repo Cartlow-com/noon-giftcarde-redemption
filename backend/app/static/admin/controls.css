@@ -91,3 +91,218 @@
 .data-table input[type="checkbox"] {
   accent-color: var(--noon);
 }
+
+.confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(2, 6, 23, 0);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.22s ease,
+    visibility 0.22s ease,
+    background-color 0.22s ease;
+}
+
+.confirm-modal.hidden {
+  display: flex !important;
+}
+
+.confirm-modal.modal-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  background: rgba(2, 6, 23, 0.68);
+}
+
+.confirm-dialog {
+  width: min(100%, 380px);
+  padding: 1.25rem 1.35rem 1.15rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.55);
+  transform: translateY(12px) scale(0.97);
+  opacity: 0.7;
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.confirm-modal.modal-open .confirm-dialog {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.confirm-dialog h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.confirm-message {
+  margin: 0.55rem 0 1.15rem;
+  color: var(--muted, #94a3b8);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.row-edit-dialog {
+  width: min(100%, 520px);
+}
+
+.row-edit-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 0.85rem;
+  margin-top: 0.85rem;
+}
+
+.row-edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--muted, #94a3b8);
+}
+
+.row-edit-form label.row-edit-full {
+  grid-column: 1 / -1;
+}
+
+.row-edit-form input,
+.row-edit-form select {
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.row-edit-section {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.row-edit-actions {
+  grid-column: 1 / -1;
+  margin-top: 0.25rem;
+}
+
+.row-actions-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.55rem;
+  white-space: nowrap;
+}
+
+.btn-text-danger {
+  color: var(--danger, #f87171);
+}
+
+.batch-rail-wrap {
+  flex-shrink: 0;
+  padding: 0.85rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 55%, var(--bg));
+}
+
+.batch-rail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
+.batch-rail-head h2 {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.batch-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.batch-card {
+  appearance: none;
+  text-align: left;
+  min-width: min(100%, 220px);
+  max-width: 320px;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.batch-card:hover {
+  border-color: color-mix(in srgb, var(--noon) 45%, var(--border));
+  background: color-mix(in srgb, var(--surface) 70%, var(--bg));
+}
+
+.batch-card.active {
+  border-color: color-mix(in srgb, var(--noon) 70%, var(--border));
+  background: color-mix(in srgb, var(--noon) 12%, var(--bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--noon) 35%, transparent);
+}
+
+.batch-card .name {
+  font-weight: 650;
+  font-size: 0.88rem;
+  word-break: break-all;
+  margin-bottom: 0.35rem;
+}
+
+.batch-card .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.batch-card .owner {
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.batch-rail-empty {
+  margin: 0.25rem 0 0;
+  padding: 0.5rem 0;
+}
+
+@media (max-width: 900px) {
+  .batch-card {
+    min-width: min(100%, 180px);
+    max-width: none;
+    flex: 1 1 180px;
+  }
+}
+
+

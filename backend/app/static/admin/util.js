@@ -181,22 +181,26 @@ window.AdminUtil = {
     const selected =
       attemptItems.find((a) => a.id === selectedAttemptId) || attemptItems[0] || null;
     const view = this.overlayRowWithAttempt(row, selected) || row;
-    const viewingLabel = selected
-      ? `Viewing Run #${selected.attempt_number}`
-      : "Viewing latest row";
-    const attemptsHtml = !attemptItems.length
-      ? `<p class="empty" style="padding:0.5rem 0">No run history yet</p>`
-      : attemptItems
-          .map((a) => {
-            const err =
-              a.login_error || a.redeem_error || a.purchase_error || a.message || "";
-            const active = selected && a.id === selected.id ? " active" : "";
-            return `<button type="button" class="run-item${active}" data-attempt-id="${this.escapeHtml(a.id)}"><div class="subject">Run #${a.attempt_number} · ${this.escapeHtml(a.outcome || a.status)}</div><div class="meta">${this.badge(a.login_status)} ${this.badge(a.redeem_status)} ${this.badge(a.purchase_status)} ${this.badge(a.status)} · ${this.escapeHtml(this.formatTime(a.created_at))} · ${this.escapeHtml(this.formatDuration(a.duration_ms))}</div>${err ? `<pre>${this.escapeHtml(err)}</pre>` : ""}${a.order_id ? `<div class="meta">Order ${this.escapeHtml(a.order_id)}</div>` : ""}</button>`;
-          })
-          .join("");
+    const runSelectHtml = !attemptItems.length
+      ? `<p class="empty" style="padding:0.35rem 0;margin:0">No runs yet for this row</p>`
+      : `<label class="run-picker">
+          <span class="muted">Run</span>
+          <select data-run-select>
+            ${attemptItems
+              .map((a) => {
+                const label = `Run #${a.attempt_number} · ${a.outcome || a.status} · ${this.formatTime(a.created_at)} · ${this.formatDuration(a.duration_ms)}`;
+                const sel = selected && a.id === selected.id ? " selected" : "";
+                return `<option value="${this.escapeHtml(a.id)}"${sel}>${this.escapeHtml(label)}</option>`;
+              })
+              .join("")}
+          </select>
+        </label>`;
     return `
+      <div class="detail-section run-picker-section">
+        <h3>Choose run</h3>
+        ${runSelectHtml}
+      </div>
       <div class="detail-section">
-        <p class="run-viewing muted">${this.escapeHtml(viewingLabel)}</p>
         <div class="stage-row">
           ${this.stageBadge("login", view.login_status)}
           ${this.stageBadge("redeem", view.redeem_status)}
@@ -225,11 +229,6 @@ window.AdminUtil = {
         ${this.kv("Value match", row.value_match == null ? "—" : row.value_match ? "yes" : "no")}
         ${this.kv("Order error", view.purchase_error)}
         ${selected && selected.message ? this.kv("Message", selected.message) : ""}
-      </div>
-      <div class="detail-section">
-        <h3>Run history</h3>
-        <p class="muted run-hint-small">Select a run to see its stages and errors</p>
-        ${attemptsHtml}
       </div>
       <div class="detail-section">
         <h3>Screenshots</h3>

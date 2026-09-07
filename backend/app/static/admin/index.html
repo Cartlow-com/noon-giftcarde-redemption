@@ -10,9 +10,11 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/assets/styles.css?v=20260907-super-admin" />
-    <link rel="stylesheet" href="/assets/detail.css?v=20260904-run-select" />
-    <link rel="stylesheet" href="/assets/controls.css?v=20260907-super-admin" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260907-ext-status" />
+    <link rel="stylesheet" href="/assets/sidebar.css?v=20260907-ext-status" />
+    <link rel="stylesheet" href="/assets/detail.css?v=20260907-run-select" />
+    <link rel="stylesheet" href="/assets/controls.css?v=20260907-edit-status" />
+    <link rel="stylesheet" href="/assets/profile.css?v=20260907-profile-menu" />
   </head>
   <body>
     <div class="shell">
@@ -22,129 +24,245 @@
           <span class="brand-sub">Automation</span>
         </div>
         <div class="topbar-meta">
-          <span id="health" class="pill pill-muted">Checking…</span>
-          <span id="ext-pill" class="pill pill-muted">Extension…</span>
-          <span id="session-email" class="pill pill-muted hidden"></span>
-          <span id="connect-pill" class="pill pill-muted hidden">Extension not connected</span>
-          <button type="button" id="btn-connect-ext" class="btn-secondary hidden" disabled>Connect extension</button>
+          <span id="health" class="hidden" aria-hidden="true"></span>
+          <span id="ext-status" class="pill pill-muted hidden">Extension…</span>
           <span id="run-pill" class="pill pill-muted">No active run</span>
-          <button type="button" id="btn-signout" class="btn-text hidden">Sign out</button>
           <button type="button" id="btn-refresh" class="btn-text">Refresh</button>
+          <div id="profile-menu" class="profile-menu hidden">
+            <button type="button" id="btn-profile" class="profile-btn" aria-haspopup="true" aria-expanded="false" aria-controls="profile-dropdown" title="Account">
+              <span id="profile-avatar" class="profile-avatar" aria-hidden="true">?</span>
+            </button>
+            <div id="profile-dropdown" class="profile-dropdown hidden" role="menu" aria-labelledby="btn-profile">
+              <div class="profile-dropdown-head">
+                <strong id="profile-email"></strong>
+                <span id="profile-role" class="muted"></span>
+              </div>
+              <p id="connect-pill" class="profile-ext-status" role="status">Extension not connected</p>
+              <button type="button" id="btn-connect-ext" class="profile-menu-item" role="menuitem" disabled>Connect extension</button>
+              <button type="button" id="btn-signout" class="profile-menu-item profile-menu-item-danger" role="menuitem">Sign out</button>
+            </div>
+          </div>
         </div>
       </header>
 
-      <section class="controls-bar">
-        <div class="controls-left">
-          <a class="btn-secondary" href="/batches/sample.csv" download>Download sample CSV</a>
-          <label class="btn-primary">
-            Upload CSV
-            <input id="file-upload" type="file" accept=".csv,text/csv" hidden />
-          </label>
-          <button type="button" id="btn-delete-batch" class="btn-danger" disabled>Delete batch</button>
-          <label id="owner-filter-wrap" class="owner-filter hidden">
-            <span class="muted">Owner</span>
-            <select id="owner-filter">
-              <option value="">All users</option>
-            </select>
-          </label>
-        </div>
-        <div class="controls-right">
-          <label class="check"><input id="opt-place-order" type="checkbox" /> Place order</label>
-          <label class="check"><input id="opt-hide-window" type="checkbox" /> Hide Noon window</label>
-          <label class="check"><input id="opt-redeem-email" type="checkbox" /> Redeem email</label>
-          <label class="check"><input id="opt-order-email" type="checkbox" /> Order email</label>
-          <button type="button" id="btn-run" class="btn-primary" disabled>Run selected</button>
-          <button type="button" id="btn-stop" class="btn-secondary" disabled>Stop</button>
-        </div>
-      </section>
-      <p id="run-hint" class="run-hint muted">
-        1) Sign in · 2) Click <strong>Connect extension</strong> (this Chrome only) · 3) Run selected.
-        Connecting sends your session into the extension so it can claim <em>your</em> jobs and open Noon on this PC.
-      </p>
+      <div class="app-body">
+        <nav id="app-sidebar" class="app-sidebar" aria-label="Main">
+          <button type="button" class="nav-item active" id="nav-batches" data-view="batches">Batches</button>
+          <button type="button" class="nav-item hidden" id="nav-users" data-view="users">Users</button>
+        </nav>
 
-      <main class="layout">
-        <aside class="panel batches-panel">
-          <div class="panel-head">
-            <h1>Batches</h1>
-            <span id="batch-count" class="muted"></span>
-          </div>
-          <div id="batch-list" class="batch-list"></div>
-          <p id="batch-empty" class="empty hidden">No batches yet</p>
-        </aside>
-
-        <aside id="users-panel" class="panel users-panel hidden">
-          <div class="panel-head">
-            <h1>Users</h1>
-            <span id="users-count" class="muted"></span>
-          </div>
-          <form id="users-create-form" class="users-form">
-            <input id="users-email" type="email" placeholder="Email" required />
-            <input id="users-password" type="password" placeholder="Password" minlength="6" required />
-            <select id="users-role">
-              <option value="user">user</option>
-              <option value="super_admin">super_admin</option>
-            </select>
-            <button type="submit" class="btn-primary">Add user</button>
-          </form>
-          <div id="users-list" class="users-list"></div>
-          <p id="users-empty" class="empty hidden">No users</p>
-        </aside>
-
-        <section class="panel rows-panel">
-          <div class="panel-head">
-            <div>
-              <h2 id="rows-title">Select a batch</h2>
-              <p id="rows-sub" class="muted"></p>
+        <div class="app-main">
+          <section id="view-batches" class="view-page">
+            <div class="user-data-dialog">
+            <div id="user-data-modal-bar" class="user-data-modal-bar hidden">
+              <div>
+                <p class="muted">User data</p>
+                <h2 id="user-data-modal-title">Batches</h2>
+              </div>
+              <button type="button" id="btn-close-user-data" class="btn-secondary">Close</button>
             </div>
-            <div class="filters" id="status-filters" hidden>
-              <button type="button" data-status="" class="chip active">All</button>
-              <button type="button" data-status="pending" class="chip">Pending</button>
-              <button type="button" data-status="in_progress" class="chip">In progress</button>
-              <button type="button" data-status="completed" class="chip">Completed</button>
-              <button type="button" data-status="partial" class="chip">Partial</button>
-              <button type="button" data-status="failed" class="chip">Failed</button>
-            </div>
-          </div>
-          <div class="row-actions" id="row-actions" hidden>
-            <button type="button" id="btn-select-all" class="btn-text">Select all</button>
-            <button type="button" id="btn-clear-sel" class="btn-text">Clear</button>
-            <span id="sel-count" class="muted">0 selected</span>
-            <span id="expected-label" class="muted"></span>
-          </div>
-          <div class="table-wrap">
-            <table id="rows-table" class="data-table">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>#</th>
-                  <th>Email</th>
-                  <th>Login</th>
-                  <th>Redeem</th>
-                  <th>Order</th>
-                  <th>Status</th>
-                  <th>Time</th>
-                  <th>Expected</th>
-                </tr>
-              </thead>
-              <tbody id="rows-body"></tbody>
-            </table>
-            <p id="rows-empty" class="empty">Pick a batch to inspect rows</p>
-          </div>
-        </section>
+            <section class="controls-bar">
+              <div class="controls-left">
+                <a class="btn-secondary" href="/batches/sample.csv" download>Download sample CSV</a>
+                <label class="btn-primary">
+                  Upload CSV
+                  <input id="file-upload" type="file" accept=".csv,text/csv" hidden />
+                </label>
+                <button type="button" id="btn-delete-batch" class="btn-danger" disabled>Delete batch</button>
+              </div>
+              <div class="controls-right">
+                <label class="check"><input id="opt-place-order" type="checkbox" /> Place order</label>
+                <label class="check"><input id="opt-hide-window" type="checkbox" /> Hide Noon window</label>
+                <label class="check"><input id="opt-redeem-email" type="checkbox" /> Redeem email</label>
+                <label class="check"><input id="opt-order-email" type="checkbox" /> Order email</label>
+                <button type="button" id="btn-run" class="btn-primary" disabled>Run selected</button>
+                <button type="button" id="btn-stop" class="btn-secondary" disabled>Stop</button>
+              </div>
+            </section>
+            <p id="run-hint" class="run-hint muted">
+              1) Sign in · 2) Click <strong>Connect extension</strong> (this Chrome only) · 3) Run selected.
+            </p>
 
-        <aside class="panel detail-panel" id="detail-panel">
-          <div class="panel-head">
-            <h2 id="detail-title">Row detail</h2>
-          </div>
-          <div id="detail-body" class="detail-body">
-            <p class="empty">Select a row</p>
-          </div>
-        </aside>
-      </main>
+            <main class="layout">
+              <section class="panel rows-panel">
+                <div class="batch-rail-wrap">
+                  <div class="batch-rail-head">
+                    <h2>Uploaded batches</h2>
+                    <span id="batch-count" class="muted"></span>
+                  </div>
+                  <div id="batch-list" class="batch-rail" role="listbox" aria-label="Uploaded batches"></div>
+                  <p id="batch-empty" class="empty batch-rail-empty hidden">No batches yet — upload a CSV</p>
+                </div>
+                <div class="panel-head">
+                  <div class="batch-head">
+                    <h2 id="rows-title">Select a batch</h2>
+                    <p id="rows-sub" class="muted"></p>
+                  </div>
+                  <div class="filters" id="status-filters" hidden>
+                    <button type="button" data-status="" class="chip active">All</button>
+                    <button type="button" data-status="pending" class="chip">Pending</button>
+                    <button type="button" data-status="in_progress" class="chip">In progress</button>
+                    <button type="button" data-status="completed" class="chip">Completed</button>
+                    <button type="button" data-status="partial" class="chip">Partial</button>
+                    <button type="button" data-status="failed" class="chip">Failed</button>
+                  </div>
+                </div>
+                <div class="row-actions" id="row-actions" hidden>
+                  <button type="button" id="btn-select-all" class="btn-text">Select all</button>
+                  <button type="button" id="btn-clear-sel" class="btn-text">Clear</button>
+                  <span id="sel-count" class="muted">0 selected</span>
+                  <span id="expected-label" class="muted"></span>
+                </div>
+                <div class="table-wrap">
+                  <table id="rows-table" class="data-table">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>#</th>
+                        <th>Email</th>
+                        <th>Login</th>
+                        <th>Redeem</th>
+                        <th>Order</th>
+                        <th>Status</th>
+                        <th>Time</th>
+                        <th>Expected</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="rows-body"></tbody>
+                  </table>
+                  <p id="rows-empty" class="empty">Upload a CSV to get started</p>
+                </div>
+              </section>
+            </main>
+            </div>
+          </section>
+
+          <section id="view-users" class="view-page hidden">
+            <div class="users-page">
+              <header class="users-page-head">
+                <div>
+                  <h1>User management</h1>
+                  <p class="muted">Create accounts, reset passwords, or open a user’s processed batches.</p>
+                </div>
+                <span id="users-count" class="muted"></span>
+              </header>
+              <form id="users-create-form" class="users-form users-form-wide">
+                <input id="users-email" type="email" placeholder="Email" required />
+                <input id="users-password" type="password" placeholder="Password" minlength="6" required />
+                <select id="users-role">
+                  <option value="user">user</option>
+                  <option value="super_admin">super_admin</option>
+                </select>
+                <button type="submit" class="btn-primary">Add user</button>
+              </form>
+              <div class="users-table-wrap">
+                <table class="data-table users-table">
+                  <thead>
+                    <tr>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="users-list"></tbody>
+                </table>
+                <p id="users-empty" class="empty hidden">No users</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
 
       <p id="global-error" class="toast error hidden"></p>
       <p id="global-ok" class="toast ok hidden"></p>
     </div>
+
+    <div id="row-runs-modal" class="row-runs-modal hidden" aria-hidden="true">
+      <div class="row-runs-dialog" role="dialog" aria-modal="true" aria-labelledby="row-runs-title">
+        <header class="row-runs-bar">
+          <div>
+            <p class="muted">Run history</p>
+            <h2 id="row-runs-title">Row runs</h2>
+          </div>
+          <button type="button" id="btn-close-row-runs" class="btn-secondary">Close</button>
+        </header>
+        <div id="row-runs-body" class="row-runs-body">
+          <p class="empty">Select a row</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="confirm-modal" class="confirm-modal hidden" aria-hidden="true">
+      <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <h2 id="confirm-title">Sign out?</h2>
+        <p id="confirm-message" class="confirm-message">You will need to sign in again to use the dashboard.</p>
+        <div class="confirm-actions">
+          <button type="button" id="confirm-cancel" class="btn-secondary">Cancel</button>
+          <button type="button" id="confirm-ok" class="btn-primary">Sign out</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="row-edit-modal" class="confirm-modal hidden" aria-hidden="true">
+      <div class="confirm-dialog row-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="row-edit-title">
+        <h2 id="row-edit-title">Edit row</h2>
+        <form id="row-edit-form" class="row-edit-form">
+          <label>
+            <span>Email</span>
+            <input id="row-edit-email" name="email" type="email" required autocomplete="off" />
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="row-edit-password" name="password" type="text" autocomplete="off" />
+          </label>
+          <label>
+            <span>Gift card</span>
+            <input id="row-edit-gift-card" name="gift_card_number" type="text" required autocomplete="off" />
+          </label>
+          <label>
+            <span>PIN</span>
+            <input id="row-edit-pin" name="gift_card_pin" type="text" autocomplete="off" />
+          </label>
+          <label class="row-edit-full">
+            <span>Product URL</span>
+            <input id="row-edit-product-url" name="product_url" type="url" required autocomplete="off" />
+          </label>
+          <label>
+            <span>Qty</span>
+            <input id="row-edit-quantity" name="quantity" type="number" min="1" step="1" required />
+          </label>
+          <label>
+            <span>Face value</span>
+            <input id="row-edit-face-value" name="face_value" type="number" min="0" step="0.01" />
+          </label>
+          <p class="row-edit-full row-edit-section muted">Statuses</p>
+          <label>
+            <span>Login</span>
+            <select id="row-edit-login-status" name="login_status"></select>
+          </label>
+          <label>
+            <span>Redeem</span>
+            <select id="row-edit-redeem-status" name="redeem_status"></select>
+          </label>
+          <label>
+            <span>Order</span>
+            <select id="row-edit-purchase-status" name="purchase_status"></select>
+          </label>
+          <label>
+            <span>Overall</span>
+            <select id="row-edit-status" name="status"></select>
+          </label>
+          <p id="row-edit-error" class="auth-error hidden" role="alert"></p>
+          <div class="confirm-actions row-edit-actions">
+            <button type="button" id="row-edit-cancel" class="btn-secondary">Cancel</button>
+            <button type="submit" id="row-edit-save" class="btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div id="auth-overlay" class="auth-overlay">
       <section class="auth-panel" aria-labelledby="auth-title">
         <p class="auth-kicker">Noon Automation</p>
@@ -164,13 +282,18 @@
         <p id="auth-error" class="auth-error hidden" role="alert"></p>
       </section>
     </div>
-    <script src="/assets/util.js?v=20260904-attempt-shots"></script>
+    <script src="/assets/util.js?v=20260907-run-select"></script>
+    <script src="/assets/confirm-modal.js?v=20260907-row-edit"></script>
     <script src="/assets/auth-extension.js?v=20260907-super-admin"></script>
-    <script src="/assets/auth.js?v=20260907-super-admin"></script>
-    <script src="/assets/users.js?v=20260907-super-admin"></script>
+    <script src="/assets/auth.js?v=20260907-ext-status"></script>
+    <script src="/assets/nav.js?v=20260907-confirm-modal"></script>
+    <script src="/assets/users.js?v=20260907-sidebar"></script>
+    <script src="/assets/row-modal.js?v=20260907-run-select"></script>
+    <script src="/assets/detail-panel.js?v=20260907-run-select"></script>
+    <script src="/assets/row-edit.js?v=20260907-edit-status"></script>
     <script src="/assets/sse.js?v=20260907-super-admin"></script>
-    <script src="/assets/app.js?v=20260907-super-admin"></script>
-    <script src="/assets/snapshot.js?v=20260904-sse-delta"></script>
-    <script src="/assets/controls.js?v=20260904-run-select"></script>
+    <script src="/assets/app.js?v=20260907-batch-rail"></script>
+    <script src="/assets/snapshot.js?v=20260907-user-simple"></script>
+    <script src="/assets/controls.js?v=20260907-row-edit"></script>
   </body>
 </html>

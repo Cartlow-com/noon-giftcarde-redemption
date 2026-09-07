@@ -9,10 +9,16 @@
     email: document.getElementById("login-email"),
     password: document.getElementById("login-password"),
     error: document.getElementById("auth-error"),
-    sessionEmail: document.getElementById("session-email"),
+    profileMenu: document.getElementById("profile-menu"),
+    profileBtn: document.getElementById("btn-profile"),
+    profileDropdown: document.getElementById("profile-dropdown"),
+    profileAvatar: document.getElementById("profile-avatar"),
+    profileEmail: document.getElementById("profile-email"),
+    profileRole: document.getElementById("profile-role"),
     signout: document.getElementById("btn-signout"),
     connect: document.getElementById("btn-connect-ext"),
     connectPill: document.getElementById("connect-pill"),
+    extStatus: document.getElementById("ext-status"),
   };
 
   const state = {
@@ -44,49 +50,56 @@
   function setConnectStatus(kind, label) {
     state.extensionConnected = kind === "connected";
     if (el.connectPill) {
-      el.connectPill.textContent = label;
-      el.connectPill.className = `pill ${
-        kind === "connected" ? "pill-ok" : kind === "missing" ? "pill-bad" : "pill-muted"
+      el.connectPill.textContent =
+        kind === "connected" ? "Extension connected" : label;
+      el.connectPill.className = `profile-ext-status ${
+        kind === "connected" ? "is-ok" : kind === "missing" ? "is-bad" : "is-muted"
       }`;
-      el.connectPill.classList.toggle("hidden", !state.email);
+    }
+    if (el.extStatus) {
+      const showTop =
+        !!state.email && state.role !== "super_admin" && kind === "connected";
+      el.extStatus.classList.toggle("hidden", !showTop);
+      if (showTop) {
+        el.extStatus.textContent = "Extension connected";
+        el.extStatus.className = "pill pill-ok";
+      }
     }
     if (el.connect) {
-      const show = !!state.email;
+      const show =
+        !!state.email && state.role !== "super_admin" && kind !== "connected";
       el.connect.classList.toggle("hidden", !show);
       el.connect.disabled = !show || kind === "connecting";
       el.connect.textContent =
-        kind === "connected" ? "Reconnect extension" : "Connect extension";
+        kind === "connecting" ? "Connecting…" : "Connect extension";
     }
+  }
+
+  function setProfileOpen(open) {
+    if (!el.profileDropdown || !el.profileBtn) return;
+    el.profileDropdown.classList.toggle("hidden", !open);
+    el.profileBtn.setAttribute("aria-expanded", open ? "true" : "false");
   }
 
   function renderSession(email, role) {
     state.email = email || "";
     state.role = role || "user";
-    if (el.sessionEmail) {
-      if (state.email) {
-        const roleLabel = state.role === "super_admin" ? " · super admin" : "";
-        el.sessionEmail.textContent = `${state.email}${roleLabel}`;
-        el.sessionEmail.classList.remove("hidden");
-      } else {
-        el.sessionEmail.textContent = "";
-        el.sessionEmail.classList.add("hidden");
-      }
+    document.body.classList.toggle("is-super-admin", state.role === "super_admin");
+    if (el.profileMenu) el.profileMenu.classList.toggle("hidden", !state.email);
+    if (el.profileEmail) el.profileEmail.textContent = state.email || "";
+    if (el.profileRole) {
+      el.profileRole.textContent = state.role === "super_admin" ? "Super admin" : "User";
     }
-    if (el.signout) {
-      el.signout.classList.toggle("hidden", !state.email);
+    if (el.profileAvatar) {
+      el.profileAvatar.textContent = state.email ? state.email.charAt(0).toUpperCase() : "?";
     }
     if (!state.email) {
+      setProfileOpen(false);
       setConnectStatus("idle", "Extension not connected");
-      if (el.connect) el.connect.classList.add("hidden");
-      if (el.connectPill) el.connectPill.classList.add("hidden");
     }
-    if (window.AdminUsers && typeof window.AdminUsers.setVisible === "function") {
-      window.AdminUsers.setVisible(state.role === "super_admin");
+    if (window.AdminNav && typeof window.AdminNav.setSuperAdminNav === "function") {
+      window.AdminNav.setSuperAdminNav(state.role === "super_admin");
     }
-    document.querySelector(".layout")?.classList.toggle(
-      "super-admin",
-      state.role === "super_admin",
-    );
   }
 
   function emitAuthChange(authenticated, email, role) {
@@ -247,13 +260,41 @@
         }
       });
     }
+    if (el.profileBtn) {
+      el.profileBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const open = el.profileDropdown?.classList.contains("hidden");
+        setProfileOpen(!!open);
+      });
+    }
+    document.addEventListener("click", (event) => {
+      if (!el.profileMenu || el.profileMenu.classList.contains("hidden")) return;
+      if (el.profileMenu.contains(event.target)) return;
+      setProfileOpen(false);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      setProfileOpen(false);
+    });
     if (el.signout) {
       el.signout.addEventListener("click", async () => {
+        setProfileOpen(false);
+        const ask = window.AdminConfirm?.ask;
+        const ok = ask
+          ? await ask({
+              title: "Sign out?",
+              message: "You will need to sign in again to use the dashboard.",
+              okLabel: "Sign out",
+            })
+          : false;
+        if (!ok) return;
         await signOut();
       });
     }
     if (el.connect) {
       el.connect.addEventListener("click", async () => {
+        if (state.extensionConnected) return;
+        setProfileOpen(false);
         await connectExtension();
       });
     }

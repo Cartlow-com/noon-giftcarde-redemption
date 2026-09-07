@@ -21,6 +21,7 @@ from app.modules.batches.models.response_models import (
 )
 from app.modules.batches.services.create_batch import create_batch_from_csv
 from app.modules.batches.services.delete_batch import delete_batch
+from app.modules.batches.services.delete_row import delete_batch_row
 from app.modules.batches.services.get_batch import get_batch_detail
 from app.modules.batches.services.get_batch_rows import list_batch_rows
 from app.modules.batches.services.get_batches import list_batches
@@ -106,6 +107,11 @@ def patch_row(
 ) -> BatchRowResponse:
     owner_id = resolve_owner_user_id(user_id, db)
     return update_batch_row(row_id, payload, db, user_id=owner_id)
+
+
+def remove_row(row_id: str, db: Session, user_id: str | None = None) -> None:
+    owner_id = resolve_owner_user_id(user_id, db)
+    delete_batch_row(row_id, db, user_id=owner_id)
 
 
 def remove_batch(batch_id: str, db: Session, user_id: str | None = None) -> None:

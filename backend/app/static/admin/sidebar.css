@@ -1,0 +1,313 @@
+.app-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.app-sidebar {
+  width: 180px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 0.65rem;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, black);
+}
+
+.nav-item {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nav-item:hover { background: color-mix(in srgb, var(--surface) 90%, white 8%); }
+.nav-item.active {
+  background: color-mix(in srgb, var(--noon) 18%, var(--surface));
+  border-color: color-mix(in srgb, var(--noon) 45%, var(--border));
+  color: #fff8b0;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.view-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.viewing-user-banner {
+  display: none;
+}
+
+.users-page {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem 1.25rem 1.5rem;
+}
+
+.users-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.users-page-head h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.15rem;
+}
+
+.users-form-wide {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) minmax(140px, 1fr) 140px auto;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+}
+
+.users-form-wide input,
+.users-form-wide select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+}
+
+.users-table-wrap { overflow: auto; }
+
+.users-table .linkish {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--info);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.users-table .linkish:hover { text-decoration: underline; }
+
+.users-actions-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+}
+
+/* Super-admin: read-only oversight chrome (no run/extension ops) */
+body.is-super-admin #health,
+body.is-super-admin #ext-status,
+body.is-super-admin #connect-pill,
+body.is-super-admin #btn-connect-ext,
+body.is-super-admin #run-pill,
+body.is-super-admin .controls-right,
+body.is-super-admin #run-hint,
+body.is-super-admin .controls-left,
+body.is-super-admin .controls-bar,
+body.is-super-admin #nav-batches {
+  display: none !important;
+}
+
+/* Regular users: single Batches view — hide nav chrome */
+body:not(.is-super-admin) #app-sidebar {
+  display: none;
+}
+
+body.is-super-admin #view-batches.modal-open .layout,
+body.is-super-admin .layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Overlay shell — keep in DOM so open/close can animate */
+body.is-super-admin #view-batches,
+body.is-super-admin #view-batches.hidden {
+  display: flex !important;
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 1.25rem;
+  background: rgba(2, 6, 23, 0);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.28s ease,
+    visibility 0.28s ease,
+    background-color 0.28s ease;
+}
+
+body.is-super-admin #view-batches.modal-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  background: rgba(2, 6, 23, 0.58);
+}
+
+body.is-super-admin #view-batches .user-data-dialog {
+  width: min(80vw, 1400px);
+  height: 80vh;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  transform: translateY(18px) scale(0.97);
+  opacity: 0.6;
+  transition:
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+body.is-super-admin #view-batches.modal-open .user-data-dialog {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+body.is-super-admin #view-batches .user-data-dialog .layout {
+  flex: 1;
+  min-height: 0;
+}
+
+.user-data-dialog {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.user-data-modal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, black);
+  flex-shrink: 0;
+}
+
+.user-data-modal-bar h2 {
+  margin: 0.1rem 0 0;
+  font-size: 1.05rem;
+}
+
+.row-runs-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(2, 6, 23, 0);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.28s ease,
+    visibility 0.28s ease,
+    background-color 0.28s ease;
+}
+
+.row-runs-modal.hidden {
+  display: flex !important;
+}
+
+.row-runs-modal.modal-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  background: rgba(2, 6, 23, 0.62);
+}
+
+.row-runs-dialog {
+  width: min(80vw, 900px);
+  height: 80vh;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  transform: translateY(18px) scale(0.97);
+  opacity: 0.6;
+  transition:
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.row-runs-modal.modal-open .row-runs-dialog {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.row-runs-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, black);
+  flex-shrink: 0;
+}
+
+.row-runs-bar h2 {
+  margin: 0.1rem 0 0;
+  font-size: 1.05rem;
+}
+
+.row-runs-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .users-form-wide { grid-template-columns: 1fr; }
+  .app-sidebar { width: 140px; }
+  body.is-super-admin #view-batches .user-data-dialog {
+    width: 92vw;
+    height: 88vh;
+    max-height: 88vh;
+  }
+  .row-runs-dialog {
+    width: 92vw;
+    height: 88vh;
+    max-height: 88vh;
+  }
+}

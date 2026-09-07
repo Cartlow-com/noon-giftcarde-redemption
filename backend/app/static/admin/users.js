@@ -1,12 +1,8 @@
 (() => {
   const U = window.AdminUtil;
-  const state = {
-    users: [],
-    visible: false,
-  };
+  const state = { users: [] };
 
   const el = {
-    panel: document.getElementById("users-panel"),
     list: document.getElementById("users-list"),
     empty: document.getElementById("users-empty"),
     form: document.getElementById("users-create-form"),
@@ -14,51 +10,7 @@
     password: document.getElementById("users-password"),
     role: document.getElementById("users-role"),
     count: document.getElementById("users-count"),
-    ownerFilterWrap: document.getElementById("owner-filter-wrap"),
-    ownerFilter: document.getElementById("owner-filter"),
   };
-
-  async function reloadOwnerFilter() {
-    const adminState = window.AdminState;
-    if (!el.ownerFilterWrap || !el.ownerFilter || !adminState) return;
-    const isAdmin = window.AdminAuth && window.AdminAuth.isSuperAdmin();
-    el.ownerFilterWrap.classList.toggle("hidden", !isAdmin);
-    if (!isAdmin) {
-      adminState.ownerFilter = "";
-      if (window.AdminSSE && typeof window.AdminSSE.setFilterUserId === "function") {
-        window.AdminSSE.setFilterUserId(null);
-      }
-      return;
-    }
-    try {
-      const data = await U.api("/users?limit=200");
-      const users = data.users || [];
-      const current = adminState.ownerFilter;
-      el.ownerFilter.innerHTML =
-        `<option value="">All users</option>` +
-        users
-          .map(
-            (u) =>
-              `<option value="${U.escapeHtml(u.id)}">${U.escapeHtml(u.email)}</option>`,
-          )
-          .join("");
-      el.ownerFilter.value = users.some((u) => u.id === current) ? current : "";
-      adminState.ownerFilter = el.ownerFilter.value;
-    } catch (_) {
-      /* ignore */
-    }
-  }
-
-  function setVisible(visible) {
-    state.visible = !!visible;
-    if (el.panel) el.panel.classList.toggle("hidden", !state.visible);
-    if (state.visible) {
-      loadUsers();
-      reloadOwnerFilter();
-    } else if (el.ownerFilterWrap) {
-      el.ownerFilterWrap.classList.add("hidden");
-    }
-  }
 
   function showMsg(ok, message) {
     if (ok && window.AdminUI && window.AdminUI.showOk) window.AdminUI.showOk(message);
@@ -77,24 +29,26 @@
     el.list.innerHTML = state.users
       .map((user) => {
         const active = user.is_active;
-        return `<div class="user-item" data-user-id="${U.escapeHtml(user.id)}">
-          <div class="user-main">
-            <div class="name">${U.escapeHtml(user.email)}</div>
-            <div class="counts">${U.badge(user.role)}${U.badge(active ? "active" : "inactive")}</div>
-          </div>
-          <div class="user-actions">
+        return `<tr data-user-id="${U.escapeHtml(user.id)}">
+          <td>
+            <button type="button" class="linkish" data-open-user="${U.escapeHtml(user.id)}" data-email="${U.escapeHtml(user.email)}">${U.escapeHtml(user.email)}</button>
+          </td>
+          <td>${U.badge(user.role)}</td>
+          <td>${U.badge(active ? "active" : "inactive")}</td>
+          <td class="users-actions-cell">
+            <button type="button" class="btn-text" data-open-user="${U.escapeHtml(user.id)}" data-email="${U.escapeHtml(user.email)}">View data</button>
             <button type="button" class="btn-text" data-reset="${U.escapeHtml(user.id)}">Reset password</button>
             <button type="button" class="btn-text" data-toggle="${U.escapeHtml(user.id)}" data-active="${active ? "1" : "0"}">${
               active ? "Deactivate" : "Activate"
             }</button>
-          </div>
-        </div>`;
+          </td>
+        </tr>`;
       })
       .join("");
   }
 
   async function loadUsers() {
-    if (!state.visible) return;
+    if (!(window.AdminAuth && window.AdminAuth.isSuperAdmin())) return;
     try {
       const data = await U.api("/users?limit=200");
       state.users = data.users || [];
@@ -121,7 +75,6 @@
       if (el.role) el.role.value = "user";
       showMsg(true, "User created");
       await loadUsers();
-      await reloadOwnerFilter();
     } catch (err) {
       showMsg(false, err.message);
     }
@@ -164,6 +117,13 @@
   if (el.form) el.form.addEventListener("submit", createUser);
   if (el.list) {
     el.list.addEventListener("click", (event) => {
+      const openBtn = event.target.closest("[data-open-user]");
+      if (openBtn) {
+        const id = openBtn.getAttribute("data-open-user");
+        const email = openBtn.getAttribute("data-email") || "";
+        if (window.AdminNav) window.AdminNav.openUserBatches(id, email);
+        return;
+      }
       const resetBtn = event.target.closest("[data-reset]");
       if (resetBtn) {
         resetPassword(resetBtn.getAttribute("data-reset"));
@@ -178,28 +138,19 @@
       }
     });
   }
-  if (el.ownerFilter) {
-    el.ownerFilter.addEventListener("change", async () => {
-      if (!window.AdminState) return;
-      window.AdminState.ownerFilter = el.ownerFilter.value || "";
-      if (window.AdminSSE && typeof window.AdminSSE.setFilterUserId === "function") {
-        window.AdminSSE.setFilterUserId(window.AdminState.ownerFilter || null);
-      }
-      if (window.AdminUI && typeof window.AdminUI.loadBatches === "function") {
-        await window.AdminUI.loadBatches({ keepSelection: false });
-      }
-    });
-  }
-  window.addEventListener("noon-auth-changed", async (event) => {
+
+  window.addEventListener("noon-auth-changed", (event) => {
     const detail = event.detail || {};
-    if (!detail.authenticated) {
-      setVisible(false);
-      if (window.AdminState) window.AdminState.ownerFilter = "";
-      return;
-    }
-    setVisible(detail.role === "super_admin");
-    if (detail.role === "super_admin") await reloadOwnerFilter();
+    if (detail.authenticated && detail.role === "super_admin") loadUsers();
   });
+
+  // Compat stubs — nav owns visibility now
+  function setVisible(visible) {
+    if (window.AdminNav) window.AdminNav.setSuperAdminNav(!!visible);
+  }
+  function reloadOwnerFilter() {
+    if (window.AdminNav) window.AdminNav.updateUserBanner();
+  }
 
   window.AdminUsers = { setVisible, loadUsers, reloadOwnerFilter };
 })();

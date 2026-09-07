@@ -6,7 +6,7 @@ def test_seeded_super_admin_role(client) -> None:
     me = client.get("/login/me", headers=headers)
     assert me.status_code == 200
     body = me.json()
-    assert body["email"] == "cartlow@admin.com"
+    assert body["email"] == "admin@innovidio.com"
     assert body["role"] == "super_admin"
 
 
@@ -57,8 +57,8 @@ def test_super_admin_user_crud(client) -> None:
 def test_cannot_deactivate_last_super_admin(client) -> None:
     headers = login_super_admin(client)
     users = client.get("/users", headers=headers).json()["users"]
-    cartlow = next(u for u in users if u["email"] == "cartlow@admin.com")
-    blocked = client.delete(f"/users/{cartlow['id']}", headers=headers)
+    admin = next(u for u in users if u["email"] == "admin@innovidio.com")
+    blocked = client.delete(f"/users/{admin['id']}", headers=headers)
     assert blocked.status_code == 400
 
 

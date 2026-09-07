@@ -103,6 +103,32 @@
   font-size: 0.75rem;
 }
 
+.run-picker-section {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--bg) 92%, var(--surface));
+  padding-top: 0.25rem;
+  margin-top: 0;
+}
+
+.run-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.run-picker select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
 .run-hint-small {
   font-size: 0.7rem;
   margin: 0 0 0.5rem;

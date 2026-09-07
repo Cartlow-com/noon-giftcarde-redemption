@@ -1,0 +1,117 @@
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.profile-menu {
+  position: relative;
+}
+
+.profile-btn {
+  appearance: none;
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--noon) 18%, var(--surface));
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.profile-btn:hover {
+  border-color: color-mix(in srgb, var(--noon) 55%, var(--border));
+}
+
+.profile-avatar {
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.profile-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.45rem);
+  z-index: 50;
+  width: min(280px, calc(100vw - 1.5rem));
+  padding: 0.7rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.profile-dropdown.hidden {
+  display: none;
+}
+
+.profile-dropdown-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.25rem 0.35rem 0.55rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.2rem;
+}
+
+.profile-dropdown-head strong {
+  font-size: 0.86rem;
+  word-break: break-all;
+}
+
+.profile-ext-status {
+  margin: 0;
+  padding: 0.4rem 0.45rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+
+.profile-ext-status.is-ok { color: var(--ok); }
+.profile-ext-status.is-bad { color: var(--danger); }
+.profile-ext-status.is-muted { color: var(--muted); }
+
+.profile-menu-item {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  padding: 0.55rem 0.55rem;
+  cursor: pointer;
+}
+
+.profile-menu-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface) 85%, white 6%);
+}
+
+.profile-menu-item:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.profile-menu-item-danger {
+  color: #fca5a5;
+}
+
+.profile-menu-item.hidden {
+  display: none;
+}

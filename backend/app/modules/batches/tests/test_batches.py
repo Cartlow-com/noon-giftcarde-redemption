@@ -263,3 +263,71 @@ def test_get_screenshot_served_and_missing(client, tmp_path, monkeypatch) -> Non
     assert served.status_code == 200
     assert served.headers["content-type"].startswith("image/png")
     assert served.content == png_bytes
+
+
+def test_edit_and_delete_row(client) -> None:
+    headers = login(client)
+    upload = _upload_csv(client, headers, SAMPLE_CSV)
+    batch_id = upload.json()["batch"]["id"]
+    rows = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"]
+    row_id = rows[0]["id"]
+
+    patched = client.patch(
+        f"/batches/rows/{row_id}",
+        headers=headers,
+        json={
+            "email": "edited@example.com",
+            "password": "new-secret",
+            "gift_card_number": "1100 9999 8888 7777",
+            "gift_card_pin": "9999",
+            "product_url": "https://www.noon.com/uae-en/product/N111/p/",
+            "quantity": 3,
+            "face_value": 75,
+        },
+    )
+    assert patched.status_code == 200
+    body = patched.json()
+    assert body["email"] == "edited@example.com"
+    assert body["gift_card_number"] == "1100 9999 8888 7777"
+    assert body["quantity"] == 3
+    assert body["face_value"] == 75
+    assert "password" not in body
+
+    work = client.get(f"/batches/rows/{row_id}", headers=headers)
+    assert work.status_code == 200
+    assert work.json()["password"] == "new-secret"
+    assert work.json()["gift_card_pin"] == "9999"
+
+    keep_pw = client.patch(
+        f"/batches/rows/{row_id}",
+        headers=headers,
+        json={"email": "edited2@example.com", "password": ""},
+    )
+    assert keep_pw.status_code == 200
+    assert keep_pw.json()["email"] == "edited2@example.com"
+    assert client.get(f"/batches/rows/{row_id}", headers=headers).json()["password"] == "new-secret"
+
+    statuses = client.patch(
+        f"/batches/rows/{row_id}",
+        headers=headers,
+        json={
+            "login_status": "success",
+            "redeem_status": "already_redeemed",
+            "purchase_status": "skipped",
+            "status": "partial",
+        },
+    )
+    assert statuses.status_code == 200
+    assert statuses.json()["login_status"] == "success"
+    assert statuses.json()["redeem_status"] == "already_redeemed"
+    assert statuses.json()["purchase_status"] == "skipped"
+    assert statuses.json()["status"] == "partial"
+
+    deleted = client.delete(f"/batches/rows/{row_id}", headers=headers)
+    assert deleted.status_code == 204
+    listing = client.get(f"/batches/{batch_id}/rows", headers=headers)
+    assert listing.status_code == 200
+    assert listing.json()["total"] == 1
+    detail = client.get(f"/batches/{batch_id}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.json()["total_rows"] == 1

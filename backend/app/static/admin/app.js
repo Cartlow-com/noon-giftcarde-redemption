@@ -11,6 +11,7 @@
     selectedIds: new Set(),
     statusFilter: "",
     ownerFilter: "",
+    ownerFilterEmail: "",
     detailToken: 0,
     loading: false,
     expectedRowSeconds: 180,
@@ -20,7 +21,6 @@
 
   const el = {
     health: document.getElementById("health"),
-    extPill: document.getElementById("ext-pill"),
     runPill: document.getElementById("run-pill"),
     refresh: document.getElementById("btn-refresh"),
     batchList: document.getElementById("batch-list"),
@@ -34,8 +34,6 @@
     rowActions: document.getElementById("row-actions"),
     selCount: document.getElementById("sel-count"),
     expectedLabel: document.getElementById("expected-label"),
-    detailTitle: document.getElementById("detail-title"),
-    detailBody: document.getElementById("detail-body"),
     error: document.getElementById("global-error"),
     ok: document.getElementById("global-ok"),
     btnRun: document.getElementById("btn-run"),
@@ -46,7 +44,11 @@
   window.AdminState = state;
   window.AdminUI = {
     showError, showOk, clearError, loadBatches, loadRows, renderBatches,
-    renderRows, renderDetail, updateActionButtons, setActiveRun,
+    renderRows,
+    renderDetail(...args) {
+      if (window.AdminDetail) return window.AdminDetail.renderDetail(...args);
+    },
+    updateActionButtons, setActiveRun,
     setExtensionOnline, checkHealth, checkExtension,
   };
 
@@ -67,24 +69,12 @@
 
   function setExtensionOnline(online) {
     state.extensionOnline = !!online;
-    if (el.extPill) {
-      el.extPill.textContent = online ? "Extension online" : "Extension offline";
-      el.extPill.className = `pill ${online ? "pill-ok" : "pill-bad"}`;
-      el.extPill.title = online
-        ? "Extension heartbeat received"
-        : "Open Chrome with Noon Automation loaded (reload extension after rebuild)";
-    }
     updateActionButtons();
   }
   function setActiveRun(run) {
     state.activeRun = run;
-    if (!run) {
-      el.runPill.textContent = "No active run";
-      el.runPill.className = "pill pill-muted";
-    } else {
-      el.runPill.textContent = `${run.status}: ${run.row_ids?.length || 0} rows`;
-      el.runPill.className = run.stop_requested ? "pill pill-bad" : "pill pill-ok";
-    }
+    el.runPill.textContent = run ? `${run.status}: ${run.row_ids?.length || 0} rows` : "No active run";
+    el.runPill.className = !run ? "pill pill-muted" : run.stop_requested ? "pill pill-bad" : "pill pill-ok";
     updateActionButtons();
   }
 
@@ -98,6 +88,7 @@
     el.btnStop.disabled = !running;
     el.selCount.textContent = `${state.selectedIds.size} selected`;
   }
+
   function countPills(batch) {
     return [
       ["P", batch.pending_count],
@@ -112,14 +103,15 @@
   }
 
   function renderBatches() {
-    el.batchCount.textContent = `${state.batches.length} total`;
+    if (el.batchCount) el.batchCount.textContent = `${state.batches.length} total`;
+    if (!el.batchList) return;
     if (!state.batches.length) {
       el.batchList.innerHTML = "";
-      el.batchEmpty.classList.remove("hidden");
+      if (el.batchEmpty) el.batchEmpty.classList.remove("hidden");
       updateActionButtons();
       return;
     }
-    el.batchEmpty.classList.add("hidden");
+    if (el.batchEmpty) el.batchEmpty.classList.add("hidden");
     const showOwner = window.AdminAuth && window.AdminAuth.isSuperAdmin();
     el.batchList.innerHTML = state.batches
       .map((batch) => {
@@ -128,7 +120,7 @@
           showOwner && batch.owner_email
             ? `<div class="owner">${U.escapeHtml(batch.owner_email)}</div>`
             : "";
-        return `<button type="button" class="batch-item ${active}" data-batch-id="${U.escapeHtml(batch.id)}"><div class="name">${U.escapeHtml(batch.filename)}</div>${owner}<div class="counts">${U.badge(batch.status)}<span class="pill">${batch.total_rows} rows</span>${countPills(batch)}</div><div class="muted" style="margin-top:0.35rem">${U.escapeHtml(U.formatTime(batch.created_at))}</div></button>`;
+        return `<button type="button" class="batch-card ${active}" role="option" aria-selected="${active ? "true" : "false"}" data-batch-id="${U.escapeHtml(batch.id)}"><div class="name">${U.escapeHtml(batch.filename)}</div><div class="meta">${U.badge(batch.status)}<span class="pill">${batch.total_rows} rows</span>${countPills(batch)}</div>${owner}<div class="muted" style="margin-top:0.35rem">${U.escapeHtml(U.formatTime(batch.created_at))}</div></button>`;
       })
       .join("");
     updateActionButtons();
@@ -139,18 +131,20 @@
     const expected = U.formatDuration(state.expectedRowSeconds * 1000);
     el.expectedLabel.textContent = `Expected / row: ${expected}`;
     if (!batch) {
-      el.rowsTitle.textContent = "Select a batch";
-      el.rowsSub.textContent = "";
+      if (el.rowsTitle) el.rowsTitle.textContent = "Select a batch";
+      if (el.rowsSub) el.rowsSub.textContent = "";
       el.filters.hidden = true;
       el.rowActions.hidden = true;
       el.rowsBody.innerHTML = "";
       el.rowsEmpty.classList.remove("hidden");
-      el.rowsEmpty.textContent = "Pick a batch to inspect rows";
+      el.rowsEmpty.textContent = "Upload a CSV or select a batch above";
       updateActionButtons();
       return;
     }
-    el.rowsTitle.textContent = batch.filename;
-    el.rowsSub.textContent = `${batch.total_rows} rows · ${U.formatStatus(batch.status)}`;
+    if (el.rowsTitle) el.rowsTitle.textContent = batch.filename;
+    if (el.rowsSub) {
+      el.rowsSub.textContent = `${batch.total_rows} rows · ${U.formatStatus(batch.status)} · Expected / row: ${expected}`;
+    }
     el.filters.hidden = false;
     el.rowActions.hidden = false;
     if (!state.rows.length) {
@@ -165,40 +159,10 @@
       .map((row) => {
         const active = row.id === state.selectedRowId ? "active" : "";
         const checked = state.selectedIds.has(row.id) ? "checked" : "";
-        return `<tr class="${active}" data-row-id="${U.escapeHtml(row.id)}"><td><input type="checkbox" data-check-row="${U.escapeHtml(row.id)}" ${checked} /></td><td>${row.row_number}</td><td>${U.escapeHtml(row.email)}</td><td>${U.badge(row.login_status)}</td><td>${U.badge(row.redeem_status)}</td><td>${U.badge(row.purchase_status)}</td><td>${U.badge(row.status)}</td><td>${U.escapeHtml(U.formatDuration(row.duration_ms))}</td><td>${U.escapeHtml(expected)}</td></tr>`;
+        return `<tr class="${active}" data-row-id="${U.escapeHtml(row.id)}"><td><input type="checkbox" data-check-row="${U.escapeHtml(row.id)}" ${checked} /></td><td>${row.row_number}</td><td>${U.escapeHtml(row.email)}</td><td>${U.badge(row.login_status)}</td><td>${U.badge(row.redeem_status)}</td><td>${U.badge(row.purchase_status)}</td><td>${U.badge(row.status)}</td><td>${U.escapeHtml(U.formatDuration(row.duration_ms))}</td><td>${U.escapeHtml(expected)}</td><td class="row-actions-cell"><button type="button" class="btn-text" data-view-row="${U.escapeHtml(row.id)}">View</button><button type="button" class="btn-text" data-edit-row="${U.escapeHtml(row.id)}">Edit</button><button type="button" class="btn-text btn-text-danger" data-delete-row="${U.escapeHtml(row.id)}">Delete</button></td></tr>`;
       })
       .join("");
     updateActionButtons();
-  }
-
-  async function paintDetail(row, emails, attempts) {
-    state.detailEmails = emails || [];
-    state.detailAttempts = attempts || [];
-    state.selectedAttemptId = U.resolveAttemptId(state.detailAttempts, state.selectedAttemptId);
-    await U.paintRowDetail(
-      el.detailBody,
-      row,
-      state.detailEmails,
-      state.detailAttempts,
-      state.selectedAttemptId,
-      state.expectedRowSeconds,
-    );
-  }
-
-  async function renderDetail(row, { silent = false } = {}) {
-    if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) return;
-    const token = ++state.detailToken;
-    el.detailTitle.textContent = `Row ${row.row_number}`;
-    if (!silent) el.detailBody.innerHTML = `<p class="muted">Loading detail…</p>`;
-    try {
-      const extra = await U.fetchRowDetailExtras(row.id);
-      if (token !== state.detailToken || state.selectedRowId !== row.id) return;
-      if (extra.error) showError(extra.error.message);
-      await paintDetail(row, extra.emails, extra.attempts);
-    } catch (err) {
-      if (token !== state.detailToken) return;
-      showError(err.message);
-    }
   }
 
   async function loadRows({ silent = false } = {}) {
@@ -214,12 +178,6 @@
       state.selectedRowId = state.rows[0]?.id || null;
     }
     renderRows();
-    const row = state.rows.find((r) => r.id === state.selectedRowId);
-    if (row) await renderDetail(row, { silent });
-    else {
-      el.detailTitle.textContent = "Row detail";
-      el.detailBody.innerHTML = `<p class="empty">Select a row</p>`;
-    }
   }
 
   async function loadBatches({ keepSelection = true, silent = false } = {}) {
@@ -242,13 +200,15 @@
       else {
         state.rows = [];
         renderRows();
-        el.detailBody.innerHTML = `<p class="empty">Select a row</p>`;
       }
       if (window.AdminSSE) {
         window.AdminSSE.setBatchId(state.selectedBatchId);
         if (typeof window.AdminSSE.setFilterUserId === "function") {
           window.AdminSSE.setFilterUserId(state.ownerFilter || null);
         }
+      }
+      if (window.AdminNav && typeof window.AdminNav.updateUserBanner === "function") {
+        window.AdminNav.updateUserBanner();
       }
     } catch (err) {
       showError(err.message);
@@ -273,10 +233,12 @@
     }
   }
 
-  el.batchList.addEventListener("click", async (event) => {
-    const btn = event.target.closest("[data-batch-id]");
-    if (!btn) return;
-    state.selectedBatchId = btn.getAttribute("data-batch-id");
+  async function selectBatch(batchId) {
+    if (!batchId || batchId === state.selectedBatchId) {
+      renderBatches();
+      return;
+    }
+    state.selectedBatchId = batchId;
     state.selectedRowId = null;
     state.selectedAttemptId = null;
     state.selectedIds = new Set();
@@ -287,19 +249,39 @@
     } catch (err) {
       showError(err.message);
     }
-  });
+  }
 
-  el.detailBody.addEventListener("click", async (event) => {
-    const btn = event.target.closest("[data-attempt-id]");
+  el.batchList?.addEventListener("click", async (event) => {
+    const btn = event.target.closest("[data-batch-id]");
     if (!btn) return;
-    const id = btn.getAttribute("data-attempt-id");
-    if (!id || id === state.selectedAttemptId) return;
-    state.selectedAttemptId = id;
-    const row = state.rows.find((r) => r.id === state.selectedRowId);
-    if (row) await paintDetail(row, state.detailEmails, state.detailAttempts);
+    await selectBatch(btn.getAttribute("data-batch-id"));
   });
 
   el.rowsBody.addEventListener("click", async (event) => {
+    const viewBtn = event.target.closest("[data-view-row]");
+    if (viewBtn) {
+      event.stopPropagation();
+      const id = viewBtn.getAttribute("data-view-row");
+      const row = state.rows.find((r) => r.id === id);
+      if (row && window.AdminRowModal) window.AdminRowModal.open(row);
+      return;
+    }
+    const editBtn = event.target.closest("[data-edit-row]");
+    if (editBtn) {
+      event.stopPropagation();
+      const id = editBtn.getAttribute("data-edit-row");
+      const row = state.rows.find((r) => r.id === id);
+      if (row && window.AdminRowEdit) window.AdminRowEdit.open(row);
+      return;
+    }
+    const deleteBtn = event.target.closest("[data-delete-row]");
+    if (deleteBtn) {
+      event.stopPropagation();
+      const id = deleteBtn.getAttribute("data-delete-row");
+      const row = state.rows.find((r) => r.id === id);
+      if (row && window.AdminRowEdit) window.AdminRowEdit.deleteRow(row);
+      return;
+    }
     const check = event.target.closest("[data-check-row]");
     if (check) {
       event.stopPropagation();
@@ -314,8 +296,6 @@
     state.selectedRowId = tr.getAttribute("data-row-id");
     state.selectedAttemptId = null;
     renderRows();
-    const row = state.rows.find((r) => r.id === state.selectedRowId);
-    if (row) await renderDetail(row);
   });
 
   el.filters.addEventListener("click", async (event) => {
@@ -343,8 +323,14 @@
   el.refresh.addEventListener("click", () => {
     checkHealth();
     checkExtension();
-    loadBatches();
-    if (window.AdminUsers && window.AdminAuth?.isSuperAdmin()) window.AdminUsers.loadUsers();
+    const modalOpen = document.getElementById("view-batches")?.classList.contains("modal-open");
+    if (modalOpen) {
+      loadBatches({ silent: true });
+    } else if (window.AdminNav && window.AdminNav.getView() === "users") {
+      if (window.AdminUsers) window.AdminUsers.loadUsers();
+    } else {
+      loadBatches();
+    }
     if (window.AdminLive) window.AdminLive.syncLiveStream();
   });
 })();
