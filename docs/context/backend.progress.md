@@ -28,6 +28,8 @@ FastAPI backend with login + batch modules. Extension connects to backend for CS
 
 ## Recent Changes
 
+- 2026-09-07 — Row edit (CSV fields) + DELETE `/batches/rows/{id}`; batch counts refresh
+- 2026-09-07 — Super-admin seed email `admin@innovidio.com` / `admin@123` (legacy cartlow demoted)
 - 2026-09-07 — Super-admin: `cartlow@admin.com` role + `/users` CRUD + global batch visibility/owner filter/Users panel
 - 2026-09-04 — Screenshots stored per attempt (`…/{attempt_number}/{kind}.png`); GET/POST accept `attempt_id`; row keeps latest for emails
 - 2026-09-04 — Critique remaining: ownership default-closed; attempt start+PATCH; secrets off list/SSE; face_value+value_match; purge live CSVs; 03a content script; delete dead React batches

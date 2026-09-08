@@ -7,6 +7,19 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-09-07 — Topbar shows green “Extension connected” when linked; API online pill removed
+- 2026-09-07 — Profile icon menu: Connect extension + Sign out; removed API/Sign out topbar clutter
+- 2026-09-07 — Edit row: Login/Redeem/Order/Overall status selectors
+- 2026-09-07 — Uploaded batches shown as selectable cards (batch rail)
+- 2026-09-07 — Row Edit/Delete actions + custom confirm for delete batch/row
+- 2026-09-07 — User dashboard: single-column layout; batch dropdown; removed ext status pill
+- 2026-09-07 — Custom themed Sign out confirm modal (replaces browser alert)
+- 2026-09-07 — Sign out asks confirm before clearing session (all roles)
+- 2026-09-07 — Row runs modal: dropdown to switch runs (replaces confusing run card list)
+- 2026-09-07 — Row View btn opens runs modal; super-admin hides side Row detail panel
+- 2026-09-07 — Super-admin: Users-only sidebar; View data opens batches modal
+- 2026-09-07 — Super-admin: hide API/extension/run controls; simple Batches+Users oversight UI
+- 2026-09-07 — Super-admin dashboard: left sidebar; Users full page; click user → filtered batches
 - 2026-09-04 — Dashboard/extension: screenshots scoped to selected run (`attempt_id`); no cross-run image bleed
 - 2026-09-04 — Deleted dead `src/features/batches/` React tree; renamed content `02b` → `03a-login-password.js`
 - 2026-09-04 — Too many failed attempts: stop on first hit; no profile reload / second Log In+email try

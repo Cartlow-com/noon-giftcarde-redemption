@@ -3,7 +3,6 @@
 FastAPI backend scaffold.
 
 ## Run
-
 ```bash
 cd backend
 uv sync --extra dev
