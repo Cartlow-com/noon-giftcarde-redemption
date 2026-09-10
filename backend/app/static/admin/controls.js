@@ -7,10 +7,28 @@
   const btnRun = document.getElementById("btn-run");
   const btnStop = document.getElementById("btn-stop");
   const btnDelete = document.getElementById("btn-delete-batch");
+  const optLoginOnly = document.getElementById("opt-login-only");
   const optPlace = document.getElementById("opt-place-order");
   const optHideWindow = document.getElementById("opt-hide-window");
   const optRedeem = document.getElementById("opt-redeem-email");
   const optOrder = document.getElementById("opt-order-email");
+
+  // When Login only is toggled on, disable/uncheck the options that are
+  // irrelevant for a login test. Re-enable them when it is unchecked.
+  const LOGIN_ONLY_INCOMPATIBLE = [optPlace, optRedeem, optOrder];
+  optLoginOnly.addEventListener("change", () => {
+    const on = optLoginOnly.checked;
+    for (const el of LOGIN_ONLY_INCOMPATIBLE) {
+      if (on) {
+        el.checked = false;
+        el.disabled = true;
+        el.closest("label").style.opacity = "0.4";
+      } else {
+        el.disabled = false;
+        el.closest("label").style.opacity = "";
+      }
+    }
+  });
 
   async function refreshActiveRun() {
     if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) {
@@ -95,15 +113,16 @@
         body: JSON.stringify({
           batch_id: s.selectedBatchId,
           row_ids: rowIds,
-          place_order: optPlace.checked,
+          place_order: optLoginOnly.checked ? false : optPlace.checked,
           hide_window: optHideWindow.checked,
-          login_only: false,
-          send_redeem_emails: optRedeem.checked,
-          send_order_emails: optOrder.checked,
+          login_only: optLoginOnly.checked,
+          send_redeem_emails: optLoginOnly.checked ? false : optRedeem.checked,
+          send_order_emails: optLoginOnly.checked ? false : optOrder.checked,
         }),
       });
       ui().setActiveRun(run);
       const modeBits = [];
+      if (optLoginOnly.checked) modeBits.push("login only");
       if (optHideWindow.checked) modeBits.push("hidden window");
       ui().showOk(
         `Queued ${rowIds.length} row(s)` +
