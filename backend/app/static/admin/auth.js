@@ -162,8 +162,12 @@
   const {
     detectExtensionInstalled,
     connectExtension,
+    autoConnect,
+    connectWithReload,
     clearExtensionTokens,
   } = extension;
+
+  const RETRY_FLAG = "noon_retry_connect";
 
   async function loadSession() {
     if (!state.accessToken) {
@@ -183,6 +187,24 @@
           : "Extension not found in this Chrome",
       );
       emitAuthChange(true, me.email, me.role || "user");
+
+      // Auto-connect logic — only for non-super-admin.
+      if ((me.role || "user") !== "super_admin") {
+        let retrying = false;
+        try {
+          retrying = !!sessionStorage.getItem(RETRY_FLAG);
+          if (retrying) sessionStorage.removeItem(RETRY_FLAG);
+        } catch (_) {}
+
+        if (retrying) {
+          // Post-reload retry — use full connect so the user sees the result.
+          await connectExtension();
+        } else {
+          // Normal page load — attempt silently, no noise on failure.
+          autoConnect();
+        }
+      }
+
       return true;
     } catch (err) {
       clearTokens();
@@ -295,7 +317,7 @@
       el.connect.addEventListener("click", async () => {
         if (state.extensionConnected) return;
         setProfileOpen(false);
-        await connectExtension();
+        await connectWithReload();
       });
     }
     if (!state.accessToken) {
@@ -329,6 +351,8 @@
     },
     handleUnauthorized: handleUnauthorized,
     connectExtension: connectExtension,
+    autoConnect: autoConnect,
+    connectWithReload: connectWithReload,
     clearExtensionTokens: clearExtensionTokens,
   };
 })();

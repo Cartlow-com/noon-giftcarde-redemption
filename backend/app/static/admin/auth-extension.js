@@ -1,4 +1,6 @@
 (() => {
+  const RETRY_FLAG = "noon_retry_connect";
+
   window.NoonAuthExtension = {
     attach({ state, setConnectStatus, emitAuthChange, connectTimeoutMs }) {
       function postToExtension(type, payload) {
@@ -99,6 +101,53 @@
         state.extensionConnected = false;
       }
 
+      // Silent auto-connect — called automatically after sign-in/page-load.
+      // Never shows error toasts; callers check state.extensionConnected after.
+      async function autoConnect() {
+        if (!state.accessToken || state.role === "super_admin") return false;
+        try {
+          return await connectExtension();
+        } catch (_) {
+          return false;
+        }
+      }
+
+      // Called by the "Connect extension" button.
+      // If the bridge is not injected (extension not loaded in this Chrome yet),
+      // sets a sessionStorage retry flag and reloads the page once so Chrome
+      // injects dashboardBridge.js fresh, then auto-connect fires on boot.
+      async function connectWithReload() {
+        if (!state.accessToken) {
+          setConnectStatus("missing", "Sign in first");
+          return;
+        }
+        // Check whether the bridge content script is present at all.
+        const installed = detectExtensionInstalled() || (await pingExtension());
+        if (!installed) {
+          // Extension truly not loaded in this Chrome — tell the user, no reload.
+          setConnectStatus(
+            "missing",
+            "Extension not found — load unpacked in this Chrome",
+          );
+          if (window.AdminUI && window.AdminUI.showError) {
+            window.AdminUI.showError(
+              "Extension not detected. Load Noon Automation in chrome://extensions, then click Connect extension.",
+            );
+          }
+          return;
+        }
+        // Bridge is present — try a normal connect first.
+        const ok = await connectExtension();
+        if (ok) return;
+        // Token push failed even though bridge is there (e.g. SW was sleeping
+        // and the bridge was injected into a stale page). Reload once so Chrome
+        // re-injects everything fresh, then auto-connect on the reloaded page.
+        try {
+          sessionStorage.setItem(RETRY_FLAG, "1");
+        } catch (_) {}
+        window.location.reload();
+      }
+
       window.addEventListener("message", (event) => {
         if (event.source !== window) return;
         if (event.origin !== window.location.origin) return;
@@ -120,6 +169,8 @@
       return {
         detectExtensionInstalled,
         connectExtension,
+        autoConnect,
+        connectWithReload,
         clearExtensionTokens,
       };
     },
