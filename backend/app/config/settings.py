@@ -26,8 +26,8 @@ class Settings(BaseSettings):
     FAILOVER_MAIL_USERNAME: str = ""
     FAILOVER_MAIL_PASSWORD: str = ""
     FAILOVER_MAIL_ENCRYPTION: str = "tls"
-    FAILOVER_MAIL_FROM_ADDRESS: str = "notification@cartlow.com"
-    FAILOVER_MAIL_FROM_NAME: str = "Cartlow"
+    FAILOVER_MAIL_FROM_ADDRESS: str = "notification@innovidio.com"
+    FAILOVER_MAIL_FROM_NAME: str = "Innovidio"
 
 
 settings = Settings()

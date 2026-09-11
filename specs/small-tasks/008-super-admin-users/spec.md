@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add a `super_admin` role. Seed **only** `cartlow@admin.com` as super_admin. Super-admins can manage users and **see (and operate on) every user’s batches, rows, runs, emails, screenshots, and live dashboard stats**.
+Add a `super_admin` role. Seed **only** the configured Innovidio admin as super_admin. Super-admins can manage users and **see (and operate on) every user’s batches, rows, runs, emails, screenshots, and live dashboard stats**.
 
 ## Requirements
 
@@ -12,10 +12,10 @@ Add a `super_admin` role. Seed **only** `cartlow@admin.com` as super_admin. Supe
    - JWT access token + `GET /login/me` include `role`.
 
 2. **Seeded accounts**
-   - **`cartlow@admin.com` / `admin@123`** → create/update as **`super_admin`** (only seeded super_admin).
+   - **configured Innovidio admin / `admin@123`** → create/update as **`super_admin`** (only seeded super_admin).
    - `admin@example.com` / `admin123` → remains **`user`** (not super_admin).
    - `user@example.com` → **`user`**.
-   - Re-seed must force `cartlow@admin.com` role+password; must **not** elevate `admin@example.com`.
+   - Re-seed must force the configured Innovidio admin role+password; must **not** elevate `admin@example.com`.
 
 3. **User management APIs** (super_admin only)
    - `GET /users` — list (`id`, `email`, `role`, `is_active`, `created_at`).
@@ -56,8 +56,8 @@ flowchart TD
 
 ## Acceptance Criteria
 
-- [ ] Only `cartlow@admin.com` is seeded as `super_admin`; `admin@example.com` is `user`.
-- [ ] `cartlow@admin.com` / `admin@123` logs in with `role=super_admin`.
+- [ ] Only the configured Innovidio admin is seeded as `super_admin`; `admin@example.com` is `user`.
+- [ ] Configured Innovidio admin / `admin@123` logs in with `role=super_admin`.
 - [ ] Super-admin Users panel + `/users` CRUD; soft-deactivate; last-admin guards.
 - [ ] Regular user: 403 on `/users`; no Users UI; only own batches.
 - [ ] Super-admin sees every user’s batches, rows, attempts, emails, screenshots, run pills, SSE stats.

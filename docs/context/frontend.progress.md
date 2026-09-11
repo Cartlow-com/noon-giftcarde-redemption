@@ -7,6 +7,8 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-09-11 — Added localhost API fallback while keeping Innovidio as primary extension backend
+- 2026-09-11 — Removed old live domain from extension config; Innovidio is the only live dashboard/backend domain
 - 2026-09-07 — Topbar shows green “Extension connected” when linked; API online pill removed
 - 2026-09-07 — Profile icon menu: Connect extension + Sign out; removed API/Sign out topbar clutter
 - 2026-09-07 — Edit row: Login/Redeem/Order/Overall status selectors
@@ -46,7 +48,7 @@
 - 2026-09-03 — Live dashboard status: no-store extension status/heartbeat responses and admin fetches to avoid stale offline badge
 - 2026-09-03 — Live dashboard API calls now use credentialed fetch so Cloudflare/browser cookies can pass
 - 2026-09-03 — Live heartbeat follow-up: scoped active API pin with dashboard-start lock and cleanup on claim/run exit
-- 2026-09-03 — Extension heartbeat now pings local and live `redeem.cartlow.com`; dashboard run routing clears after completion
+- 2026-09-03 — Extension heartbeat pings local and live dashboard domain; dashboard run routing clears after completion
 - 2026-09-03 — Login fix: batch opens/resets to profile, detects Noon email-link lockout as manual login required, and reduces login waits
 - 2026-09-03 — Extension popup simplified to dashboard-only notice; removed all popup inputs/actions
 - 2026-09-03 — Dashboard UI: removed Login only (test) control; runs now send login_only=false

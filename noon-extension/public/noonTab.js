@@ -41,7 +41,7 @@ async function getDashboardWindowId() {
       const u = t.url || "";
       return (
         t.windowId != null &&
-        (/127\.0\.0\.1:8000|localhost:8000|redeem\.cartlow\.com/i.test(u) ||
+        (/127\.0\.0\.1:8000|localhost:8000|redeem\.innovidio\.com/i.test(u) ||
           /\/admin\b/i.test(u))
       );
     });

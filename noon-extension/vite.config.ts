@@ -19,7 +19,7 @@ function uniqueApiBases(apiBase: string, extraApiBases: string[]): string[] {
 }
 
 function parseExtraApiBases(value: string): string[] {
-  const defaults = ["https://redeem.cartlow.com"];
+  const defaults = ["http://127.0.0.1:8000", "http://localhost:8000"];
   const configured = value
     .split(",")
     .map(normalizeApiBase)
@@ -56,6 +56,18 @@ function extensionEnvPlugin(apiBase: string, extraApiBases: string[]): Plugin {
       matches.add("http://127.0.0.1:8000/*");
       matches.add("http://localhost:8000/*");
       manifest.externally_connectable = { matches: Array.from(matches) };
+
+      manifest.content_scripts = manifest.content_scripts?.map((script) => {
+        if (!script.js?.includes("dashboardBridge.js")) return script;
+        return {
+          ...script,
+          matches: Array.from(new Set([
+            ...apiBases.map((base) => `${new URL(base).origin}/*`),
+            "http://127.0.0.1:8000/*",
+            "http://localhost:8000/*",
+          ])),
+        };
+      });
 
       fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
     },

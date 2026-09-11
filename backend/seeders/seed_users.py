@@ -14,7 +14,7 @@ DEFAULT_ADMIN_EMAIL = "admin@example.com"
 DEFAULT_ADMIN_PASSWORD = "admin123"
 SUPER_ADMIN_EMAIL = "admin@innovidio.com"
 SUPER_ADMIN_PASSWORD = "admin@123"
-LEGACY_SUPER_ADMIN_EMAIL = "cartlow@admin.com"
+LEGACY_SUPER_ADMIN_EMAIL = "legacy-admin@example.com"
 USERS_CSV = Path(__file__).resolve().parent / "users.csv"
 
 
