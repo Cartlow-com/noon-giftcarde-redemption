@@ -51,12 +51,11 @@ async function getDashboardWindowId() {
 }
 
 /**
- * Dedicated Noon browser window (not the dashboard). Open once; reuse for all rows.
+ * Reuse any existing Noon tab. Open one normal tab only when none exists.
  */
 async function getOrCreateNoonTab(options) {
   const opts = options || {};
   const hideWindow = !!opts.hideWindow;
-  const dashboardWindowId = await getDashboardWindowId();
 
   async function prepareExistingTab(tabId) {
     const tab = await chrome.tabs.get(tabId);
@@ -80,81 +79,35 @@ async function getOrCreateNoonTab(options) {
     return tabId;
   }
 
-  async function findTabInWindow(windowId) {
-    if (windowId == null) return null;
-    try {
-      const win = await chrome.windows.get(windowId, { populate: true });
-      if (!win || !win.tabs) return null;
-      const noonTab = win.tabs.find(function (t) {
-        return t.id != null && t.url && /noon\.com/i.test(t.url);
-      });
-      if (noonTab && noonTab.id != null) return noonTab.id;
-      const any = win.tabs.find(function (t) {
-        return t.id != null;
-      });
-      if (any && any.id != null) {
-        await chrome.tabs.update(any.id, { url: NOON_PROFILE, active: true });
-        await waitForTabComplete(any.id);
-        return any.id;
-      }
-    } catch (_) {
-      if (noonBotWindowId === windowId) noonBotWindowId = null;
-    }
-    return null;
-  }
-
-  const rememberedId = await loadRememberedNoonWindowId();
-  if (rememberedId != null && rememberedId !== dashboardWindowId) {
-    const tabId = await findTabInWindow(rememberedId);
-    if (tabId != null) return prepareExistingTab(tabId);
-  }
-
   const tabs = await chrome.tabs.query({ url: NOON_URL_PATTERN });
-  const other = tabs
+  const existing = tabs
     .filter(function (t) {
-      return t.id != null && t.windowId != null && t.windowId !== dashboardWindowId;
+      return t.id != null;
     })
     .sort(function (a, b) {
       if (a.active !== b.active) return a.active ? -1 : 1;
       return (b.lastAccessed || 0) - (a.lastAccessed || 0);
     });
-  if (other.length > 0 && other[0].id != null) {
-    return prepareExistingTab(other[0].id);
+  if (existing.length > 0 && existing[0].id != null) {
+    return prepareExistingTab(existing[0].id);
   }
 
-  let width = 1280;
-  let height = 900;
+  let createProps = { url: NOON_PROFILE, active: !hideWindow };
   try {
-    const current = await chrome.windows.getCurrent();
-    if (current.width && current.height) {
-      width = Math.max(1100, current.width);
-      height = Math.max(750, current.height);
-    }
+    const dashboardWindowId = await getDashboardWindowId();
+    if (dashboardWindowId != null) createProps.windowId = dashboardWindowId;
   } catch (_) {}
 
-  const win = await chrome.windows.create({
-    url: NOON_PROFILE,
-    focused: !hideWindow,
-    type: "normal",
-    state: hideWindow ? "minimized" : "normal",
-    width: width,
-    height: height,
-  });
-  if (!win || win.id == null) throw new Error("Failed to open Noon window");
-  await rememberNoonWindow(win.id);
+  const tab = await chrome.tabs.create(createProps);
+  if (!tab || tab.id == null) throw new Error("Failed to open Noon tab");
+  if (tab.windowId != null) await rememberNoonWindow(tab.windowId);
   try {
-    if (hideWindow) {
-      await chrome.windows.update(win.id, { state: "minimized", focused: false });
-    } else {
-      await chrome.windows.update(win.id, { state: "maximized", focused: true });
-    }
+    if (tab.windowId != null && !hideWindow) await chrome.windows.update(tab.windowId, { focused: true });
   } catch (_) {}
 
-  const tabId = win.tabs && win.tabs[0] && win.tabs[0].id;
-  if (tabId == null) throw new Error("Failed to open Noon tab in new window");
-  await waitForTabComplete(tabId);
+  await waitForTabComplete(tab.id);
   try {
-    await chrome.tabs.sendMessage(tabId, { type: "RECOVER_PAGE_IF_NEEDED" });
+    await chrome.tabs.sendMessage(tab.id, { type: "RECOVER_PAGE_IF_NEEDED" });
   } catch (_) {}
-  return tabId;
+  return tab.id;
 }

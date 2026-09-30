@@ -14,27 +14,14 @@ function apiHostPermission(apiBase: string): string {
   return `${new URL(apiBase).origin}/*`;
 }
 
-function uniqueApiBases(apiBase: string, extraApiBases: string[]): string[] {
-  return Array.from(new Set([apiBase, ...extraApiBases].filter(Boolean)));
-}
-
-function parseExtraApiBases(value: string): string[] {
-  const defaults = ["http://127.0.0.1:8000", "http://localhost:8000"];
-  const configured = value
-    .split(",")
-    .map(normalizeApiBase)
-    .filter(Boolean);
-  return Array.from(new Set([...defaults, ...configured]));
-}
-
-function extensionEnvPlugin(apiBase: string, extraApiBases: string[]): Plugin {
+function extensionEnvPlugin(apiBase: string): Plugin {
   return {
     name: "noon-extension-env",
     buildStart() {
+      // Single URL only — no fallback list. Change VITE_API_BASE_URL + rebuild to switch.
       fs.writeFileSync(
         path.resolve(__dirname, "public/apiConfig.js"),
-        `const NOON_API_BASE_URL = ${JSON.stringify(apiBase)};\n` +
-          `const NOON_EXTRA_API_BASE_URLS = ${JSON.stringify(extraApiBases)};\n`,
+        `const NOON_API_BASE_URL = ${JSON.stringify(apiBase)};\n`,
       );
     },
     closeBundle() {
@@ -43,30 +30,17 @@ function extensionEnvPlugin(apiBase: string, extraApiBases: string[]): Plugin {
         host_permissions?: string[];
         externally_connectable?: { matches?: string[] };
       };
-      const apiBases = uniqueApiBases(apiBase, extraApiBases);
+      const origin = new URL(apiBase).origin;
       const permissions = new Set(manifest.host_permissions || []);
       permissions.add("<all_urls>");
-      permissions.delete("http://127.0.0.1:8000/*");
-      permissions.delete("http://localhost:8000/*");
-      apiBases.forEach((base) => permissions.add(apiHostPermission(base)));
+      permissions.add(`${origin}/*`);
       manifest.host_permissions = Array.from(permissions);
 
-      const matches = new Set(manifest.externally_connectable?.matches || []);
-      apiBases.forEach((base) => matches.add(`${new URL(base).origin}/*`));
-      matches.add("http://127.0.0.1:8000/*");
-      matches.add("http://localhost:8000/*");
-      manifest.externally_connectable = { matches: Array.from(matches) };
+      manifest.externally_connectable = { matches: [`${origin}/*`] };
 
       manifest.content_scripts = manifest.content_scripts?.map((script) => {
         if (!script.js?.includes("dashboardBridge.js")) return script;
-        return {
-          ...script,
-          matches: Array.from(new Set([
-            ...apiBases.map((base) => `${new URL(base).origin}/*`),
-            "http://127.0.0.1:8000/*",
-            "http://localhost:8000/*",
-          ])),
-        };
+        return { ...script, matches: [`${origin}/*`] };
       });
 
       fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -77,7 +51,6 @@ function extensionEnvPlugin(apiBase: string, extraApiBases: string[]): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, "");
   const apiBase = normalizeApiBase(env.VITE_API_BASE_URL || "");
-  const extraApiBases = parseExtraApiBases(env.VITE_EXTRA_API_BASE_URLS || "");
 
   if (!apiBase) {
     throw new Error(
@@ -92,7 +65,7 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react(), extensionEnvPlugin(apiBase, extraApiBases)],
+    plugins: [react(), extensionEnvPlugin(apiBase)],
     root: __dirname,
     base: "./",
     build: {

@@ -80,6 +80,21 @@ def _ensure_sqlite_columns() -> None:
                 conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(32) DEFAULT 'user'"))
                 conn.execute(text("UPDATE users SET role = 'user' WHERE role IS NULL OR role = ''"))
 
+    if "gmail_tokens" in tables:
+        gmail_cols = {col["name"] for col in inspector.get_columns("gmail_tokens")}
+        gmail_alters = {
+            "gmail_email": "ALTER TABLE gmail_tokens ADD COLUMN gmail_email VARCHAR(255) DEFAULT ''",
+            "access_token": "ALTER TABLE gmail_tokens ADD COLUMN access_token TEXT DEFAULT ''",
+            "refresh_token": "ALTER TABLE gmail_tokens ADD COLUMN refresh_token TEXT DEFAULT ''",
+            "token_expiry": "ALTER TABLE gmail_tokens ADD COLUMN token_expiry DATETIME",
+            "created_at": "ALTER TABLE gmail_tokens ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE gmail_tokens ADD COLUMN updated_at DATETIME",
+        }
+        with engine.begin() as conn:
+            for name, sql in gmail_alters.items():
+                if name not in gmail_cols:
+                    conn.execute(text(sql))
+
 
 def _backfill_owner_user_ids() -> None:
     """Assign legacy rows with empty user_id to the seeded admin account."""
@@ -106,6 +121,7 @@ def _backfill_owner_user_ids() -> None:
 def init_db() -> None:
     from app.modules.batches.models import db_models as batches_db_models  # noqa: F401
     from app.modules.email.models import db_models as email_db_models  # noqa: F401
+    from app.modules.gmail.models import db_models as gmail_db_models  # noqa: F401
     from app.modules.login.models import db_models as login_db_models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)

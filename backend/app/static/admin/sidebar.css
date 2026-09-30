@@ -136,6 +136,15 @@ body:not(.is-super-admin) #app-sidebar {
   display: none;
 }
 
+body:not(.is-super-admin) #view-batches {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
 body.is-super-admin #view-batches.modal-open .layout,
 body.is-super-admin .layout {
   grid-template-columns: minmax(0, 1fr);

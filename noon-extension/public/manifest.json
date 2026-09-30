@@ -3,11 +3,12 @@
   "name": "Noon Automation",
   "version": "0.1.0",
   "description": "Automate Noon.com login and workflows from a side panel.",
-  "permissions": ["storage", "tabs", "sidePanel", "windows", "alarms", "cookies"],
+  "permissions": ["storage", "tabs", "sidePanel", "windows", "alarms", "cookies", "scripting", "clipboardRead"],
   "host_permissions": [
     "<all_urls>",
     "https://www.noon.com/*",
-    "https://account.noon.com/*"
+    "https://account.noon.com/*",
+    "https://mail.google.com/*"
   ],
   "externally_connectable": {
     "matches": [
@@ -28,6 +29,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.noon.com/*", "https://account.noon.com/*"],
+      "exclude_matches": ["*://account.noon.com/*get-otp*"],
       "js": ["mouse.js"],
       "run_at": "document_start"
     },
@@ -42,11 +44,13 @@
     },
     {
       "matches": ["https://www.noon.com/*", "https://account.noon.com/*"],
+      "exclude_matches": ["*://account.noon.com/*get-otp*"],
       "js": [
         "content/01-core.js",
         "content/02-dom-query.js",
         "content/03-dom-nav.js",
         "content/03a-login-password.js",
+        "content/03a-otp-gmail.js",
         "content/03b-signout.js",
         "content/04-state.js",
         "content/05-redeem-ui.js",
@@ -64,6 +68,11 @@
         "content/17-messages.js",
         "content/18-resume.js"
       ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://account.noon.com/*get-otp*"],
+      "js": ["gmailOtp.js"],
       "run_at": "document_idle"
     }
   ]

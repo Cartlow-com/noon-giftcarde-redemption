@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="/assets/styles.css?v=20260907-ext-status" />
     <link rel="stylesheet" href="/assets/sidebar.css?v=20260907-ext-status" />
     <link rel="stylesheet" href="/assets/detail.css?v=20260907-run-select" />
-    <link rel="stylesheet" href="/assets/controls.css?v=20260907-edit-status" />
+    <link rel="stylesheet" href="/assets/controls.css?v=20260911-gmail-detail" />
     <link rel="stylesheet" href="/assets/profile.css?v=20260907-profile-menu" />
   </head>
   <body>
@@ -49,6 +49,7 @@
         <nav id="app-sidebar" class="app-sidebar" aria-label="Main">
           <button type="button" class="nav-item active" id="nav-batches" data-view="batches">Batches</button>
           <button type="button" class="nav-item hidden" id="nav-users" data-view="users">Users</button>
+          <button type="button" class="nav-item hidden" id="nav-gmail" data-view="gmail">Gmail</button>
         </nav>
 
         <div class="app-main">
@@ -69,6 +70,9 @@
                   <input id="file-upload" type="file" accept=".csv,text/csv" hidden />
                 </label>
                 <button type="button" id="btn-delete-batch" class="btn-danger" disabled>Delete batch</button>
+                <button type="button" id="btn-gmail-connect" class="btn-secondary hidden">Connect Gmail</button>
+                <button type="button" id="btn-gmail-inbox" class="btn-secondary hidden">Gmail Inbox</button>
+                <button type="button" id="btn-gmail-disconnect" class="btn-secondary hidden">Gmail ✓ Disconnect</button>
               </div>
               <div class="controls-right">
                 <label class="check"><input id="opt-login-only" type="checkbox" /> Login only</label>
@@ -171,6 +175,36 @@
                 </table>
                 <p id="users-empty" class="empty hidden">No users</p>
               </div>
+            </div>
+          </section>
+
+          <section id="view-gmail" class="view-page hidden">
+            <div class="gmail-page">
+              <header class="gmail-page-head">
+                <div>
+                  <h1>Gmail</h1>
+                  <p class="muted">Connect your Gmail account to fetch OTP emails automatically.</p>
+                </div>
+                <div class="gmail-page-actions"></div>
+              </header>
+              <div id="gmail-status-bar" class="gmail-status-bar hidden">
+                <span id="gmail-connected-email" class="gmail-connected-email"></span>
+              </div>
+              <div id="gmail-emails-wrap" class="gmail-emails-wrap hidden">
+                <table class="data-table gmail-table">
+                  <thead>
+                    <tr>
+                      <th>From</th>
+                      <th>Subject</th>
+                      <th>Date</th>
+                      <th>Preview</th>
+                    </tr>
+                  </thead>
+                  <tbody id="gmail-emails-list"></tbody>
+                </table>
+                <p id="gmail-emails-empty" class="empty hidden">No emails found</p>
+              </div>
+              <p id="gmail-not-connected" class="empty">Gmail not connected — click Connect Gmail to get started.</p>
             </div>
           </section>
         </div>
@@ -283,10 +317,43 @@
         <p id="auth-error" class="auth-error hidden" role="alert"></p>
       </section>
     </div>
-    <script src="/assets/util.js?v=20260907-run-select"></script>
+    <div id="gmail-inbox-modal" class="confirm-modal hidden" aria-hidden="true">
+      <div class="confirm-dialog gmail-inbox-dialog" role="dialog" aria-modal="true" aria-labelledby="gmail-inbox-title">
+        <header class="row-runs-bar">
+          <div>
+            <p class="muted" id="gmail-inbox-subtitle">Gmail</p>
+            <h2 id="gmail-inbox-title">Last 5 emails</h2>
+          </div>
+          <div style="display:flex;gap:0.5rem;align-items:center">
+            <button type="button" id="btn-gmail-inbox-refresh" class="btn-secondary">Refresh</button>
+            <button type="button" id="btn-gmail-inbox-close" class="btn-secondary">Close</button>
+          </div>
+        </header>
+        <div id="gmail-inbox-body" class="row-runs-body">
+          <p class="empty">Loading…</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="gmail-detail-modal" class="confirm-modal hidden" aria-hidden="true">
+      <div class="confirm-dialog gmail-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="gmail-detail-title">
+        <header class="row-runs-bar">
+          <div style="min-width:0;flex:1">
+            <p class="muted">Email</p>
+            <h2 id="gmail-detail-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></h2>
+          </div>
+          <button type="button" id="btn-gmail-detail-close" class="btn-secondary" style="flex-shrink:0">Close</button>
+        </header>
+        <div id="gmail-detail-body" class="row-runs-body gmail-detail-scroll">
+          <p class="empty">Loading…</p>
+        </div>
+      </div>
+    </div>
+
+    <script src="/assets/util.js?v=20260911-auth-endpoint-only"></script>
     <script src="/assets/confirm-modal.js?v=20260907-row-edit"></script>
-    <script src="/assets/auth-extension.js?v=20260910-auto-connect"></script>
-    <script src="/assets/auth.js?v=20260910-auto-connect"></script>
+    <script src="/assets/auth-extension.js?v=20260911-ping-exposed"></script>
+    <script src="/assets/auth.js?v=20260911-ping-exposed"></script>
     <script src="/assets/nav.js?v=20260907-confirm-modal"></script>
     <script src="/assets/users.js?v=20260907-sidebar"></script>
     <script src="/assets/row-modal.js?v=20260907-run-select"></script>
@@ -295,6 +362,7 @@
     <script src="/assets/sse.js?v=20260907-super-admin"></script>
     <script src="/assets/app.js?v=20260907-batch-rail"></script>
     <script src="/assets/snapshot.js?v=20260907-user-simple"></script>
-    <script src="/assets/controls.js?v=20260910-login-only"></script>
+    <script src="/assets/controls.js?v=20260911-token-check"></script>
+    <script src="/assets/gmail.js?v=20260911-gmail-detail-modal"></script>
   </body>
 </html>

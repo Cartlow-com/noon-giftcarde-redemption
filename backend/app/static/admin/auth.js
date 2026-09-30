@@ -161,6 +161,7 @@
   });
   const {
     detectExtensionInstalled,
+    pingExtension,
     connectExtension,
     autoConnect,
     connectWithReload,
@@ -175,44 +176,54 @@
       showLogin();
       return false;
     }
+    // Only /login/me failure means session expired — keep extension errors isolated.
+    let me;
     try {
-      const me = await window.AdminUtil.api("/login/me");
-      renderSession(me.email, me.role || "user");
-      hideLogin();
-      detectExtensionInstalled();
+      me = await window.AdminUtil.api("/login/me");
+    } catch (err) {
+      clearTokens();
+      emitAuthChange(false, "", "user");
+      showLogin("Session expired. Sign in again.");
+      return false;
+    }
+
+    renderSession(me.email, me.role || "user");
+    hideLogin();
+    emitAuthChange(true, me.email, me.role || "user");
+
+    // Show the connect button immediately — update once ping resolves.
+    setConnectStatus("missing", "Extension not found in this Chrome");
+
+    // Extension status — failures here never kill the session.
+    try {
+      const installed = await pingExtension();
       setConnectStatus(
-        state.extensionInstalled ? "idle" : "missing",
-        state.extensionInstalled
+        state.extensionConnected ? "connected" : installed ? "idle" : "missing",
+        state.extensionConnected
+          ? "Extension connected"
+          : installed
           ? "Extension ready — click Connect"
           : "Extension not found in this Chrome",
       );
-      emitAuthChange(true, me.email, me.role || "user");
 
-      // Auto-connect logic — only for non-super-admin.
-      if ((me.role || "user") !== "super_admin") {
+      // Auto-connect — only for non-super-admin, failures are silent.
+      if ((me.role || "user") !== "super_admin" && !state.extensionConnected) {
         let retrying = false;
         try {
           retrying = !!sessionStorage.getItem(RETRY_FLAG);
           if (retrying) sessionStorage.removeItem(RETRY_FLAG);
         } catch (_) {}
-
         if (retrying) {
-          // Post-reload retry — use full connect so the user sees the result.
-          await connectExtension();
+          await connectExtension().catch(() => {});
         } else {
-          // Normal page load — attempt silently, no noise on failure.
           autoConnect();
         }
       }
-
-      return true;
-    } catch (err) {
-      clearTokens();
-      await clearExtensionTokens();
-      emitAuthChange(false, "", "user");
-      showLogin("Session expired. Sign in again.");
-      return false;
+    } catch (_) {
+      // Extension ping/connect failed — not a session error, stay logged in.
     }
+
+    return true;
   }
 
   async function signIn(email, password) {

@@ -33,7 +33,6 @@ async function startDashboardRun(run) {
   } finally {
     if (!claimed) {
       dashboardStartBusy = false;
-      clearActiveApiBaseUrl();
     }
   }
 
@@ -43,7 +42,7 @@ async function startDashboardRun(run) {
     batchId: claimed.batch_id,
     stage: "system",
     status: "info",
-    message: `Dashboard run claimed — using Noon window (${claimed.row_ids.length} row(s))` +
+    message: `Dashboard run claimed — using Noon tab (${claimed.row_ids.length} row(s))` +
       (claimed.hide_window ? " — hidden" : ""),
   });
 
@@ -73,7 +72,6 @@ async function startDashboardRun(run) {
   } finally {
     dashboardRunId = null;
     dashboardStartBusy = false;
-    clearActiveApiBaseUrl();
   }
 }
 
@@ -113,8 +111,11 @@ async function pollDashboardRuns() {
   try {
     try {
       await postExtensionHeartbeat();
-    } catch (_) {
-      /* older backends may lack heartbeat */
+    } catch (error) {
+      console.warn(
+        "[noon] extension heartbeat failed",
+        error instanceof Error ? error.message : error,
+      );
     }
 
     await checkDashboardStop();
@@ -125,8 +126,11 @@ async function pollDashboardRuns() {
       // Do not await — keep poller free so Stop can be checked while running.
       startDashboardRun(pending);
     }
-  } catch (_) {
-    /* backend may be offline */
+  } catch (error) {
+    console.warn(
+      "[noon] dashboard run poll failed",
+      error instanceof Error ? error.message : error,
+    );
   } finally {
     runPollBusy = false;
   }

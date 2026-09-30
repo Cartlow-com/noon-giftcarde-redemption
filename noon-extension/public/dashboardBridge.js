@@ -47,11 +47,14 @@
         type: "SET_AUTH_TOKENS",
         accessToken: data.accessToken || "",
         refreshToken: data.refreshToken || "",
+        apiBaseUrl: window.location.origin,
       }).then(function (result) {
         reply("NOON_AUTH_RESULT", {
           requestId: requestId,
           ok: !!(result && result.ok),
           error: (result && result.error) || null,
+          hasToken: !!(result && result.hasToken),
+          apiBaseUrl: (result && result.apiBaseUrl) || null,
         });
       });
     }
@@ -69,10 +72,16 @@
     }
 
     if (data.type === "NOON_EXT_PING") {
-      reply("NOON_EXT_PONG", {
-        requestId: data.requestId || null,
-        ok: true,
-        installed: true,
+      var pingId = data.requestId || null;
+      forwardToBackground({ type: "GET_AUTH_STATUS" }).then(function (result) {
+        reply("NOON_EXT_PONG", {
+          requestId: pingId,
+          ok: !!(result && result.ok),
+          installed: true,
+          hasToken: !!(result && result.hasToken),
+          apiBaseUrl: (result && result.apiBaseUrl) || null,
+          error: (result && result.error) || null,
+        });
       });
     }
   });

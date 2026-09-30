@@ -173,9 +173,12 @@ async function enterEmailAndContinue(email) {
   throwIfManualLoginRequired();
   if (passwordReady) {
     logStep("Password form ready");
-    return;
+    return "password";
   }
 
+  if (await loginWithGmailOtp(email)) {
+    return "otp";
+  }
   throwIfOtpOnlyLogin();
   throw new Error("Password login not available — manual login required");
 }

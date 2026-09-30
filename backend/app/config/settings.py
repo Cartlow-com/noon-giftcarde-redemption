@@ -29,5 +29,9 @@ class Settings(BaseSettings):
     FAILOVER_MAIL_FROM_ADDRESS: str = "notification@innovidio.com"
     FAILOVER_MAIL_FROM_NAME: str = "Innovidio"
 
+    GMAIL_CLIENT_ID: str = ""
+    GMAIL_CLIENT_SECRET: str = ""
+    GMAIL_REDIRECT_URL: str = "http://localhost:8000/gmail/oauth/callback"
+
 
 settings = Settings()

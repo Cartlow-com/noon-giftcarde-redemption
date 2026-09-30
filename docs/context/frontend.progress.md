@@ -7,6 +7,23 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-09-16 — OTP scrape reads inline `const otp` script + `.otp-input` values first (Noon get-otp page)
+- 2026-09-16 — OTP scrape uses allFrames executeScript; get-otp excluded from mouse/login scripts; main frame preferred
+- 2026-09-16 — Removed OTP backend handoff; extension opens link, scrapes OTP locally, pastes on Noon
+- 2026-09-16 — OTP login always opens email link tab and scrapes visible code (no server-side wrong OTP shortcut)
+- 2026-09-12 — Gmail OTP lookup now sends an attempt timestamp and skips stale OTP emails from prior runs
+- 2026-09-12 — Gmail OTP link endpoint now server-fetches the Noon OTP page and returns a parsed 6-digit OTP before browser copy fallback
+- 2026-09-12 — OTP page Copy now fires main-world pointer/mouse events; added local Chrome OTP handoff and split OTP helper file
+- 2026-09-12 — OTP parsing now accepts only 6-digit codes and verifies all six Noon boxes before submit
+- 2026-09-12 — OTP Copy fallback can return to Noon and read the browser clipboard when code text cannot be scraped
+- 2026-09-12 — Added authenticated backend OTP handoff so extension saves OTP then Noon tab reads it back before paste
+- 2026-09-12 — OTP extraction now prefers the visible Copy-button ancestor text and OTP modal fills boxes with direct input events
+- 2026-09-12 — OTP tab handoff now refocuses Noon before pasting; scraper handles visible spaced digits before Copy text
+- 2026-09-12 — Noon OTP fallback clicks the OTP page Copy button and reads clipboard when text scraping fails
+- 2026-09-11 — Dashboard pings extension service worker auth status before showing connected; cache-busted auth assets
+- 2026-09-11 — Extension connect now verifies service-worker token storage, heartbeats backend, remembers dashboard origin, and immediately polls pending runs
+- 2026-09-11 — Extension reuses any existing Noon tab; opens a new tab only when no Noon tab exists
+- 2026-09-11 — Added Gmail OTP fallback for Noon OTP-only login screens
 - 2026-09-11 — Added localhost API fallback while keeping Innovidio as primary extension backend
 - 2026-09-11 — Removed old live domain from extension config; Innovidio is the only live dashboard/backend domain
 - 2026-09-07 — Topbar shows green “Extension connected” when linked; API online pill removed

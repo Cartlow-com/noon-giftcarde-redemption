@@ -4,7 +4,7 @@
  *
  * Rule:
  * - OTP + password on same screen → use password flow
- * - OTP only (no password field / switch) → stop (manual login)
+ * - OTP only (no password field / switch) → fetch OTP from Gmail and submit
  *
  * Loaded after 03-dom-nav.js (uses normalizeText / findClickableByText).
  */
@@ -172,6 +172,6 @@ async function ensurePasswordTab() {
   const ok = await preferPasswordLogin(6000);
   if (ok) return;
 
-  // Only fail when OTP is the only option left.
+  // Only fail when OTP is the only option left and Gmail fallback cannot run.
   throwIfOtpOnlyLogin();
 }

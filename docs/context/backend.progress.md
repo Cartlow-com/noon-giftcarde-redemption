@@ -28,6 +28,8 @@ FastAPI backend with login + batch modules. Extension connects to backend for CS
 
 ## Recent Changes
 
+- 2026-09-16 — Removed `/gmail/otp-handoff` API; OTP is never sent to/from backend
+- 2026-09-16 — `/gmail/otp-link` returns URL only; removed unreliable server HTML OTP scrape
 - 2026-09-10 — Auto-connect extension on dashboard load; connectWithReload() on button click (auth-extension.js + auth.js)
 - 2026-09-07 — Super-admin seed email `admin@innovidio.com` / `admin@123` (legacy admin demoted)
 - 2026-09-07 — Super-admin role + `/users` CRUD + global batch visibility/owner filter/Users panel

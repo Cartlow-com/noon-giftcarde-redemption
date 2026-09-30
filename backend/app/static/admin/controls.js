@@ -97,16 +97,23 @@
     }
   });
 
-  btnRun.addEventListener("click", async () => {
+  async function runSelectedRowsFromDashboard() {
     const s = state();
     if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) return;
     const rowIds = [...s.selectedIds];
     if (!s.selectedBatchId || rowIds.length === 0) return;
-    if (!s.extensionOnline) {
+    const extensionReady =
+      s.extensionOnline ||
+      !!(window.AdminAuth && window.AdminAuth.isExtensionConnected());
+    if (!extensionReady) {
       ui().showError("Extension is offline — keep Chrome open with Noon Automation loaded");
       return;
     }
     try {
+      if (!s.extensionOnline && window.AdminAuth && window.AdminAuth.isExtensionConnected()) {
+        await U.api("/runs/extension/heartbeat", { method: "POST" });
+        ui().setExtensionOnline(true);
+      }
       const run = await U.api("/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -133,6 +140,16 @@
       ui().showError(err.message);
       refreshExtensionStatus();
     }
+  }
+
+  btnRun.addEventListener("click", runSelectedRowsFromDashboard);
+
+  document.addEventListener("click", (event) => {
+    const run = event.target.closest && event.target.closest("#btn-run");
+    if (!run || run.disabled) return;
+    if (event.target === btnRun) return;
+    event.preventDefault();
+    runSelectedRowsFromDashboard();
   });
 
   btnStop.addEventListener("click", async () => {
@@ -160,6 +177,7 @@
 
   window.addEventListener("noon-auth-changed", (event) => {
     if (event.detail && event.detail.authenticated) {
+      if (event.detail.extensionConnected) ui().setExtensionOnline(true);
       refreshActiveRun();
       refreshExtensionStatus();
     } else {

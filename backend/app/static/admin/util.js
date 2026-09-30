@@ -12,11 +12,18 @@ window.AdminUtil = {
     options.headers = headers;
     const response = await fetch(path, options);
     if (response.status === 401) {
-      if (window.AdminAuth && typeof window.AdminAuth.handleUnauthorized === "function") {
-        window.AdminAuth.handleUnauthorized();
-      } else {
-        localStorage.removeItem("noon_access_token");
-        localStorage.removeItem("noon_refresh_token");
+      // Only treat a 401 as "session expired" when it comes from an auth
+      // endpoint.  A 401 racing in from /gmail/status or /runs/active during
+      // boot must NOT wipe the session and force a re-login.
+      const isAuthEndpoint =
+        path === "/login/me" || path === "/login" || path.startsWith("/login/");
+      if (isAuthEndpoint) {
+        if (window.AdminAuth && typeof window.AdminAuth.handleUnauthorized === "function") {
+          window.AdminAuth.handleUnauthorized();
+        } else {
+          localStorage.removeItem("noon_access_token");
+          localStorage.removeItem("noon_refresh_token");
+        }
       }
     }
     if (response.status === 204) return null;

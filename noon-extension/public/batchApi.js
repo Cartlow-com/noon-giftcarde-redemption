@@ -1,35 +1,15 @@
-let activeApiBaseUrl = null;
 const AUTH_TOKEN_KEY = "noon_access_token";
 
-function clearActiveApiBaseUrl() {
-  activeApiBaseUrl = null;
+function normalizeApiBaseUrl(value) {
+  return typeof value === "string" ? value.trim().replace(/\/$/, "") : "";
 }
 
-function configuredApiBaseUrls() {
-  const bases = [];
-  const primary = typeof NOON_API_BASE_URL === "string" ? NOON_API_BASE_URL : "";
-  if (primary.trim()) bases.push(primary.trim().replace(/\/$/, ""));
-  if (
-    typeof NOON_EXTRA_API_BASE_URLS !== "undefined" &&
-    Array.isArray(NOON_EXTRA_API_BASE_URLS)
-  ) {
-    NOON_EXTRA_API_BASE_URLS.forEach(function (base) {
-      if (typeof base === "string" && base.trim()) {
-        bases.push(base.trim().replace(/\/$/, ""));
-      }
-    });
-  }
-  return bases.filter(function (base, index, all) {
-    return all.indexOf(base) === index;
-  });
-}
-
-async function getApiBaseUrl() {
-  const bases = configuredApiBaseUrls();
-  if (!bases.length) {
+function getApiBaseUrl() {
+  const base = normalizeApiBaseUrl(typeof NOON_API_BASE_URL === "string" ? NOON_API_BASE_URL : "");
+  if (!base) {
     throw new Error("NOON_API_BASE_URL is not configured — set VITE_API_BASE_URL in .env and rebuild");
   }
-  return activeApiBaseUrl || bases[0];
+  return base;
 }
 
 async function getAuthToken() {
@@ -74,7 +54,7 @@ async function batchApiRequestFromBase(base, path, options) {
 }
 
 async function batchApiRequest(path, options) {
-  const base = await getApiBaseUrl();
+  const base = getApiBaseUrl();
   return batchApiRequestFromBase(base, path, options);
 }
 
@@ -91,7 +71,7 @@ async function patchBatchRow(rowId, body) {
 }
 
 async function uploadRowScreenshot(rowId, kind, blob, attemptId) {
-  const base = await getApiBaseUrl();
+  const base = getApiBaseUrl();
   const token = await getAuthToken();
   if (!token) {
     throw new Error("Noon dashboard access token missing. Sign in to the dashboard first.");
@@ -207,24 +187,7 @@ async function createBatchRun(payload) {
 }
 
 async function getPendingRun() {
-  const bases = configuredApiBaseUrls();
-  let firstEmpty = null;
-  let lastError = null;
-  for (let i = 0; i < bases.length; i++) {
-    try {
-      const run = await batchApiRequestFromBase(bases[i], "/runs/pending");
-      if (run && run.id) {
-        activeApiBaseUrl = bases[i];
-        return run;
-      }
-      if (firstEmpty === null) firstEmpty = run;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  if (firstEmpty !== null) return firstEmpty;
-  if (lastError) throw lastError;
-  return null;
+  return batchApiRequest("/runs/pending");
 }
 
 async function getActiveRun() {
@@ -252,20 +215,6 @@ async function getRunsConfig() {
 }
 
 async function postExtensionHeartbeat() {
-  const bases = configuredApiBaseUrls();
-  let firstOk = null;
-  let lastError = null;
-  for (let i = 0; i < bases.length; i++) {
-    try {
-      const result = await batchApiRequestFromBase(bases[i], "/runs/extension/heartbeat", {
-        method: "POST",
-      });
-      if (!firstOk) firstOk = result;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  if (firstOk) return firstOk;
-  if (lastError) throw lastError;
-  return null;
+  const base = getApiBaseUrl();
+  return batchApiRequestFromBase(base, "/runs/extension/heartbeat", { method: "POST" });
 }

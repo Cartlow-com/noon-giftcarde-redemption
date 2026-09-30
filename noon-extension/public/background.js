@@ -210,6 +210,63 @@ async function cancelLoginOnTab(tabId) {
   }
 }
 
+const GMAIL_SEARCH_URL =
+  "https://mail.google.com/mail/u/0/#search/" +
+  encodeURIComponent("noon OTP OR verification OR login newer_than:1d");
+
+// Gmail is a SPA — navigating to a hash URL often doesn't trigger a real page
+// load, so waitForTabComplete fires immediately before results render.
+// After any Gmail tab navigation we inject an extra settle delay.
+async function navigateGmailTab(tabId, url) {
+  await chrome.tabs.update(tabId, { url, active: true });
+  // Wait for the tab to signal "complete" (may be instant on SPA navigation)
+  await waitForTabComplete(tabId);
+  // Extra settle: Gmail needs time to re-render search results after hash change
+  await delay(1800);
+}
+
+async function getOrCreateGmailTab() {
+  const tabs = await chrome.tabs.query({ url: "https://mail.google.com/*" });
+  const existing = tabs.find((tab) => tab.id != null);
+
+  if (existing && existing.id != null) {
+    // Tab already open — focus its window then navigate to search URL
+    if (existing.windowId != null) {
+      try { await chrome.windows.update(existing.windowId, { focused: true }); } catch (_) {}
+    }
+    await navigateGmailTab(existing.id, GMAIL_SEARCH_URL);
+    return existing.id;
+  }
+
+  // No Gmail tab — open one and wait for it to fully load
+  const created = await chrome.tabs.create({ url: GMAIL_SEARCH_URL, active: true });
+  if (created.windowId != null) {
+    try { await chrome.windows.update(created.windowId, { focused: true }); } catch (_) {}
+  }
+  if (created.id == null) throw new Error("Could not open Gmail tab");
+  await waitForTabComplete(created.id);
+  // Newly opened tabs need extra time for Gmail's full boot
+  await delay(2500);
+  return created.id;
+}
+
+async function sendMessageToAnyTab(tabId, message, attempts = 10) {
+  let lastError = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await chrome.tabs.sendMessage(tabId, message);
+    } catch (error) {
+      lastError = error;
+      // Exponential backoff — content script may still be initializing
+      await delay(400 + i * 200);
+    }
+  }
+  throw lastError || new Error("Tab did not respond after retries");
+}
+
+
+// OTP tab helpers live in otpTab.js (importScripts below).
+
 /** Wipe Noon auth cookies so the next row cannot inherit the previous account. */
 async function clearNoonSessionCookies() {
   const domains = [".noon.com", "noon.com", "www.noon.com", "account.noon.com", "login.noon.com"];
@@ -231,4 +288,4 @@ async function clearNoonSessionCookies() {
   return { ok: true, removed: removed };
 }
 
-importScripts("noonTab.js", "messageRouter.js");
+importScripts("noonTab.js", "otpTab.js", "messageRouter.js");

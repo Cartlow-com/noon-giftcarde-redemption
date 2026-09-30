@@ -1,4 +1,4 @@
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SET_AUTH_TOKENS") {
     (async () => {
       try {
@@ -9,11 +9,34 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
         const refresh =
           typeof message.refreshToken === "string" ? message.refreshToken.trim() : "";
+        const apiBaseUrl =
+          typeof message.apiBaseUrl === "string" ? message.apiBaseUrl.trim() : "";
+        const configuredBase = getApiBaseUrl();
         await chrome.storage.local.set({
           noon_access_token: access,
           noon_refresh_token: refresh,
         });
-        sendResponse({ ok: true });
+        const stored = await chrome.storage.local.get(["noon_access_token"]);
+        const hasToken = stored.noon_access_token === access;
+        if (!hasToken) {
+          sendResponse({ ok: false, error: "Extension token storage verification failed" });
+          return;
+        }
+        try {
+          await postExtensionHeartbeat();
+        } catch (error) {
+          sendResponse({
+            ok: false,
+            hasToken: true,
+            apiBaseUrl: configuredBase || null,
+            error: error instanceof Error ? error.message : "Extension heartbeat failed",
+          });
+          return;
+        }
+        try {
+          pollDashboardRuns();
+        } catch (_) {}
+        sendResponse({ ok: true, hasToken: true, apiBaseUrl: configuredBase || null });
       } catch (error) {
         sendResponse({
           ok: false,
@@ -33,6 +56,49 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: error instanceof Error ? error.message : "Failed to clear auth tokens",
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === "GET_AUTH_STATUS") {
+    (async () => {
+      try {
+        const stored = await chrome.storage.local.get(["noon_access_token"]);
+        sendResponse({
+          ok: true,
+          hasToken: typeof stored.noon_access_token === "string" && !!stored.noon_access_token,
+          apiBaseUrl: getApiBaseUrl() || null,
+        });
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          hasToken: false,
+          error: error instanceof Error ? error.message : "Failed to read extension auth status",
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === "FETCH_NOON_OTP_FROM_GMAIL") {
+    (async () => {
+      try {
+        const result = await fetchNoonOtpFromGmail(sender.tab && sender.tab.id, message.email);
+        if (typeof result === "string") {
+          sendResponse({ ok: true, otp: result });
+        } else {
+          sendResponse({
+            ok: true,
+            otp: result && result.otp,
+            useClipboard: result && result.useClipboard === true,
+          });
+        }
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : "Could not fetch Noon OTP from Gmail",
         });
       }
     })();

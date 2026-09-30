@@ -58,8 +58,9 @@ async function loginFromCurrentPage(email, password) {
     await openLoginModal();
   }
   throwIfManualLoginRequired();
-  await enterEmailAndContinue(email);
+  const loginMode = await enterEmailAndContinue(email);
   throwIfManualLoginRequired();
+  if (loginMode === "otp") return;
   await loginWithPassword(password);
 }
 

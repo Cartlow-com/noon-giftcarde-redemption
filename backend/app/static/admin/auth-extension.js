@@ -41,6 +41,7 @@
         postToExtension("NOON_EXT_PING", { requestId });
         const result = await resultPromise;
         state.extensionInstalled = !!(result && result.ok);
+        state.extensionConnected = !!(result && result.hasToken);
         return state.extensionInstalled;
       }
 
@@ -72,10 +73,12 @@
           refreshToken: state.refreshToken || null,
         });
         const result = await resultPromise;
-        if (!result.ok) {
+        if (!result.ok || !result.hasToken) {
           setConnectStatus("missing", "Connect failed");
           if (window.AdminUI && window.AdminUI.showError) {
-            window.AdminUI.showError(result.error || "Could not onboard extension");
+            window.AdminUI.showError(
+              result.error || "Extension did not store the dashboard token",
+            );
           }
           return false;
         }
@@ -139,9 +142,14 @@
         // Bridge is present — try a normal connect first.
         const ok = await connectExtension();
         if (ok) return;
-        // Token push failed even though bridge is there (e.g. SW was sleeping
-        // and the bridge was injected into a stale page). Reload once so Chrome
-        // re-injects everything fresh, then auto-connect on the reloaded page.
+        // Reload once so Chrome re-injects the bridge fresh. Guard against a
+        // second reload by checking if we already retried this session.
+        let alreadyRetried = false;
+        try { alreadyRetried = !!sessionStorage.getItem(RETRY_FLAG); } catch (_) {}
+        if (alreadyRetried) {
+          setConnectStatus("missing", "Connect failed — try reloading manually");
+          return;
+        }
         try {
           sessionStorage.setItem(RETRY_FLAG, "1");
         } catch (_) {}
@@ -162,12 +170,15 @@
             ok: !!data.ok,
             error: data.error || null,
             cleared: !!data.cleared,
+            hasToken: !!data.hasToken,
+            apiBaseUrl: data.apiBaseUrl || null,
           });
         }
       });
 
       return {
         detectExtensionInstalled,
+        pingExtension,
         connectExtension,
         autoConnect,
         connectWithReload,

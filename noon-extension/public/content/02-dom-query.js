@@ -122,10 +122,7 @@ function getManualLoginRequiredMessage() {
       (document.body && document.body.textContent) ||
       "",
   ).toLowerCase();
-  if (
-    haystack.indexOf("too many failed attempts") !== -1 ||
-    haystack.indexOf("link sent to your email address") !== -1
-  ) {
+  if (haystack.indexOf("too many failed attempts") !== -1) {
     return "Too many failed attempts. Please use the email link to log in manually.";
   }
 
@@ -138,8 +135,7 @@ function getManualLoginRequiredMessage() {
     if (!text || text.length > 400) continue;
     const lower = text.toLowerCase();
     if (
-      lower.indexOf("too many failed attempts") !== -1 ||
-      lower.indexOf("link sent to your email address") !== -1
+      lower.indexOf("too many failed attempts") !== -1
     ) {
       return "Too many failed attempts. Please use the email link to log in manually.";
     }
@@ -153,15 +149,21 @@ function isLoginLockoutError() {
 
 /** True for lockout / OTP / any "stop and do not retry login" failure. */
 function isTerminalLoginError(error) {
+  if (error && error.terminal) return true;
   const msg = String(
     (error && error.message) || (typeof error === "string" ? error : "") || "",
   ).toLowerCase();
   if (!msg) return false;
   return (
     msg.indexOf("too many failed attempts") !== -1 ||
-    msg.indexOf("link sent to your email") !== -1 ||
     msg.indexOf("manual login required") !== -1 ||
-    msg.indexOf("otp is required") !== -1
+    msg.indexOf("otp is required") !== -1 ||
+    msg.indexOf("could not fetch otp") !== -1 ||
+    msg.indexOf("no recent noon otp email") !== -1 ||
+    msg.indexOf("could not read otp") !== -1 ||
+    msg.indexOf("no otp link found") !== -1 ||
+    msg.indexOf("gmail is not signed in") !== -1 ||
+    msg.indexOf("otp login did not complete") !== -1
   );
 }
 
@@ -233,4 +235,3 @@ async function waitFor(fn, timeoutMs, intervalMs) {
   throwIfManualLoginRequired();
   return null;
 }
-

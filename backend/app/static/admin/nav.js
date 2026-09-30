@@ -4,8 +4,10 @@
   const el = {
     navBatches: document.getElementById("nav-batches"),
     navUsers: document.getElementById("nav-users"),
+    navGmail: document.getElementById("nav-gmail"),
     viewBatches: document.getElementById("view-batches"),
     viewUsers: document.getElementById("view-users"),
+    viewGmail: document.getElementById("view-gmail"),
     navItems: document.querySelectorAll(".nav-item[data-view]"),
     modalBar: document.getElementById("user-data-modal-bar"),
     modalTitle: document.getElementById("user-data-modal-title"),
@@ -29,18 +31,28 @@
 
   function showView(view) {
     if (isSuper() && view === "batches") return;
-    state.view = view === "users" ? "users" : "batches";
+    const validView = ["batches", "users", "gmail"].includes(view) ? view : "batches";
+    state.view = validView;
+
     if (el.viewBatches && !isSuper()) {
       el.viewBatches.classList.toggle("hidden", state.view !== "batches");
       el.viewBatches.classList.remove("modal-open");
     }
     if (el.viewUsers) el.viewUsers.classList.toggle("hidden", state.view !== "users");
+    if (el.viewGmail) el.viewGmail.classList.toggle("hidden", state.view !== "gmail");
+
     el.navItems.forEach((btn) => {
       btn.classList.toggle("active", btn.getAttribute("data-view") === state.view);
     });
+
     if (state.view === "users" && window.AdminUsers) window.AdminUsers.loadUsers();
     if (state.view === "batches" && window.AdminUI && window.AdminUI.loadBatches) {
       window.AdminUI.loadBatches({ silent: true });
+    }
+    if (state.view === "gmail") {
+      if (window.AdminGmail) {
+        window.AdminGmail.loadStatus();
+      }
     }
   }
 
@@ -139,8 +151,18 @@
 
   window.addEventListener("noon-auth-changed", (event) => {
     const detail = event.detail || {};
-    setSuperAdminNav(!!detail.authenticated && detail.role === "super_admin");
+    const isSuper = !!detail.authenticated && detail.role === "super_admin";
+    const isUser = !!detail.authenticated && !isSuper;
+    setSuperAdminNav(isSuper);
+    if (detail.authenticated) {
+      // Gmail tab only for regular users
+      if (el.navGmail) el.navGmail.classList.toggle("hidden", !isUser);
+      if (isUser && window.AdminGmail && typeof window.AdminGmail.boot === "function") {
+        window.AdminGmail.boot();
+      }
+    }
     if (!detail.authenticated) {
+      if (el.navGmail) el.navGmail.classList.add("hidden");
       closeUserDataModal(true);
       showView("batches");
     }

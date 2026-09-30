@@ -940,7 +940,7 @@ async function runSelectedRows(batchId, rowIds, options) {
       `Starting ${rowIds.length} selected row(s)` +
       (batchLoginOnly ? " — LOGIN ONLY" : "") +
       (batchPlaceOrder ? " — place order on" : " — place order off") +
-      (batchHideWindow ? " — Noon window hidden" : " — Noon window visible") +
+      (batchHideWindow ? " — Noon tab hidden" : " — Noon tab visible") +
       (batchSendRedeemEmails ? " — redeem emails on" : " — redeem emails off") +
       (batchSendOrderEmails ? " — order emails on" : " — order emails off"),
   });

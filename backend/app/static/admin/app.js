@@ -83,8 +83,11 @@
     const hasSel = state.selectedIds.size > 0;
     const running = !!(state.activeRun && ["queued", "claimed", "running", "stopping"].includes(state.activeRun.status));
     const authed = !window.AdminAuth || window.AdminAuth.isAuthenticated();
+    const extensionReady =
+      state.extensionOnline ||
+      !!(window.AdminAuth && window.AdminAuth.isExtensionConnected());
     el.btnDelete.disabled = !hasBatch || running;
-    el.btnRun.disabled = !authed || !hasBatch || !hasSel || running || !state.extensionOnline;
+    el.btnRun.disabled = !authed || !hasBatch || !hasSel || running || !extensionReady;
     el.btnStop.disabled = !running;
     el.selCount.textContent = `${state.selectedIds.size} selected`;
   }

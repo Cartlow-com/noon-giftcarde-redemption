@@ -21,6 +21,7 @@
 | Row API secrets | List/SSE omit password+PIN; work payload only on get-row + pull-next | Listing is not a credential dump |
 | Face value | Optional CSV `face_value`; `value_match` vs `balance_delta` | Stored-value reconciliation |
 | Extension auth | Token bridged from dashboard → `chrome.storage.local` | No extension login form |
+| Gmail OTP | Scrape priority: inline `const otp`, then `.otp-input` values, then Copy/text fallbacks; all frames | Noon stores OTP in script + input.value, not text nodes |
 
 ## Code Patterns
 
