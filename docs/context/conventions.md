@@ -16,7 +16,7 @@
 | Row re-runs | Attempt at start + PATCH finish (`batch_row_attempts`) | Covers mid-row crashes, not only completions |
 | Screenshots | Per attempt `{batch}/{row}/{attempt}/{kind}.png`; row keeps latest | Selecting a run shows that run’s shots |
 | Skip rules | Redeem done + order success → skip row; always email-match before redeem/order | Safe multi-run of same CSV |
-| Auth | `AUTH_REQUIRED=true` JWT; access token TTL 7 days; dashboard login only; `/me` + protected routes re-check DB `is_active`+`role` | Per-user data isolation; deactivate/demote revoke mid-token |
+| Auth | `AUTH_REQUIRED=true` JWT; access token TTL 7 days; dashboard login only; `/me` + protected routes re-check DB `is_active`+`role`; `token_version` bumped on each login to revoke prior JWTs | Per-user isolation; deactivate/demote revoke mid-token; new login kills old sessions |
 | Tenancy | Ownership default-closed; stale presence auto-stops runs; `super_admin` can list/operate across users (+ optional `user_id` filter) | Ops visibility without weakening normal users |
 | Row API secrets | List/SSE omit password+PIN; work payload only on get-row + pull-next | Listing is not a credential dump |
 | Face value | Optional CSV `face_value`; `value_match` vs `balance_delta` | Stored-value reconciliation |

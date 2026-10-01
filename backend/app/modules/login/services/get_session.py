@@ -19,10 +19,15 @@ def get_session(access_token: str, db: Session | None = None) -> SessionResponse
     if not user_id or not email:
         raise ValueError("Invalid token payload")
 
+    token_version = int(payload.get("tv") or 0)
+
     if db is not None:
         user = db.get(User, user_id)
         if not user or not user.is_active:
             raise ValueError("Invalid token")
+        current_version = int(user.token_version or 0)
+        if token_version != current_version:
+            raise ValueError("Session expired — sign in again")
         return SessionResponse(
             user_id=user.id,
             email=user.email,

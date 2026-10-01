@@ -79,6 +79,12 @@ def _ensure_sqlite_columns() -> None:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(32) DEFAULT 'user'"))
                 conn.execute(text("UPDATE users SET role = 'user' WHERE role IS NULL OR role = ''"))
+        if "token_version" not in user_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN token_version INTEGER DEFAULT 0"))
+                conn.execute(
+                    text("UPDATE users SET token_version = 0 WHERE token_version IS NULL")
+                )
 
     if "gmail_tokens" in tables:
         gmail_cols = {col["name"] for col in inspector.get_columns("gmail_tokens")}

@@ -26,7 +26,12 @@ def update_session(refresh_token: str, db: Session) -> TokenResponse:
     if not user or not user.is_active:
         raise ValueError("Invalid refresh token")
 
+    token_version = int(payload.get("tv") or 0)
+    current_version = int(user.token_version or 0)
+    if token_version != current_version:
+        raise ValueError("Session expired — sign in again")
+
     return TokenResponse(
-        access_token=create_access_token(user.id, user.email, user.role),
-        refresh_token=create_refresh_token(user.id),
+        access_token=create_access_token(user.id, user.email, user.role, current_version),
+        refresh_token=create_refresh_token(user.id, current_version),
     )

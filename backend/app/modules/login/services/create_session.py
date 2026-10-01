@@ -15,7 +15,14 @@ def create_session(payload: LoginRequest, db: Session) -> TokenResponse:
     if not verify_password(payload.password, user.hashed_password):
         raise ValueError("Invalid credentials")
 
+    # Bump version so every prior access/refresh JWT for this user is revoked.
+    user.token_version = int(user.token_version or 0) + 1
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    version = int(user.token_version or 0)
     return TokenResponse(
-        access_token=create_access_token(user.id, user.email, user.role),
-        refresh_token=create_refresh_token(user.id),
+        access_token=create_access_token(user.id, user.email, user.role, version),
+        refresh_token=create_refresh_token(user.id, version),
     )
