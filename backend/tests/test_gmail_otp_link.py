@@ -14,10 +14,6 @@ def test_extract_otp_from_email_subject() -> None:
     assert extract_otp_code("845989 is the OTP for your noon account verification") == "845989"
 
 
-def test_extract_otp_code_from_noon_copy_page_text() -> None:
-    assert extract_otp_code("Use this OTP to login to your noon account\n5 7 8 4 8 5 Copy") == "578485"
-
-
 def test_click_here_email_has_no_inline_otp() -> None:
     assert (
         extract_otp_code(
@@ -26,6 +22,21 @@ def test_click_here_email_has_no_inline_otp() -> None:
         )
         is None
     )
+
+
+def test_click_here_html_does_not_invent_otp_from_years_or_sizes() -> None:
+    """Regression: loose digit scrape returned junk like 202320 and skipped the link."""
+    html = """
+    <!DOCTYPE html><html><body>
+    <p>Account verification</p>
+    <p>To view your one time password (OTP)
+      <a href="https://account.noon.com/_svc/mp-identity-api/auth/get-otp?token=abc">Click Here</a>.
+    </p>
+    <img width="101" height="010" src="x.jpg"/>
+    <p>Copyright 2023-2024 noon</p>
+    </body></html>
+    """
+    assert extract_otp_code(html) is None
 
 
 def test_pick_newest_eligible_prefers_fresh_inline_otp() -> None:

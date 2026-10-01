@@ -34,12 +34,6 @@ _SUBJECT_OTP_RE = re.compile(
     re.IGNORECASE,
 )
 
-_OTP_CODE_RE = re.compile(
-    r"(?:otp|code|verification|login|account)[\s\S]{0,600}?((?:\d[^\dA-Za-z]*){6})",
-    re.IGNORECASE,
-)
-
-
 def _decode_base64url(data: str) -> str:
     try:
         padded = data + "=" * (-len(data) % 4)
@@ -112,26 +106,23 @@ def _pick_newest_eligible(
 
 
 def extract_otp_code(text: str) -> str | None:
-    """Extract 6-digit OTP from email body/subject or OTP landing page text."""
+    """
+    Extract a 6-digit OTP from Noon email subject/body.
+
+    Only trust explicit inline/subject forms:
+      - "OTP is 845989" / "one time password (OTP) is 845989"
+      - "845989 is the OTP for your noon account…"
+
+    Do NOT scrape arbitrary digit runs from HTML (widths, years, tracking IDs).
+    Click Here emails have no inline code — callers must open the get-otp URL.
+    """
     raw = html.unescape(str(text or ""))
-    # Strip HTML tags for body parsing
     plain = re.sub(r"<[^>]+>", " ", raw)
 
     for pattern in (_INLINE_OTP_RE, _SUBJECT_OTP_RE):
         match = pattern.search(plain)
         if match:
             return match.group(1)
-
-    for match in _OTP_CODE_RE.finditer(plain):
-        code = re.sub(r"\D", "", match.group(1))
-        if len(code) == 6:
-            return code
-
-    copy_match = re.search(r"((?:\d[^\dA-Za-z]*){6})\s*copy\b", plain, re.IGNORECASE)
-    if copy_match:
-        code = re.sub(r"\D", "", copy_match.group(1))
-        if len(code) == 6:
-            return code
     return None
 
 
@@ -190,8 +181,10 @@ async def fetch_otp_from_email(
 
             otp = extract_otp_code(combined) or ""
             url = _pick_best_otp_link(links, body_text) or ""
+            # Prefer strict inline OTP; otherwise open Click Here / get-otp URL.
+            # Never invent an OTP from HTML noise when a link is present.
             if otp:
-                found.append((internal_date, otp, ""))
+                found.append((internal_date, otp, url))
             elif url:
                 found.append((internal_date, "", url))
 
