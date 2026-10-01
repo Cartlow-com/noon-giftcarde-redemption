@@ -11,7 +11,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           typeof message.refreshToken === "string" ? message.refreshToken.trim() : "";
         const apiBaseUrl =
           typeof message.apiBaseUrl === "string" ? message.apiBaseUrl.trim() : "";
-        const configuredBase = getApiBaseUrl();
+        if (apiBaseUrl) {
+          await setApiBaseUrl(apiBaseUrl);
+        }
+        const configuredBase = await getApiBaseUrl();
         await chrome.storage.local.set({
           noon_access_token: access,
           noon_refresh_token: refresh,
@@ -51,6 +54,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         await chrome.storage.local.remove(["noon_access_token", "noon_refresh_token"]);
+        await clearApiBaseUrl();
         sendResponse({ ok: true });
       } catch (error) {
         sendResponse({
@@ -66,10 +70,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         const stored = await chrome.storage.local.get(["noon_access_token"]);
+        let apiBaseUrl = null;
+        try {
+          apiBaseUrl = await getApiBaseUrl();
+        } catch (_) {}
         sendResponse({
           ok: true,
           hasToken: typeof stored.noon_access_token === "string" && !!stored.noon_access_token,
-          apiBaseUrl: getApiBaseUrl() || null,
+          apiBaseUrl: apiBaseUrl,
         });
       } catch (error) {
         sendResponse({

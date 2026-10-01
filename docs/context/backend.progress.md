@@ -28,6 +28,7 @@ FastAPI backend with login + batch modules. Extension connects to backend for CS
 
 ## Recent Changes
 
+- 2026-10-01 — `/gmail/otp-link` prefers inline email OTP (`OTP is 123456` / subject) then Click Here URL
 - 2026-09-16 — Removed `/gmail/otp-handoff` API; OTP is never sent to/from backend
 - 2026-09-16 — `/gmail/otp-link` returns URL only; removed unreliable server HTML OTP scrape
 - 2026-09-10 — Auto-connect extension on dashboard load; connectWithReload() on button click (auth-extension.js + auth.js)

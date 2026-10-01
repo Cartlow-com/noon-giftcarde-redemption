@@ -1,15 +1,36 @@
 const AUTH_TOKEN_KEY = "noon_access_token";
+const API_BASE_STORAGE_KEY = "noon_api_base_url";
 
 function normalizeApiBaseUrl(value) {
   return typeof value === "string" ? value.trim().replace(/\/$/, "") : "";
 }
 
-function getApiBaseUrl() {
-  const base = normalizeApiBaseUrl(typeof NOON_API_BASE_URL === "string" ? NOON_API_BASE_URL : "");
+function getConfiguredApiBaseUrl() {
+  return normalizeApiBaseUrl(typeof NOON_API_BASE_URL === "string" ? NOON_API_BASE_URL : "");
+}
+
+async function getApiBaseUrl() {
+  try {
+    const stored = await chrome.storage.local.get([API_BASE_STORAGE_KEY]);
+    const fromStorage = normalizeApiBaseUrl(stored[API_BASE_STORAGE_KEY]);
+    if (fromStorage) return fromStorage;
+  } catch (_) {}
+  const base = getConfiguredApiBaseUrl();
   if (!base) {
     throw new Error("NOON_API_BASE_URL is not configured — set VITE_API_BASE_URL in .env and rebuild");
   }
   return base;
+}
+
+async function setApiBaseUrl(origin) {
+  const base = normalizeApiBaseUrl(origin);
+  if (!base) return "";
+  await chrome.storage.local.set({ [API_BASE_STORAGE_KEY]: base });
+  return base;
+}
+
+async function clearApiBaseUrl() {
+  await chrome.storage.local.remove([API_BASE_STORAGE_KEY]);
 }
 
 async function getAuthToken() {
@@ -54,7 +75,7 @@ async function batchApiRequestFromBase(base, path, options) {
 }
 
 async function batchApiRequest(path, options) {
-  const base = getApiBaseUrl();
+  const base = await getApiBaseUrl();
   return batchApiRequestFromBase(base, path, options);
 }
 
@@ -71,7 +92,7 @@ async function patchBatchRow(rowId, body) {
 }
 
 async function uploadRowScreenshot(rowId, kind, blob, attemptId) {
-  const base = getApiBaseUrl();
+  const base = await getApiBaseUrl();
   const token = await getAuthToken();
   if (!token) {
     throw new Error("Noon dashboard access token missing. Sign in to the dashboard first.");
@@ -215,6 +236,6 @@ async function getRunsConfig() {
 }
 
 async function postExtensionHeartbeat() {
-  const base = getApiBaseUrl();
+  const base = await getApiBaseUrl();
   return batchApiRequestFromBase(base, "/runs/extension/heartbeat", { method: "POST" });
 }

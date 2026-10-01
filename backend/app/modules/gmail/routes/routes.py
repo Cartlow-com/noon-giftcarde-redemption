@@ -9,7 +9,7 @@ from app.modules.gmail.controllers.controller import (
     gmail_disconnect,
     gmail_fetch_emails,
     gmail_fetch_full_email,
-    gmail_get_otp_link,
+    gmail_get_otp_from_email,
     gmail_handle_callback,
     gmail_status,
 )
@@ -108,11 +108,11 @@ async def gmail_otp_link_route(
     db: Session = Depends(get_db),
     user_id: str | None = Depends(require_auth),
 ) -> dict:
-    """Return OTP link URL only — extension must open the page and scrape the visible code."""
+    """Return inline OTP and/or Click Here URL from the latest Noon OTP email."""
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     try:
-        link = await gmail_get_otp_link(user_id, db, after_ms=after_ms)
-        return {"url": link, "otp": ""}
+        otp, url = await gmail_get_otp_from_email(user_id, db, after_ms=after_ms)
+        return {"url": url or "", "otp": otp or ""}
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

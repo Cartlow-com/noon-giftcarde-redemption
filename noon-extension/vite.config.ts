@@ -6,19 +6,22 @@ import react from "@vitejs/plugin-react";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/** Always keep these dashboard origins connectable (live + local). */
+const DASHBOARD_ORIGINS = [
+  "https://redeem.innovidio.com",
+  "http://127.0.0.1:8000",
+  "http://localhost:8000",
+];
+
 function normalizeApiBase(url: string): string {
   return url.trim().replace(/\/$/, "");
-}
-
-function apiHostPermission(apiBase: string): string {
-  return `${new URL(apiBase).origin}/*`;
 }
 
 function extensionEnvPlugin(apiBase: string): Plugin {
   return {
     name: "noon-extension-env",
     buildStart() {
-      // Single URL only — no fallback list. Change VITE_API_BASE_URL + rebuild to switch.
+      // Default API base at build time; connect from dashboard can override via storage.
       fs.writeFileSync(
         path.resolve(__dirname, "public/apiConfig.js"),
         `const NOON_API_BASE_URL = ${JSON.stringify(apiBase)};\n`,
@@ -29,18 +32,27 @@ function extensionEnvPlugin(apiBase: string): Plugin {
       const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
         host_permissions?: string[];
         externally_connectable?: { matches?: string[] };
+        content_scripts?: Array<{ js?: string[]; matches?: string[] }>;
       };
-      const origin = new URL(apiBase).origin;
+
+      const origins = new Set(DASHBOARD_ORIGINS);
+      try {
+        origins.add(new URL(apiBase).origin);
+      } catch (_) {}
+
+      const originList = Array.from(origins);
+      const matchList = originList.map((o) => `${o}/*`);
+
       const permissions = new Set(manifest.host_permissions || []);
       permissions.add("<all_urls>");
-      permissions.add(`${origin}/*`);
+      for (const match of matchList) permissions.add(match);
       manifest.host_permissions = Array.from(permissions);
 
-      manifest.externally_connectable = { matches: [`${origin}/*`] };
+      manifest.externally_connectable = { matches: matchList };
 
-      manifest.content_scripts = manifest.content_scripts?.map((script) => {
+      manifest.content_scripts = (manifest.content_scripts || []).map((script) => {
         if (!script.js?.includes("dashboardBridge.js")) return script;
-        return { ...script, matches: [`${origin}/*`] };
+        return { ...script, matches: matchList };
       });
 
       fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);

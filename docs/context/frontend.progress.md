@@ -7,6 +7,8 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-10-01 — Extension uses email-body OTP when present; opens Click Here page only as fallback
+- 2026-09-30 — Live `https://redeem.innovidio.com` always connectable; API base follows connected dashboard origin
 - 2026-09-16 — OTP scrape reads inline `const otp` script + `.otp-input` values first (Noon get-otp page)
 - 2026-09-16 — OTP scrape uses allFrames executeScript; get-otp excluded from mouse/login scripts; main frame preferred
 - 2026-09-16 — Removed OTP backend handoff; extension opens link, scrapes OTP locally, pastes on Noon

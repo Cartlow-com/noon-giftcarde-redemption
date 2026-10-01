@@ -9,7 +9,7 @@ from app.modules.gmail.services.exchange_code import exchange_code_for_tokens
 from app.modules.gmail.services.get_gmail_email import fetch_latest_emails
 from app.modules.gmail.services.get_gmail_email_full import fetch_full_email
 from app.modules.gmail.services.get_oauth_url import get_oauth_url
-from app.modules.gmail.services.get_otp_link import fetch_otp_link
+from app.modules.gmail.services.get_otp_link import fetch_otp_from_email
 from app.modules.gmail.services.save_token import (
     delete_gmail_token,
     get_gmail_email_address,
@@ -57,5 +57,10 @@ async def gmail_fetch_full_email(user_id: str, message_id: str, db: Session) -> 
     return await fetch_full_email(user_id, message_id, db)
 
 
-async def gmail_get_otp_link(user_id: str, db: Session, after_ms: int | None = None) -> str:
-    return await fetch_otp_link(user_id, db, after_ms=after_ms)
+async def gmail_get_otp_from_email(
+    user_id: str,
+    db: Session,
+    after_ms: int | None = None,
+) -> tuple[str, str]:
+    """Return (otp, url) — prefer inline email OTP, else Click Here link."""
+    return await fetch_otp_from_email(user_id, db, after_ms=after_ms)

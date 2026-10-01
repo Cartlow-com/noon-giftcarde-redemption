@@ -1,6 +1,6 @@
 """
-Fetch the latest Noon OTP email via the Gmail API and return the OTP link URL.
-No browser tab or UI interaction needed — purely API-based.
+Fetch the latest Noon OTP email via the Gmail API.
+Prefer a 6-digit code in subject/body; fall back to Click Here / get-otp link.
 """
 
 import base64
@@ -15,19 +15,22 @@ from app.modules.gmail.services.get_gmail_email import _get_valid_access_token
 
 GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
 
-# Search for recent Noon OTP / verification emails (last 1 day)
 NOON_OTP_QUERY = "from:noon.com newer_than:1d subject:(OTP OR verification OR login OR password)"
 
-# Regex to find the OTP link in email body
-# Matches href="..." or href='...' pointing to noon.com or mp-identity
 _LINK_RE = re.compile(
     r'href=["\']?(https?://[^\s"\'<>]+(?:noon\.com|mp-identity)[^\s"\'<>]*)["\']?',
     re.IGNORECASE,
 )
 
-# OTP link keywords that indicate it is the "click here to get OTP" link
-_OTP_LINK_KEYWORDS = re.compile(
-    r"click.here|view.*otp|get.*otp|otp.*link|verify|verification",
+# Inline email: "OTP is 845989" / "one time password (OTP) is 314529"
+_INLINE_OTP_RE = re.compile(
+    r"(?:one[\s-]*time[\s-]*password|otp)\s*(?:\(otp\))?\s*(?:is|:)\s*(\d{6})\b",
+    re.IGNORECASE,
+)
+
+# Subject: "845989 is the OTP for your noon account verification"
+_SUBJECT_OTP_RE = re.compile(
+    r"\b(\d{6})\b\s+is\s+the\s+otp\b",
     re.IGNORECASE,
 )
 
@@ -45,8 +48,16 @@ def _decode_base64url(data: str) -> str:
         return ""
 
 
+def _header_value(payload: dict, name: str) -> str:
+    headers = payload.get("headers") or []
+    target = name.lower()
+    for item in headers:
+        if str(item.get("name") or "").lower() == target:
+            return str(item.get("value") or "")
+    return ""
+
+
 def _extract_text_and_links(payload: dict, depth: int = 0) -> tuple[str, list[str]]:
-    """Recursively extract all plain/html text and href links from a message payload."""
     if depth > 10:
         return "", []
 
@@ -70,50 +81,53 @@ def _extract_text_and_links(payload: dict, depth: int = 0) -> tuple[str, list[st
 
 
 def _pick_best_otp_link(links: list[str], body_text: str) -> str | None:
-    """
-    From a list of candidate hrefs, pick the one most likely to be the OTP link.
-    Priority:
-    1. Link whose surrounding anchor text matches OTP keywords
-    2. Any noon.com / mp-identity link containing 'otp', 'verify', 'token' in the URL
-    3. First noon.com link
-    """
     noon_links = [
-        l for l in links
-        if re.search(r"noon\.com|mp-identity", l, re.IGNORECASE)
+        link for link in links
+        if re.search(r"noon\.com|mp-identity", link, re.IGNORECASE)
     ]
-
-    # Check URL path for OTP signals
     for link in noon_links:
         if re.search(r"otp|verify|verif|token|one.time", link, re.IGNORECASE):
             return link
-
-    # Fall back to first noon link
+    # Prefer Click Here style only when body mentions it
+    if re.search(r"click\s*here", body_text or "", re.IGNORECASE) and noon_links:
+        return noon_links[0]
     return noon_links[0] if noon_links else None
 
 
-def _pick_newest_eligible_link(
-    items: list[tuple[int, str]],
+def _pick_newest_eligible(
+    items: list[tuple[int, str, str]],
     after_ms: int | None = None,
-) -> str | None:
+) -> tuple[str, str] | None:
+    """items: (internal_date, otp, url) — prefer newest with otp or url."""
     min_internal_date = (after_ms or 0) - 30_000
     eligible = [
-        (internal_date, link)
-        for internal_date, link in items
-        if min_internal_date <= 0 or internal_date >= min_internal_date
+        item for item in items
+        if (min_internal_date <= 0 or item[0] >= min_internal_date) and (item[1] or item[2])
     ]
     if not eligible:
         return None
     eligible.sort(key=lambda item: item[0], reverse=True)
-    return eligible[0][1]
+    _, otp, url = eligible[0]
+    return otp, url
 
 
 def extract_otp_code(text: str) -> str | None:
+    """Extract 6-digit OTP from email body/subject or OTP landing page text."""
     raw = html.unescape(str(text or ""))
-    for match in _OTP_CODE_RE.finditer(raw):
+    # Strip HTML tags for body parsing
+    plain = re.sub(r"<[^>]+>", " ", raw)
+
+    for pattern in (_INLINE_OTP_RE, _SUBJECT_OTP_RE):
+        match = pattern.search(plain)
+        if match:
+            return match.group(1)
+
+    for match in _OTP_CODE_RE.finditer(plain):
         code = re.sub(r"\D", "", match.group(1))
         if len(code) == 6:
             return code
-    copy_match = re.search(r"((?:\d[^\dA-Za-z]*){6})\s*copy\b", raw, re.IGNORECASE)
+
+    copy_match = re.search(r"((?:\d[^\dA-Za-z]*){6})\s*copy\b", plain, re.IGNORECASE)
     if copy_match:
         code = re.sub(r"\D", "", copy_match.group(1))
         if len(code) == 6:
@@ -121,11 +135,14 @@ def extract_otp_code(text: str) -> str | None:
     return None
 
 
-async def fetch_otp_link(user_id: str, db: Session, after_ms: int | None = None) -> str:
+async def fetch_otp_from_email(
+    user_id: str,
+    db: Session,
+    after_ms: int | None = None,
+) -> tuple[str, str]:
     """
-    Fetch the latest Noon OTP email from Gmail API and return the OTP link URL.
-    Raises ValueError if Gmail is not connected, no email found, or no link found.
-    The extension must open this URL in a browser tab to read the visible OTP.
+    Return (otp, url) from the newest eligible Noon OTP email.
+    Prefer inline 6-digit OTP; otherwise return Click Here / get-otp URL.
     """
     token = db.get(GmailToken, user_id)
     if not token or not token.refresh_token:
@@ -135,7 +152,6 @@ async def fetch_otp_link(user_id: str, db: Session, after_ms: int | None = None)
     headers = {"Authorization": f"Bearer {access_token}"}
 
     async with httpx.AsyncClient(timeout=20) as client:
-        # Search for latest Noon OTP email
         list_resp = await client.get(
             f"{GMAIL_API_BASE}/messages",
             headers=headers,
@@ -151,7 +167,7 @@ async def fetch_otp_link(user_id: str, db: Session, after_ms: int | None = None)
             raise ValueError("No recent Noon OTP email found in Gmail inbox")
 
         min_internal_date = (after_ms or 0) - 30_000
-        found: list[tuple[int, str]] = []
+        found: list[tuple[int, str, str]] = []
 
         for msg in messages:
             full_resp = await client.get(
@@ -166,15 +182,21 @@ async def fetch_otp_link(user_id: str, db: Session, after_ms: int | None = None)
             internal_date = int(data.get("internalDate") or 0)
             if min_internal_date > 0 and internal_date < min_internal_date:
                 continue
+
             payload = data.get("payload", {})
+            subject = _header_value(payload, "Subject")
             body_text, links = _extract_text_and_links(payload)
+            combined = f"{subject}\n{body_text}"
 
-            otp_link = _pick_best_otp_link(links, body_text)
-            if otp_link:
-                found.append((internal_date, otp_link))
+            otp = extract_otp_code(combined) or ""
+            url = _pick_best_otp_link(links, body_text) or ""
+            if otp:
+                found.append((internal_date, otp, ""))
+            elif url:
+                found.append((internal_date, "", url))
 
-        link = _pick_newest_eligible_link(found, after_ms=after_ms)
-        if link:
-            return link
+        picked = _pick_newest_eligible(found, after_ms=after_ms)
+        if picked:
+            return picked
 
-    raise ValueError("No fresh OTP link found in recent Noon emails — check your Gmail inbox")
+    raise ValueError("No fresh OTP found in recent Noon emails — check your Gmail inbox")

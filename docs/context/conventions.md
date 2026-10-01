@@ -20,8 +20,9 @@
 | Tenancy | Ownership default-closed; stale presence auto-stops runs; `super_admin` can list/operate across users (+ optional `user_id` filter) | Ops visibility without weakening normal users |
 | Row API secrets | List/SSE omit password+PIN; work payload only on get-row + pull-next | Listing is not a credential dump |
 | Face value | Optional CSV `face_value`; `value_match` vs `balance_delta` | Stored-value reconciliation |
-| Extension auth | Token bridged from dashboard → `chrome.storage.local` | No extension login form |
-| Gmail OTP | Scrape priority: inline `const otp`, then `.otp-input` values, then Copy/text fallbacks; all frames | Noon stores OTP in script + input.value, not text nodes |
+| Extension auth | Token bridged from dashboard → `chrome.storage.local`; API base follows connected dashboard origin | Live + local both connectable |
+| Dashboard origins | Always allow `https://redeem.innovidio.com` + localhost in `externally_connectable` + `dashboardBridge` | Build used to wipe live when `.env` was localhost |
+| Gmail OTP | Prefer 6-digit code from email subject/body; else open Click Here / get-otp link and scrape | Noon now sends OTP inline in many emails |
 
 ## Code Patterns
 

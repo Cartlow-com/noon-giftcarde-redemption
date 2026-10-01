@@ -257,6 +257,7 @@ async function copyOtpFromTab(tabId) {
 
 /**
  * Open OTP link → scrape visible code → always return focus to Noon → close OTP tab.
+ * If backend already returns a 6-digit OTP from the email body, skip opening the link.
  */
 async function fetchNoonOtpFromGmail(noonTabId, email) {
   if (noonTabId == null) throw new Error("No active Noon tab to navigate for OTP");
@@ -270,22 +271,35 @@ async function fetchNoonOtpFromGmail(noonTabId, email) {
   });
   await delay(10000);
 
-  let otpLink;
+  let otpLink = "";
+  let emailOtp = "";
   try {
     const data = await batchApiRequest(`/gmail/otp-link?after_ms=${encodeURIComponent(otpRequestedAt)}`);
-    if (!data || !data.url) throw new Error("No OTP link returned from Gmail API");
-    otpLink = data.url;
+    emailOtp = String((data && data.otp) || "").replace(/\D/g, "");
+    otpLink = (data && data.url) || "";
   } catch (error) {
     throw new Error(
       "Gmail API: " + (error instanceof Error ? error.message : "could not get OTP link"),
     );
   }
 
+  if (emailOtp.length === 6) {
+    emitBatch({
+      type: "BATCH_PROGRESS",
+      stage: "login",
+      status: "info",
+      message: "OTP found in email body — pasting on Noon…",
+    });
+    return { otp: emailOtp, useClipboard: false };
+  }
+
+  if (!otpLink) throw new Error("No OTP code or Click Here link in Gmail");
+
   emitBatch({
     type: "BATCH_PROGRESS",
     stage: "login",
     status: "info",
-    message: "OTP link found — opening OTP page to read code…",
+    message: "No inline OTP — opening Click Here page to read code…",
   });
 
   const otpTab = await chrome.tabs.create({ url: otpLink, active: true });
