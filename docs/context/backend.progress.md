@@ -28,6 +28,7 @@ FastAPI backend with login + batch modules. Extension connects to backend for CS
 
 ## Recent Changes
 
+- 2026-10-02 — `/batches/sample.csv` is public (no JWT) so dashboard Download sample CSV link works
 - 2026-10-02 — Filled `couponcode` in `login_test.csv` + `orders.example.csv` (ONE, FIRST20, FIRST15, RAK50, FAB10, STAPLES15)
 - 2026-10-02 — Optional CSV `couponcode` / `coupon_code` stored as `batch_rows.coupon_code`; sample + orders.example updated
 - 2026-10-01 — Added `proxies.ok.csv` (TCP-live only) + `scripts/filter_ok_proxies.py`; pool prefers OK file

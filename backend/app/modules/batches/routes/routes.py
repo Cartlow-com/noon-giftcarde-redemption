@@ -73,7 +73,8 @@ def upload_batch_route(
 
 
 @router.get("/sample.csv")
-def sample_csv_route(user_id: str | None = Depends(require_auth)) -> Response:
+def sample_csv_route() -> Response:
+    """Public template — no auth (browser <a download> cannot send JWT)."""
     return Response(
         content=SAMPLE_CSV_BODY,
         media_type="text/csv",

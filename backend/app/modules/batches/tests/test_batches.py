@@ -117,8 +117,8 @@ def test_upload_rejects_bad_csv(client) -> None:
 
 
 def test_sample_csv_download(client) -> None:
-    headers = login(client)
-    response = client.get("/batches/sample.csv", headers=headers)
+    # Public — dashboard <a href> cannot attach Authorization.
+    response = client.get("/batches/sample.csv")
     assert response.status_code == 200
     assert "text/csv" in response.headers.get("content-type", "")
     body = response.text
