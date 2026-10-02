@@ -11,7 +11,7 @@ REQUIRED_COLUMNS = (
     "quantity",
 )
 
-OPTIONAL_COLUMNS = ("face_value",)
+OPTIONAL_COLUMNS = ("face_value", "couponcode", "coupon_code")
 
 
 @dataclass
@@ -24,6 +24,7 @@ class ParsedCsvRow:
     product_url: str
     quantity: int
     face_value: float | None = None
+    coupon_code: str | None = None
 
 
 def _parse_face_value(raw: str, index: int) -> float | None:
@@ -40,6 +41,11 @@ def _parse_face_value(raw: str, index: int) -> float | None:
     return value
 
 
+def _parse_coupon_code(raw: str) -> str | None:
+    text = (raw or "").strip()
+    return text or None
+
+
 def parse_orders_csv(content: bytes) -> list[ParsedCsvRow]:
     text = content.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
@@ -52,6 +58,7 @@ def parse_orders_csv(content: bytes) -> list[ParsedCsvRow]:
         raise ValueError(f"Missing required columns: {', '.join(missing)}")
 
     face_header = normalized_headers.get("face_value")
+    coupon_header = normalized_headers.get("couponcode") or normalized_headers.get("coupon_code")
 
     rows: list[ParsedCsvRow] = []
     for index, raw in enumerate(reader, start=1):
@@ -65,6 +72,7 @@ def parse_orders_csv(content: bytes) -> list[ParsedCsvRow]:
         product_url = (raw.get(normalized_headers["product_url"]) or "").strip()
         quantity_raw = (raw.get(normalized_headers["quantity"]) or "1").strip()
         face_raw = (raw.get(face_header) or "") if face_header else ""
+        coupon_raw = (raw.get(coupon_header) or "") if coupon_header else ""
 
         if not email or not password:
             raise ValueError(f"Row {index}: email and password are required")
@@ -90,6 +98,7 @@ def parse_orders_csv(content: bytes) -> list[ParsedCsvRow]:
                 product_url=product_url,
                 quantity=quantity,
                 face_value=_parse_face_value(face_raw, index),
+                coupon_code=_parse_coupon_code(coupon_raw),
             )
         )
 

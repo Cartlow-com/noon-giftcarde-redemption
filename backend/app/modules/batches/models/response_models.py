@@ -16,6 +16,7 @@ class BatchRowResponse(BaseModel):
     product_url: str
     quantity: int
     face_value: float | None = None
+    coupon_code: str | None = None
     login_status: str
     login_at: datetime | None
     login_error: str | None

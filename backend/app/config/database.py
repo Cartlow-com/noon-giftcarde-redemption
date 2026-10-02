@@ -36,6 +36,7 @@ def _ensure_sqlite_columns() -> None:
             "screenshot_on_failure": "ALTER TABLE batch_rows ADD COLUMN screenshot_on_failure TEXT",
             "face_value": "ALTER TABLE batch_rows ADD COLUMN face_value FLOAT",
             "value_match": "ALTER TABLE batch_rows ADD COLUMN value_match INTEGER",
+            "coupon_code": "ALTER TABLE batch_rows ADD COLUMN coupon_code VARCHAR(64)",
         }
         with engine.begin() as conn:
             for name, sql in alters.items():

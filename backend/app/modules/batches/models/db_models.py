@@ -57,6 +57,7 @@ class BatchRow(Base):
     product_url: Mapped[str] = mapped_column(Text)
     quantity: Mapped[int] = mapped_column(Integer, default=1)
     face_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    coupon_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     login_status: Mapped[str] = mapped_column(String(16), default=STAGE_PENDING)
     login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

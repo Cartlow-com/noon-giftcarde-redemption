@@ -113,6 +113,51 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "ROTATE_NOON_PROXY") {
+    (async () => {
+      try {
+        const applied = await rotateNoonProxy();
+        sendResponse({ ok: true, proxy: applied });
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : "Could not rotate Noon proxy",
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === "CLEAR_NOON_PROXY") {
+    (async () => {
+      try {
+        const result = await clearNoonProxy();
+        sendResponse(result);
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : "Could not clear Noon proxy",
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === "GET_NOON_PROXY") {
+    (async () => {
+      try {
+        const proxy = await getActiveNoonProxy();
+        sendResponse({ ok: true, proxy: proxy });
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : "Could not read Noon proxy",
+        });
+      }
+    })();
+    return true;
+  }
+
   if (message.type === "START_NOON_CART") {
     (async () => {
       try {
@@ -122,6 +167,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           email: message.email,
           password: message.password,
           productUrl: message.productUrl,
+          couponCode: message.couponCode,
         });
         activeLoginTabId = null;
         sendResponse(result ?? { ok: true });

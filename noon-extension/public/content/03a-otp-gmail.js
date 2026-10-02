@@ -110,13 +110,18 @@ async function submitNoonOtpAndWait(email) {
     await mouse().click(button, { fast: true });
   }
 
+  await pause(0.5);
+  throwIfProxyWorthyUi();
+
   const required = String(email || "").trim().toLowerCase();
   const success = await waitFor(function () {
+    if (getProxyWorthyMessage()) return "proxy";
     const profileEmail = readEmailFromProfilePage();
     if (profileEmail) return profileEmail;
     if (getByText("Hi,")) return required || true;
     return null;
   }, 20000, 100);
+  if (success === "proxy") throwIfProxyWorthyUi();
   if (!success) throw new Error("OTP login did not complete");
   logStep("OTP login completed");
 }

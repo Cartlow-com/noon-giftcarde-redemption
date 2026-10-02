@@ -43,10 +43,10 @@ from app.modules.email.models.response_models import SendEmailResponse
 router = APIRouter(prefix="/batches", tags=["batches"])
 
 SAMPLE_CSV_BODY = (
-    ",".join(REQUIRED_COLUMNS + ("face_value",))
+    ",".join(REQUIRED_COLUMNS + ("couponcode", "face_value"))
     + "\n"
     + "user@example.com,YourPassword123,1100 1705 2778 3945,2724,"
-    + "https://www.noon.com/uae-en/product/N27674082A/p/,1,50\n"
+    + "https://www.noon.com/uae-en/product/N27674082A/p/,1,SAVE10,50\n"
 )
 
 

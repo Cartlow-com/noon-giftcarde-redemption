@@ -25,6 +25,8 @@ export interface BatchRow {
   gift_card_pin: string;
   product_url: string;
   quantity: number;
+  coupon_code?: string | null;
+  face_value?: number | null;
   login_status: string;
   login_at: string | null;
   login_error: string | null;

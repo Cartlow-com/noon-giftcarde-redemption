@@ -7,6 +7,9 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-10-02 — Cart: type `coupon_code` → APPLY → then Checkout (before place-order)
+- 2026-10-02 — BatchRow type includes optional `coupon_code`
+- 2026-10-01 — On offline / too many requests: rotate random proxy (max 3), hard-refresh, retry login; clear PAC after row
 - 2026-10-01 — Extension uses email-body OTP when present; opens Click Here page only as fallback
 - 2026-09-30 — Live `https://redeem.innovidio.com` always connectable; API base follows connected dashboard origin
 - 2026-09-16 — OTP scrape reads inline `const otp` script + `.otp-input` values first (Noon get-otp page)

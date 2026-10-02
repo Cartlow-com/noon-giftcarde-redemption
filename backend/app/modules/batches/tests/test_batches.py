@@ -4,9 +4,9 @@ import pytest
 
 from conftest import login
 
-SAMPLE_CSV = """email,password,gift_card_number,gift_card_pin,product_url,quantity,face_value
-demo1@example.com,secret1,1100 0000 0000 0001,1111,https://www.noon.com/uae-en/product/N27674082A/p/,1,50
-demo2@example.com,secret2,1100 0000 0000 0002,2222,https://www.noon.com/uae-en/product/N27674082A/p/,2,100
+SAMPLE_CSV = """email,password,gift_card_number,gift_card_pin,product_url,quantity,couponcode,face_value
+demo1@example.com,secret1,1100 0000 0000 0001,1111,https://www.noon.com/uae-en/product/N27674082A/p/,1,SAVE10,50
+demo2@example.com,secret2,1100 0000 0000 0002,2222,https://www.noon.com/uae-en/product/N27674082A/p/,2,,100
 """
 
 
@@ -40,6 +40,8 @@ def test_upload_list_and_rows(client) -> None:
         assert "password" not in row
         assert "gift_card_pin" not in row
         assert row["face_value"] in (50.0, 100.0)
+    assert rows.json()["rows"][0]["coupon_code"] == "SAVE10"
+    assert rows.json()["rows"][1]["coupon_code"] is None
 
     work = client.get(f"/batches/rows/{rows.json()['rows'][0]['id']}", headers=headers)
     assert work.status_code == 200
@@ -47,6 +49,7 @@ def test_upload_list_and_rows(client) -> None:
     assert "gift_card_pin" in work.json()
     assert work.json()["password"]
     assert work.json()["gift_card_pin"]
+    assert work.json()["coupon_code"] == "SAVE10"
 
 
 def test_pull_next_and_patch(client) -> None:
@@ -119,7 +122,8 @@ def test_sample_csv_download(client) -> None:
     assert response.status_code == 200
     assert "text/csv" in response.headers.get("content-type", "")
     body = response.text
-    assert "email,password,gift_card_number,gift_card_pin,product_url,quantity,face_value" in body
+    assert "email,password,gift_card_number,gift_card_pin,product_url,quantity,couponcode,face_value" in body
+    assert "SAVE10" in body
     assert "redeem_status" not in body
     assert "order_id" not in body
     assert "status" not in body.split("\n")[0]
@@ -283,6 +287,7 @@ def test_edit_and_delete_row(client) -> None:
             "product_url": "https://www.noon.com/uae-en/product/N111/p/",
             "quantity": 3,
             "face_value": 75,
+            "coupon_code": "WELCOME5",
         },
     )
     assert patched.status_code == 200
@@ -291,6 +296,7 @@ def test_edit_and_delete_row(client) -> None:
     assert body["gift_card_number"] == "1100 9999 8888 7777"
     assert body["quantity"] == 3
     assert body["face_value"] == 75
+    assert body["coupon_code"] == "WELCOME5"
     assert "password" not in body
 
     work = client.get(f"/batches/rows/{row_id}", headers=headers)

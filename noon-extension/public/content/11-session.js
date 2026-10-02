@@ -47,21 +47,115 @@ async function waitForLoginRequiredScreen() {
   throw new Error("Login required screen did not appear");
 }
 
-async function loginFromCurrentPage(email, password) {
+async function loginFromCurrentPageOnce(email, password) {
   await acceptCookies();
   throwIfManualLoginRequired();
+  throwIfProxyWorthyUi();
   if (!findEmailInput()) {
     await waitForLoginRequiredScreen();
   }
   throwIfManualLoginRequired();
+  throwIfProxyWorthyUi();
   if (!findEmailInput()) {
     await openLoginModal();
   }
   throwIfManualLoginRequired();
+  throwIfProxyWorthyUi();
   const loginMode = await enterEmailAndContinue(email);
   throwIfManualLoginRequired();
+  throwIfProxyWorthyUi();
   if (loginMode === "otp") return;
   await loginWithPassword(password);
+  throwIfProxyWorthyUi();
+}
+
+/**
+ * Direct IP first. On offline / too many requests → random proxy, retry up to 3.
+ * After rotate: hard-refresh via reload; resume from sessionStorage try count.
+ */
+async function loginFromCurrentPage(email, password) {
+  const maxProxyTries = typeof MAX_PROXY_ROTATE_TRIES === "number" ? MAX_PROXY_ROTATE_TRIES : 3;
+  const resumeKey = "noon_proxy_try";
+  let startTry = 0;
+  try {
+    startTry = Number(sessionStorage.getItem(resumeKey) || "0") || 0;
+    sessionStorage.removeItem(resumeKey);
+  } catch (_) {}
+  let skipRotateOnce = startTry > 0;
+  let lastError = null;
+
+  for (let proxyTry = startTry; proxyTry <= maxProxyTries; proxyTry++) {
+    try {
+      if (proxyTry > 0 && !skipRotateOnce) {
+        logStep(
+          "Proxy rotate " + proxyTry + "/" + maxProxyTries + " — fetching random proxy…",
+        );
+        const applied = await requestRotateNoonProxy();
+        logStep(
+          "Using proxy " +
+            ((applied && applied.host) || "?") +
+            ":" +
+            ((applied && applied.port) || "?") +
+            " — hard refreshing Noon…",
+        );
+        try {
+          sessionStorage.setItem(resumeKey, String(proxyTry));
+        } catch (_) {}
+        // Ensure resume after reload continues login with the new proxy.
+        try {
+          await saveFlowState({
+            active: true,
+            resumeOnLoad: true,
+            flowType: "batch_account",
+            email: email,
+            password: password,
+            step: "login_profile",
+          });
+        } catch (_) {}
+        await hardRefresh();
+        await new Promise(function () {});
+      }
+      skipRotateOnce = false;
+      await loginFromCurrentPageOnce(email, password);
+      try {
+        await requestClearNoonProxy();
+      } catch (_) {}
+      return;
+    } catch (err) {
+      lastError = err;
+      if (isTerminalLoginError(err)) {
+        try {
+          await requestClearNoonProxy();
+        } catch (_) {}
+        throw err;
+      }
+      const worthy = isProxyWorthyLoginError(err) || !!getProxyWorthyMessage();
+      if (!worthy) {
+        try {
+          await requestClearNoonProxy();
+        } catch (_) {}
+        throw err;
+      }
+      if (proxyTry >= maxProxyTries) break;
+      logStep(
+        "Proxy-worthy error (" +
+          (err instanceof Error ? err.message : "error") +
+          ") — will rotate proxy",
+      );
+    }
+  }
+
+  try {
+    await requestClearNoonProxy();
+  } catch (_) {}
+  const exhausted = lastError || new Error("Login failed after proxy retries");
+  const wrapped = new Error(
+    (exhausted instanceof Error ? exhausted.message : "Login failed") +
+      " — proxy retries exhausted",
+  );
+  wrapped.terminal = true;
+  wrapped.proxyWorthy = true;
+  throw wrapped;
 }
 
 async function persistBatchAccountLogin(payload, step) {

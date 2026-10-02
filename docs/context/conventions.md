@@ -23,6 +23,7 @@
 | Extension auth | Token bridged from dashboard → `chrome.storage.local`; API base follows connected dashboard origin | Live + local both connectable |
 | Dashboard origins | Always allow `https://redeem.innovidio.com` + localhost in `externally_connectable` + `dashboardBridge` | Build used to wipe live when `.env` was localhost |
 | Gmail OTP | Prefer 6-digit code from email subject/body; else open Click Here / get-otp link and scrape | Noon now sends OTP inline in many emails |
+| Noon proxy | Direct first; rotate on offline/too many requests; pool prefers `proxies.ok.csv` if present else `proxies.csv` | Filter dead free-list entries |
 
 ## Code Patterns
 

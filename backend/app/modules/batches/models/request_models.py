@@ -11,6 +11,7 @@ class UpdateRowRequest(BaseModel):
     product_url: str | None = None
     quantity: int | None = Field(default=None, ge=1)
     face_value: float | None = None
+    coupon_code: str | None = None
 
     login_status: str | None = None
     login_at: datetime | None = None

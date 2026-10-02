@@ -143,6 +143,79 @@ function getManualLoginRequiredMessage() {
   return null;
 }
 
+/** Offline / rate-limit UI → rotate proxy and retry (not a terminal lockout). */
+function getProxyWorthyMessage() {
+  if (typeof hasPageFetchError === "function" && hasPageFetchError()) {
+    return NETWORK_ERROR;
+  }
+  const networkError = getByText(NETWORK_ERROR);
+  if (networkError && isVisible(networkError)) return NETWORK_ERROR;
+
+  const nodes = document.querySelectorAll(
+    '[role="alert"], [aria-live], [class*="error" i], [class*="Error" i], p, span, div, label',
+  );
+  for (let i = 0; i < nodes.length; i++) {
+    const el = nodes[i];
+    if (!isVisible(el)) continue;
+    const text = normalizeText(el.textContent);
+    if (!text || text.length > 400) continue;
+    const lower = text.toLowerCase();
+    if (lower.indexOf("too many requests") !== -1) {
+      return TOO_MANY_REQUESTS;
+    }
+    if (lower.indexOf("looks like you're offline") !== -1) {
+      return NETWORK_ERROR;
+    }
+  }
+  return null;
+}
+
+function throwIfProxyWorthyUi() {
+  const message = getProxyWorthyMessage();
+  if (!message) return;
+  const err = new Error(message);
+  err.proxyWorthy = true;
+  throw err;
+}
+
+function isProxyWorthyLoginError(error) {
+  if (error && error.proxyWorthy) return true;
+  const msg = String(
+    (error && error.message) || (typeof error === "string" ? error : "") || "",
+  ).toLowerCase();
+  if (!msg) return false;
+  return (
+    msg.indexOf("too many requests") !== -1 ||
+    msg.indexOf("looks like you're offline") !== -1 ||
+    msg.indexOf("fail to fetch") !== -1 ||
+    msg.indexOf("failed to fetch") !== -1
+  );
+}
+
+function requestRotateNoonProxy() {
+  return new Promise(function (resolve, reject) {
+    chrome.runtime.sendMessage({ type: "ROTATE_NOON_PROXY" }, function (response) {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message || "Could not rotate proxy"));
+        return;
+      }
+      if (!response || response.ok === false) {
+        reject(new Error((response && response.error) || "Could not rotate proxy"));
+        return;
+      }
+      resolve(response.proxy || null);
+    });
+  });
+}
+
+function requestClearNoonProxy() {
+  return new Promise(function (resolve) {
+    chrome.runtime.sendMessage({ type: "CLEAR_NOON_PROXY" }, function () {
+      resolve();
+    });
+  });
+}
+
 function isLoginLockoutError() {
   return !!getManualLoginRequiredMessage();
 }

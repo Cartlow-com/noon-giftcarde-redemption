@@ -128,6 +128,115 @@ function findCheckoutButton() {
   return null;
 }
 
+function findCouponSection() {
+  const nodes = document.querySelectorAll("div, section, aside, form");
+  for (let i = 0; i < nodes.length; i++) {
+    const el = nodes[i];
+    if (!isVisible(el)) continue;
+    const t = normalizeText(el.textContent).toLowerCase();
+    if (t.indexOf("got a coupon") === -1) continue;
+    if (t.length > 400) continue;
+    return el;
+  }
+  return null;
+}
+
+function findCouponInput() {
+  const section = findCouponSection();
+  const scopes = section ? [section, document] : [document];
+  for (let s = 0; s < scopes.length; s++) {
+    const inputs = scopes[s].querySelectorAll(
+      'input[placeholder*="coupon" i], input[aria-label*="coupon" i], input[name*="coupon" i], input[type="text"], input:not([type])',
+    );
+    for (let i = 0; i < inputs.length; i++) {
+      const input = inputs[i];
+      if (!isVisible(input)) continue;
+      const ph = String(input.getAttribute("placeholder") || "").toLowerCase();
+      const aria = String(input.getAttribute("aria-label") || "").toLowerCase();
+      const name = String(input.getAttribute("name") || "").toLowerCase();
+      if (
+        ph.indexOf("coupon") !== -1 ||
+        aria.indexOf("coupon") !== -1 ||
+        name.indexOf("coupon") !== -1
+      ) {
+        return input;
+      }
+      if (section && section.contains(input)) return input;
+    }
+  }
+  return null;
+}
+
+function findCouponApplyButton(input) {
+  const root =
+    (input &&
+      (input.closest("form, [class*='coupon' i], [class*='Coupon' i], div") ||
+        input.parentElement)) ||
+    findCouponSection() ||
+    document;
+  const buttons = root.querySelectorAll("button, [role='button'], a");
+  for (let i = 0; i < buttons.length; i++) {
+    const btn = buttons[i];
+    if (!isVisible(btn)) continue;
+    const t = normalizeText(btn.textContent).toLowerCase();
+    if (t === "apply") return btn;
+  }
+  return (
+    findClickableByText("APPLY", findCouponSection() || document.body) ||
+    findClickableByText("Apply", findCouponSection() || document.body)
+  );
+}
+
+async function applyCouponOnCartPage(code) {
+  const coupon = String(code || "").trim();
+  if (!coupon) return false;
+
+  logStep("Applying coupon " + coupon + "…");
+  const input = await waitFor(function () {
+    return findCouponInput();
+  }, 8000, 50);
+  if (!input) throw new Error("Coupon code field not found on cart");
+
+  await mouse().click(input, { fast: true });
+  await pause(0.15);
+  try {
+    input.focus();
+    input.select();
+  } catch (_) {}
+  await mouse().type(input, coupon, { paste: true, fast: true });
+  await pause(0.25);
+
+  const applyBtn = await waitFor(function () {
+    const btn = findCouponApplyButton(input);
+    if (!btn) return null;
+    if (btn.disabled) return null;
+    const ariaDisabled = String(btn.getAttribute("aria-disabled") || "").toLowerCase();
+    if (ariaDisabled === "true") return null;
+    return btn;
+  }, 6000, 50);
+  if (!applyBtn) throw new Error("Coupon APPLY button not found or still disabled");
+
+  logStep("Clicking APPLY…");
+  await mouse().click(applyBtn, { fast: true });
+  await pause(1.2);
+  logStep("Coupon applied (or attempted): " + coupon);
+  return true;
+}
+
+async function applyCouponFromFlowStateIfNeeded() {
+  const state = await loadFlowState();
+  const code = String((state && state.couponCode) || "").trim();
+  if (!code) return false;
+  if (state && state.couponApplied) return true;
+  await applyCouponOnCartPage(code);
+  await persistCartState({
+    productUrl: state && state.productUrl,
+    couponCode: code,
+    couponApplied: true,
+  });
+  return true;
+}
+
 async function waitForCartPageReady() {
   logStep("Waiting for cart page…");
   await waitFor(

@@ -14,6 +14,7 @@ from app.modules.batches.routes.run_routes import router as runs_router
 from app.modules.email.routes.routes import router as email_router
 from app.modules.gmail.routes.routes import router as gmail_router
 from app.modules.login.routes.routes import router as login_router
+from app.modules.proxies.routes.routes import router as proxies_router
 from app.modules.users.routes.routes import router as users_router
 from seeders.seed_users import seed_users
 
@@ -48,6 +49,7 @@ app.include_router(batches_router)
 app.include_router(runs_router)
 app.include_router(email_router)
 app.include_router(gmail_router)
+app.include_router(proxies_router)
 app.include_router(admin_events_router)
 
 if ADMIN_DIR.is_dir():

@@ -127,6 +127,8 @@ async function runBatchCart(payload) {
     productUrl: payload.productUrl,
     email: payload.email,
     password: payload.password,
+    couponCode: payload.couponCode || "",
+    couponApplied: false,
     batchMode: true,
     rowNumber: payload.rowNumber,
     cartPhase: "",

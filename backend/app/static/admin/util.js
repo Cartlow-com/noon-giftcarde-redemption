@@ -218,6 +218,7 @@ window.AdminUtil = {
         ${this.kv("Password", "••••••••")}
         ${this.kv("Gift card", row.gift_card_number)}
         ${this.kv("PIN", "••••")}
+        ${this.kv("Coupon", row.coupon_code)}
         ${this.kv("Face value", row.face_value)}
         ${this.kv("Product", row.product_url)}
         ${this.kv("Qty", row.quantity)}

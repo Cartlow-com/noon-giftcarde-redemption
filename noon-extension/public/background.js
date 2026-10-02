@@ -5,7 +5,7 @@ chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch((err) => console.error(err));
 
-importScripts("apiConfig.js", "batchApi.js", "batchRunner.js", "runPoller.js");
+importScripts("apiConfig.js", "batchApi.js", "noonProxy.js", "batchRunner.js", "runPoller.js");
 
 startDashboardRunPolling();
 
@@ -123,6 +123,7 @@ async function sendCartToTab(tabId, payload, attempts = 3) {
       email: payload.email,
       password: payload.password,
       productUrl: payload.productUrl,
+      couponCode: payload.couponCode,
     },
     attempts,
   );
@@ -194,6 +195,7 @@ async function sendBatchCartToTab(tabId, payload, attempts = 3) {
       email: payload.email,
       password: payload.password,
       productUrl: payload.productUrl,
+      couponCode: payload.couponCode,
       rowNumber: payload.rowNumber,
       placeOrder: payload.placeOrder,
     },

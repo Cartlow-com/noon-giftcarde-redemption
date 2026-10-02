@@ -187,6 +187,7 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
           email: message.email,
           password: message.password,
           productUrl: message.productUrl,
+          couponCode: message.couponCode,
           rowNumber: message.rowNumber,
           placeOrder: message.placeOrder,
         });
@@ -214,6 +215,7 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
           email: message.email,
           password: message.password,
           productUrl: message.productUrl,
+          couponCode: message.couponCode,
         });
         emit("LOGIN_SUCCESS", { message: "Cart flow complete" });
         sendResponse({ ok: true });

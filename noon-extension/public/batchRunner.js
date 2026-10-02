@@ -819,6 +819,7 @@ async function processBatchRow(row, tabId, previousEmail) {
           email: row.email,
           password: row.password,
           productUrl: row.product_url,
+          couponCode: row.coupon_code || "",
           rowNumber: rowNum,
           placeOrder: batchPlaceOrder,
         });
@@ -996,6 +997,9 @@ async function runSelectedRows(batchId, rowIds, options) {
       await recoverNoonTab(tabId);
     }
     await processBatchRow(row, tabId, previousEmail);
+    try {
+      await clearNoonProxy();
+    } catch (_) {}
     const finishedAt = isoNow();
     const durationMs = Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt));
     await patchStage(row.id, {
@@ -1026,6 +1030,9 @@ async function runSelectedRows(batchId, rowIds, options) {
   activeBatchRunId = null;
   pendingAttemptMeta = null;
   activeAttemptId = null;
+  try {
+    await clearNoonProxy();
+  } catch (_) {}
   await chrome.storage.local.remove(BATCH_RUN_KEY);
 
   emitBatch({
@@ -1042,6 +1049,9 @@ async function runSelectedRows(batchId, rowIds, options) {
 function stopBatchRun() {
   batchRunCancelled = true;
   chrome.storage.local.remove(BATCH_RUN_KEY);
+  try {
+    clearNoonProxy();
+  } catch (_) {}
   if (activeLoginTabId != null) {
     cancelLoginOnTab(activeLoginTabId).catch(function () {});
   }

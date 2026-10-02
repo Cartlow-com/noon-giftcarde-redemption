@@ -98,9 +98,10 @@ async function openLoginModal() {
 
     const networkError = getByText(NETWORK_ERROR);
     if ((networkError && isVisible(networkError)) || hasPageFetchError()) {
-      logStep("Network error — refreshing");
-      await hardRefresh();
-      await new Promise(function () {});
+      throwIfProxyWorthyUi();
+      const err = new Error(NETWORK_ERROR);
+      err.proxyWorthy = true;
+      throw err;
     }
 
     if (await waitForLoginPopup(3500)) {
@@ -150,9 +151,14 @@ async function enterEmailAndContinue(email) {
   await mouse().click(continueBtn, { fast: true });
   logStep("Clicked Continue");
 
+  // Proxy-worthy errors (offline / too many requests) — retry with new IP.
+  await pause(0.4);
+  throwIfProxyWorthyUi();
+
   // Stop on first lockout — never click Log In / email / Continue again.
   const afterContinue = await waitFor(
     function () {
+      if (getProxyWorthyMessage()) return "proxy";
       if (getManualLoginRequiredMessage()) return "lockout";
       if (findPasswordInput()) return "password";
       return null;
@@ -160,6 +166,7 @@ async function enterEmailAndContinue(email) {
     4000,
     50,
   );
+  if (afterContinue === "proxy") throwIfProxyWorthyUi();
   if (afterContinue === "lockout" || getManualLoginRequiredMessage()) {
     throwIfManualLoginRequired();
   }
@@ -221,6 +228,7 @@ async function loginWithPassword(password) {
 
   const success = await waitFor(
     function () {
+      if (getProxyWorthyMessage()) return "proxy";
       const manualError = getManualLoginRequiredMessage();
       if (manualError) return "manual";
       if (getByText("Hi,")) return "success";
@@ -230,6 +238,7 @@ async function loginWithPassword(password) {
     15000,
     100,
   );
+  if (success === "proxy") throwIfProxyWorthyUi();
   if (success === "manual") throwIfManualLoginRequired();
   if (!success) throw new Error("Login did not complete — manual login may be required");
   logStep("Logged in successfully");

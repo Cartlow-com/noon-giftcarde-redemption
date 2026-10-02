@@ -7,11 +7,13 @@ var NOON_HOME = "https://www.noon.com/uae-en/";
 var NOON_CREDITS = "https://account.noon.com/uae-en/credits/";
 var NOON_PROFILE = "https://account.noon.com/uae-en/profile/";
 var NETWORK_ERROR = "Looks like you're offline";
+var TOO_MANY_REQUESTS = "Too many requests";
 var PAGE_FETCH_ERROR_MARKERS = [
   "fail to fetch",
   "failed to fetch",
   "looks like you're offline",
 ];
+var MAX_PROXY_ROTATE_TRIES = 3;
 var FLOW_STATE_KEY = "noon_flow_state";
 var FLOW_DONE_KEY = "noon_flow_done";
 var FLOW_RESULT_KEY = "noon_flow_result";

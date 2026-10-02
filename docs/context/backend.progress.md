@@ -28,6 +28,10 @@ FastAPI backend with login + batch modules. Extension connects to backend for CS
 
 ## Recent Changes
 
+- 2026-10-02 — Filled `couponcode` in `login_test.csv` + `orders.example.csv` (ONE, FIRST20, FIRST15, RAK50, FAB10, STAPLES15)
+- 2026-10-02 — Optional CSV `couponcode` / `coupon_code` stored as `batch_rows.coupon_code`; sample + orders.example updated
+- 2026-10-01 — Added `proxies.ok.csv` (TCP-live only) + `scripts/filter_ok_proxies.py`; pool prefers OK file
+- 2026-10-01 — Proxy rotate on offline / too many requests: `/proxies/next` + `/proxies/{id}/block` from `proxies.csv`
 - 2026-10-01 — Click Here OTP emails: stop inventing OTP from HTML digit noise; open get-otp link instead
 - 2026-10-01 — Login bumps `users.token_version`; JWTs carry `tv`; mismatch → 401 (revokes prior sessions)
 - 2026-10-01 — `/gmail/otp-link` prefers inline email OTP (`OTP is 123456` / subject) then Click Here URL

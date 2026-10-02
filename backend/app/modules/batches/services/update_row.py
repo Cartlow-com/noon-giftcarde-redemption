@@ -68,6 +68,12 @@ def update_batch_row(
             raise ValueError("product_url is required")
     if "quantity" in data and data["quantity"] is not None and int(data["quantity"]) < 1:
         raise ValueError("quantity must be >= 1")
+    if "coupon_code" in data:
+        coupon = data["coupon_code"]
+        if coupon is None or str(coupon).strip() == "":
+            data["coupon_code"] = None
+        else:
+            data["coupon_code"] = str(coupon).strip()
 
     for field, value in data.items():
         setattr(row, field, value)

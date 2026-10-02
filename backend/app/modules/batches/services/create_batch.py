@@ -40,6 +40,7 @@ def create_batch_from_csv(
                 product_url=row.product_url,
                 quantity=row.quantity,
                 face_value=row.face_value,
+                coupon_code=row.coupon_code,
                 login_status=STAGE_PENDING,
                 redeem_status=STAGE_PENDING,
                 purchase_status=STAGE_PENDING,

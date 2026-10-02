@@ -3,7 +3,7 @@
   "name": "Noon Automation",
   "version": "0.1.0",
   "description": "Automate Noon.com login and workflows from a side panel.",
-  "permissions": ["storage", "tabs", "sidePanel", "windows", "alarms", "cookies", "scripting", "clipboardRead"],
+  "permissions": ["storage", "tabs", "sidePanel", "windows", "alarms", "cookies", "scripting", "clipboardRead", "proxy"],
   "host_permissions": [
     "<all_urls>",
     "https://www.noon.com/*",

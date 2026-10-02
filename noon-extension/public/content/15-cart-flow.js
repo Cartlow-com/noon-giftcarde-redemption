@@ -138,6 +138,15 @@ async function runCartFlow(productUrl) {
       if (!pastProductStep) {
         await setCartPhase("viewed_cart");
       }
+      try {
+        await applyCouponFromFlowStateIfNeeded();
+      } catch (couponErr) {
+        logStep(
+          "Coupon apply failed (" +
+            (couponErr instanceof Error ? couponErr.message : "error") +
+            ") — continuing to Checkout",
+        );
+      }
       logStep("Clicking Checkout…");
       const btn = findCheckoutButton();
       if (!btn) throw new Error("Checkout button not found");
@@ -215,7 +224,13 @@ async function runCartAutomation(payload) {
   flow().reset();
   flow().running = true;
   await clearFlowDone();
-  await persistCartState(payload);
+  await persistCartState({
+    productUrl: payload.productUrl,
+    email: payload.email,
+    password: payload.password,
+    couponCode: payload.couponCode || "",
+    couponApplied: false,
+  });
 
   try {
     await ensureLoggedIn(payload);

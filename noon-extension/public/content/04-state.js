@@ -60,6 +60,14 @@ async function persistCartState(data) {
     productUrl: data.productUrl || existing?.productUrl || "",
     email: data.email || existing?.email || "",
     password: data.password || existing?.password || "",
+    couponCode:
+      data.couponCode !== undefined && data.couponCode !== null
+        ? String(data.couponCode)
+        : existing?.couponCode || "",
+    couponApplied:
+      data.couponApplied != null
+        ? !!data.couponApplied
+        : existing?.couponApplied ?? false,
     cartPhase:
       data.cartPhase !== undefined && data.cartPhase !== null
         ? data.cartPhase
