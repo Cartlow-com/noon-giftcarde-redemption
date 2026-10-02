@@ -138,18 +138,23 @@ async function runCartFlow(productUrl) {
       if (!pastProductStep) {
         await setCartPhase("viewed_cart");
       }
+      // Coupon first (below Checkout on Noon cart) — do not skip when a code is set.
+      const stateBeforeCoupon = await loadFlowState();
+      const wantsCoupon = !!(stateBeforeCoupon && String(stateBeforeCoupon.couponCode || "").trim());
       try {
         await applyCouponFromFlowStateIfNeeded();
       } catch (couponErr) {
-        logStep(
-          "Coupon apply failed (" +
-            (couponErr instanceof Error ? couponErr.message : "error") +
-            ") — continuing to Checkout",
-        );
+        const msg =
+          couponErr instanceof Error ? couponErr.message : "Coupon apply failed";
+        logStep("Coupon apply failed: " + msg);
+        if (wantsCoupon) throw new Error(msg);
       }
       logStep("Clicking Checkout…");
       const btn = findCheckoutButton();
       if (!btn) throw new Error("Checkout button not found");
+      try {
+        btn.scrollIntoView({ block: "center", inline: "nearest" });
+      } catch (_) {}
       await mouse().click(btn);
       await setCartPhase("checkout");
       await waitFor(function () {

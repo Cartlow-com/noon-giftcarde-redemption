@@ -128,63 +128,88 @@ function findCheckoutButton() {
   return null;
 }
 
-function findCouponSection() {
-  const nodes = document.querySelectorAll("div, section, aside, form");
+function findCouponHeading() {
+  const nodes = document.querySelectorAll("h1, h2, h3, h4, p, span, div, label");
   for (let i = 0; i < nodes.length; i++) {
     const el = nodes[i];
     if (!isVisible(el)) continue;
     const t = normalizeText(el.textContent).toLowerCase();
-    if (t.indexOf("got a coupon") === -1) continue;
-    if (t.length > 400) continue;
-    return el;
+    if (t === "got a coupon?" || t === "got a coupon") return el;
   }
   return null;
 }
 
 function findCouponInput() {
-  const section = findCouponSection();
-  const scopes = section ? [section, document] : [document];
-  for (let s = 0; s < scopes.length; s++) {
-    const inputs = scopes[s].querySelectorAll(
-      'input[placeholder*="coupon" i], input[aria-label*="coupon" i], input[name*="coupon" i], input[type="text"], input:not([type])',
-    );
-    for (let i = 0; i < inputs.length; i++) {
-      const input = inputs[i];
-      if (!isVisible(input)) continue;
-      const ph = String(input.getAttribute("placeholder") || "").toLowerCase();
-      const aria = String(input.getAttribute("aria-label") || "").toLowerCase();
-      const name = String(input.getAttribute("name") || "").toLowerCase();
-      if (
-        ph.indexOf("coupon") !== -1 ||
-        aria.indexOf("coupon") !== -1 ||
-        name.indexOf("coupon") !== -1
-      ) {
-        return input;
+  // Prefer explicit coupon placeholders anywhere on cart.
+  const inputs = document.querySelectorAll("input");
+  for (let i = 0; i < inputs.length; i++) {
+    const input = inputs[i];
+    if (!isVisible(input)) continue;
+    const ph = String(input.getAttribute("placeholder") || "").toLowerCase();
+    const aria = String(input.getAttribute("aria-label") || "").toLowerCase();
+    const name = String(input.getAttribute("name") || "").toLowerCase();
+    const id = String(input.getAttribute("id") || "").toLowerCase();
+    if (
+      ph.indexOf("coupon") !== -1 ||
+      aria.indexOf("coupon") !== -1 ||
+      name.indexOf("coupon") !== -1 ||
+      id.indexOf("coupon") !== -1
+    ) {
+      return input;
+    }
+  }
+
+  // Fallback: first text input under / near "Got a coupon?"
+  const heading = findCouponHeading();
+  if (heading) {
+    let root = heading.parentElement;
+    for (let depth = 0; root && depth < 6; depth++) {
+      const near = root.querySelectorAll('input[type="text"], input:not([type]), input');
+      for (let i = 0; i < near.length; i++) {
+        if (isVisible(near[i])) return near[i];
       }
-      if (section && section.contains(input)) return input;
+      root = root.parentElement;
     }
   }
   return null;
 }
 
 function findCouponApplyButton(input) {
-  const root =
-    (input &&
-      (input.closest("form, [class*='coupon' i], [class*='Coupon' i], div") ||
-        input.parentElement)) ||
-    findCouponSection() ||
-    document;
-  const buttons = root.querySelectorAll("button, [role='button'], a");
-  for (let i = 0; i < buttons.length; i++) {
-    const btn = buttons[i];
-    if (!isVisible(btn)) continue;
-    const t = normalizeText(btn.textContent).toLowerCase();
-    if (t === "apply") return btn;
+  function isApplyEl(el) {
+    if (!el || !isVisible(el)) return false;
+    const t = normalizeText(el.textContent).toLowerCase();
+    return t === "apply";
   }
-  return (
-    findClickableByText("APPLY", findCouponSection() || document.body) ||
-    findClickableByText("Apply", findCouponSection() || document.body)
-  );
+
+  // Walk up from the input until APPLY is found in the same container.
+  let node = input;
+  for (let depth = 0; node && depth < 8; depth++) {
+    const candidates = node.querySelectorAll(
+      "button, [role='button'], a, span, div, p, label",
+    );
+    for (let i = 0; i < candidates.length; i++) {
+      if (isApplyEl(candidates[i])) return candidates[i];
+    }
+    // Sibling APPLY next to input wrapper
+    const sibling = node.nextElementSibling;
+    if (isApplyEl(sibling)) return sibling;
+    node = node.parentElement;
+  }
+
+  const heading = findCouponHeading();
+  if (heading) {
+    let root = heading.parentElement;
+    for (let depth = 0; root && depth < 6; depth++) {
+      const candidates = root.querySelectorAll(
+        "button, [role='button'], a, span, div, p, label",
+      );
+      for (let i = 0; i < candidates.length; i++) {
+        if (isApplyEl(candidates[i])) return candidates[i];
+      }
+      root = root.parentElement;
+    }
+  }
+  return null;
 }
 
 async function applyCouponOnCartPage(code) {
@@ -194,40 +219,61 @@ async function applyCouponOnCartPage(code) {
   logStep("Applying coupon " + coupon + "…");
   const input = await waitFor(function () {
     return findCouponInput();
-  }, 8000, 50);
+  }, 10000, 50);
   if (!input) throw new Error("Coupon code field not found on cart");
 
-  await mouse().click(input, { fast: true });
-  await pause(0.15);
   try {
-    input.focus();
-    input.select();
+    input.scrollIntoView({ block: "center", inline: "nearest" });
   } catch (_) {}
-  await mouse().type(input, coupon, { paste: true, fast: true });
   await pause(0.25);
 
-  const applyBtn = await waitFor(function () {
-    const btn = findCouponApplyButton(input);
-    if (!btn) return null;
-    if (btn.disabled) return null;
-    const ariaDisabled = String(btn.getAttribute("aria-disabled") || "").toLowerCase();
-    if (ariaDisabled === "true") return null;
-    return btn;
-  }, 6000, 50);
-  if (!applyBtn) throw new Error("Coupon APPLY button not found or still disabled");
+  await mouse().click(input, { fast: true });
+  await pause(0.2);
+  try {
+    input.focus();
+    input.value = "";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  } catch (_) {}
+  await mouse().type(input, coupon, { paste: true, fast: true });
+  // Ensure React/Noon sees the value
+  try {
+    if (String(input.value || "").trim() !== coupon) {
+      const proto = window.HTMLInputElement && window.HTMLInputElement.prototype;
+      const descriptor = proto && Object.getOwnPropertyDescriptor(proto, "value");
+      if (descriptor && descriptor.set) descriptor.set.call(input, coupon);
+      else input.value = coupon;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  } catch (_) {}
+  await pause(0.4);
 
-  logStep("Clicking APPLY…");
+  const applyBtn = await waitFor(function () {
+    return findCouponApplyButton(input);
+  }, 8000, 50);
+  if (!applyBtn) throw new Error("Coupon APPLY button not found");
+
+  try {
+    applyBtn.scrollIntoView({ block: "center", inline: "nearest" });
+  } catch (_) {}
+  logStep("Clicking APPLY for coupon " + coupon + "…");
   await mouse().click(applyBtn, { fast: true });
-  await pause(1.2);
-  logStep("Coupon applied (or attempted): " + coupon);
+  await pause(1.5);
+  logStep("Coupon APPLY clicked: " + coupon);
   return true;
 }
 
 async function applyCouponFromFlowStateIfNeeded() {
   const state = await loadFlowState();
   const code = String((state && state.couponCode) || "").trim();
-  if (!code) return false;
-  if (state && state.couponApplied) return true;
+  if (!code) {
+    logStep("No coupon code on this row — skipping APPLY");
+    return false;
+  }
+  if (state && state.couponApplied) {
+    logStep("Coupon already applied earlier — skipping");
+    return true;
+  }
   await applyCouponOnCartPage(code);
   await persistCartState({
     productUrl: state && state.productUrl,
@@ -241,7 +287,8 @@ async function waitForCartPageReady() {
   logStep("Waiting for cart page…");
   await waitFor(
     function () {
-      return isOnCartPage() && findCheckoutButton();
+      // Ready when Checkout exists OR coupon field is visible (coupon is below Checkout).
+      return isOnCartPage() && (findCheckoutButton() || findCouponInput());
     },
     12000,
     50,
