@@ -77,6 +77,33 @@ function findButtonByTextMatch(patterns, root) {
 
 function findAddToCartButton() {
   const header = document.querySelector("header");
+
+  // Primary: Noon PDP revamp ATC — avoids ambiguous duplicate "Add to Cart" text nodes.
+  const qaScopes = [
+    findProductBuyArea(),
+    document.querySelector("main"),
+    document.body,
+  ];
+  for (let s = 0; s < qaScopes.length; s++) {
+    const scope = qaScopes[s];
+    if (!scope) continue;
+    const qaNodes = scope.querySelectorAll('[data-qa="pdp-add-to-cart-revamp"]');
+    for (let q = 0; q < qaNodes.length; q++) {
+      const qa = qaNodes[q];
+      if (!isVisible(qa)) continue;
+      const btn =
+        qa.closest("button, a, [role='button']") ||
+        (qa.tagName &&
+        ["BUTTON", "A"].indexOf(qa.tagName.toUpperCase()) !== -1
+          ? qa
+          : null);
+      if (!btn || !isVisible(btn)) continue;
+      if (header && header.contains(btn)) continue;
+      return btn;
+    }
+  }
+
+  // Fallback: shortest visible text match (older PDP without data-qa).
   const scopes = [
     findProductBuyArea(),
     document.querySelector("main"),

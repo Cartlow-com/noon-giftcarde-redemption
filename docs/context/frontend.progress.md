@@ -7,6 +7,7 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-10-03 — Add to Cart: prefer `[data-qa="pdp-add-to-cart-revamp"]` (buy-box first), text match fallback
 - 2026-10-02 — Cart: type `coupon_code` → APPLY → then Checkout (before place-order)
 - 2026-10-02 — BatchRow type includes optional `coupon_code`
 - 2026-10-01 — On offline / too many requests: rotate random proxy (max 3), hard-refresh, retry login; clear PAC after row
