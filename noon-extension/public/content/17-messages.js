@@ -79,6 +79,19 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
     return true;
   }
 
+  if (message.type === "RUN_BATCH_LOGOUT") {
+    // End of run: sign the last account out (no-op when already signed out).
+    (async function () {
+      try {
+        await logoutFromNoon();
+        sendResponse({ ok: true });
+      } catch (error) {
+        sendResponse({ ok: false, error: (error && error.message) || "Logout failed" });
+      }
+    })();
+    return true;
+  }
+
   if (message.type === "CANCEL_LOGIN") {
     flow().abort();
     if (placeOrderConfirmResolver) {

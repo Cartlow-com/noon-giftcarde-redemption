@@ -163,9 +163,11 @@ async function enterEmailAndContinue(email) {
       if (getProxyWorthyMessage()) return "proxy";
       if (getManualLoginRequiredMessage()) return "lockout";
       if (findPasswordInput()) return "password";
+      // OTP screen is up — no need to keep waiting for a password box.
+      if (isOtpOnlyLogin()) return "otp";
       return null;
     },
-    4000,
+    8000,
     50,
   );
   if (afterContinue === "proxy") throwIfProxyWorthyUi();
@@ -178,7 +180,9 @@ async function enterEmailAndContinue(email) {
   }
 
   throwIfManualLoginRequired();
-  const passwordReady = await preferPasswordLogin(8000);
+  // OTP screen already shown: give a "use password" option only a brief chance
+  // (was a fixed ~8s wait on every OTP login).
+  const passwordReady = await preferPasswordLogin(afterContinue === "otp" ? 600 : 8000);
   throwIfManualLoginRequired();
   if (passwordReady) {
     logStep("Password form ready");

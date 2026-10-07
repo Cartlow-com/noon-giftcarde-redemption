@@ -481,3 +481,17 @@ test("account switch trusts a clearly logged-out page over the remembered previo
   const acct = fs.readFileSync(path.join(__dirname, "..", "public", "content", "10-account.js"), "utf8");
   assert.ok(/Already signed out/.test(acct));
 });
+
+test("run ends with a best-effort sign-out; OTP screen is not padded with fixed waits", () => {
+  const runner = fs.readFileSync(path.join(__dirname, "..", "public", "batchRunner.js"), "utf8");
+  const fin = runner.slice(runner.indexOf("  } finally {\n    if (runTabId != null)"));
+  assert.ok(/await logoutAtEndOfRun\(runTabId\)/.test(fin.slice(0, 200)));
+  const msgs = fs.readFileSync(path.join(__dirname, "..", "public", "content", "17-messages.js"), "utf8");
+  assert.ok(/RUN_BATCH_LOGOUT[\s\S]{0,200}logoutFromNoon\(\)/.test(msgs));
+  const steps = fs.readFileSync(path.join(__dirname, "..", "public", "content", "09-login-steps.js"), "utf8");
+  assert.ok(/if \(isOtpOnlyLogin\(\)\) return "otp";/.test(steps));
+  assert.ok(/preferPasswordLogin\(afterContinue === "otp" \? 600 : 8000\)/.test(steps));
+  const session = fs.readFileSync(path.join(__dirname, "..", "public", "content", "11-session.js"), "utf8");
+  // the 1s post-sign-out pause is required (Noon's own redirect) — keep it
+  assert.ok(/await pause\(1\);\s*logStep\("Opening profile page again…"\)/.test(session));
+});

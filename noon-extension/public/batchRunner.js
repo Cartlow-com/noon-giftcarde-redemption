@@ -986,6 +986,35 @@ async function processBatchRow(row, tabId, previousEmail) {
   });
 }
 
+/** Best effort: sign the last row's account out so no Noon session is left behind. */
+async function logoutAtEndOfRun(tabId) {
+  emitBatch({ type: "BATCH_PROGRESS", stage: "system", status: "info", message: "Signing out of the last account…" });
+  try {
+    // A leftover flow state must not resume a login on the page we sign out of.
+    await chrome.storage.local.remove(["noon_flow_state", "noon_flow_done", "noon_flow_result"]);
+    const result = await Promise.race([
+      chrome.tabs.sendMessage(tabId, { type: "RUN_BATCH_LOGOUT" }),
+      delay(30000).then(function () {
+        return { ok: false, error: "timed out" };
+      }),
+    ]);
+    emitBatch({
+      type: "BATCH_PROGRESS",
+      stage: "system",
+      status: "info",
+      message: result && result.ok ? "Signed out — no Noon account left logged in" : "Sign-out at end of run did not complete: " + ((result && result.error) || "no response"),
+    });
+  } catch (error) {
+    emitBatch({
+      type: "BATCH_PROGRESS",
+      stage: "system",
+      status: "info",
+      message: "Sign-out at end of run skipped: " + ((error && error.message) || "page not reachable"),
+    });
+  }
+  sessionEmail = null;
+}
+
 async function runSelectedRows(batchId, rowIds, options) {
   if (!rowIds || rowIds.length === 0) {
     throw new Error("No rows selected");
@@ -1031,6 +1060,7 @@ async function runSelectedRows(batchId, rowIds, options) {
   });
 
   let processed = 0;
+  let runTabId = null;
 
   try {
     for (let i = 0; i < rowIds.length; i++) {
@@ -1075,6 +1105,7 @@ async function runSelectedRows(batchId, rowIds, options) {
         hideWindow: batchHideWindow,
       });
       activeLoginTabId = tabId;
+    runTabId = tabId;
       const previousEmail = sessionEmail;
       if (i > 0) {
         await resetTabForNewRow(tabId, row.row_number);
@@ -1122,6 +1153,11 @@ async function runSelectedRows(batchId, rowIds, options) {
       processed += 1;
     }
   } finally {
+    if (runTabId != null) {
+      try {
+        await logoutAtEndOfRun(runTabId);
+      } catch (_) {}
+    }
     // Teardown always runs: a thrown row must not leave the runner "active"
     // (which blocks every later run) or a proxy applied in Chrome.
     batchRunActive = false;

@@ -179,6 +179,8 @@ async function persistBatchAccountLogin(payload, step) {
 }
 
 async function reopenProfileAfterLogout(payload) {
+  // Keep this pause: Noon runs its own redirect right after sign-out, and
+  // navigating immediately collides with it ("Profile page did not load").
   logStep("Waiting 1s after sign out…");
   await pause(1);
   logStep("Opening profile page again…");

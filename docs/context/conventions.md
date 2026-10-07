@@ -25,6 +25,7 @@
 | Gmail OTP | Poll every 2s: backend Gmail API, else this Chrome's Gmail Atom feed (base address, newest Noon OTP issued ≥ request−20s); Click Here link only via API | Fixed waits were slow; Gmail DOM reading showed stale views |
 | Noon emails | Sent to the account's **base** address (`+tag` stripped) | Seen live 2026-10-05 |
 | Order confirmation | Not seen within 45s → purchase `unconfirmed`, row `partial`, treated as done (no auto re-order); human resets to pending | Click already happened — retry could double-order |
+| End of run | Always sign out the last account (best effort, never fails the run) | No Noon session left logged in |
 | Ghost mouse | Exactly one click per press | Double click sent 2 OTPs / double submits |
 | Noon lockout | On "Too many failed attempts": `/gmail/unlock-link?email=` (To-header must equal row email) → open link in inactive tab → retry login once | Lockout is per account; never use another alias's link |
 | Noon proxy | **Off by default** (`PROXY_ROTATION_ENABLED`); when on: Direct first; rotate on offline/too many requests; PAC has no DIRECT fallback for Noon hosts (dead proxy → `onProxyError` → rotate/clear + reload); proxies validated by CONNECT tunnel + verified TLS handshake to account.noon.com:443 (TCP-connect is not enough — CDN IPs; HTTP-level checks impossible: Noon bot protection rejects non-browser clients); pool uses `proxies.ok.csv` whenever it exists (empty = none) else `proxies.csv` | Filter dead free-list entries |
