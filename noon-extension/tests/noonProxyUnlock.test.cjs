@@ -530,18 +530,71 @@ test("rows are paced (pause before every row after the first, skipped for the co
   assert.ok(/\} else if \(i > 0\) \{\s*await paceBeforeNextRow\(batchId\);/.test(r));
 });
 
-test("cart test mode: never redeems or orders, stops before Place order, empties the cart", () => {
+test("dry run mode: never redeems or orders, stops before Place order, empties the cart", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "public", "cartTest.js"), "utf8");
   assert.ok(/placeOrder: false/.test(src));
-  assert.ok(!/RUN_BATCH_REDEEM|sendBatchRedeemToTab|redeem_status:/.test(src));
+  assert.ok(!/RUN_BATCH_REDEEM"|sendBatchRedeemToTab|redeem_status:/.test(src));
+  assert.ok(/type: "RUN_BATCH_REDEEM_DRYRUN"/.test(src));
+  assert.ok(/await waitForCreditsTab\(tabId\);/.test(src), "never message the previous page before Credits commits");
+  assert.ok(/assertSessionEmailOnTab\(tabId, row\.email\);\s*await openCreditsPage\(tabId\);/.test(src));
   assert.ok(/emptyCartOnTab\(tabId\)/.test(src));
-  assert.ok(/purchase_status: "cart_ok"/.test(src));
+  assert.ok(/purchase_status: redeemFailed \? "failed" : "cart_ok"/.test(src));
   const runner = fs.readFileSync(path.join(__dirname, "..", "public", "batchRunner.js"), "utf8");
   assert.ok(/if \(batchCartTest\) batchPlaceOrder = false;/.test(runner));
   assert.ok(/if \(batchCartTest\) \{\s*await processCartTestRow\(row, tabId, previousEmail\);\s*return;/.test(runner));
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "public", "manifest.json"), "utf8"));
   const scripts = manifest.content_scripts.flatMap((c) => c.js || []);
   assert.ok(scripts.indexOf("content/13a-cart-empty.js") > scripts.indexOf("content/13-cart-nav.js"));
+  assert.ok(scripts.indexOf("content/07a-redeem-dryrun.js") > scripts.indexOf("content/07-redeem-submit.js"));
+});
+
+test("dry-run redeem form: fills card + PIN, never clicks Redeem, never persists resume state", async () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "public", "content", "07a-redeem-dryrun.js"), "utf8");
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assert.ok(!/fillAndRedeemGiftCard|persistFlow|location\.href/.test(code));
+  const numberInput = { value: "", name: "number" };
+  const pinInput = { value: "", name: "pin" };
+  const redeemBtn = { name: "redeem" };
+  const clicks = [];
+  let state = "CREDITS_PAGE";
+  let modalOpen = true;
+  const ctx = {
+    console,
+    flow: () => ({ reset() {}, running: false, check() {} }),
+    normalizeGiftCardDigits: (v) => String(v || "").replace(/\D/g, ""),
+    detectPageState: () => state,
+    pageStateLabel: (s) => s,
+    logStep: () => {},
+    enableCursor: async () => {},
+    disableCursor: async () => {},
+    waitFor: async (fn) => fn(),
+    waitUntilEnabled: async (fn) => fn(),
+    waitForCreditsPageReady: async () => {},
+    waitForAddCreditsModal: async () => { state = "ADD_CREDITS_MODAL"; },
+    findAddCreditsModal: () => (state === "ADD_CREDITS_MODAL" ? {} : null),
+    findGiftcardsVouchersOption: () => (state === "ADD_CREDITS_MODAL" ? { name: "option" } : null),
+    findRedeemGiftcardsBar: () => ({ name: "bar" }),
+    findGiftCardNumberInput: () => (modalOpen && state === "REDEEM_FORM" ? numberInput : null),
+    findGiftCardPinInput: () => (modalOpen && state === "REDEEM_FORM" ? pinInput : null),
+    findRedeemSubmitButton: () => redeemBtn,
+    dismissRedeemModal: async () => { modalOpen = false; },
+    mouse: () => ({
+      click: async (el) => {
+        clicks.push(el.name);
+        if (el.name === "option") state = "REDEEM_FORM";
+      },
+      type: async (el, text) => { el.value = text; },
+    }),
+  };
+  vm.createContext(ctx);
+  vm.runInContext(src, ctx);
+  const result = await ctx.runRedeemFormDryRun({ email: "a@b.c", giftCardNumber: "1234 5678 9012 3456", giftCardPin: "1234" });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.submitted, false);
+  assert.strictEqual(numberInput.value, "1234567890123456");
+  assert.strictEqual(pinInput.value, "1234");
+  assert.deepStrictEqual(clicks, ["bar", "option"]);
+  assert.ok(!clicks.includes("redeem"));
 });
 
 test("cart empty: coupon 'Remove' chip is never treated as a cart item", () => {

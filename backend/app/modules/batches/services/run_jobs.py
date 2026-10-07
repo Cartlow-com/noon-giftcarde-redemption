@@ -69,7 +69,7 @@ def create_batch_run(
     if not row_ids:
         raise ValueError("At least one row_id is required")
     if cart_test and (login_only or place_order):
-        raise ValueError("Cart test cannot be combined with Login only or Place order")
+        raise ValueError("Dry run cannot be combined with Login only or Place order")
 
     unique_ids = list(dict.fromkeys(row_ids))
     rows = db.scalars(
@@ -105,7 +105,7 @@ def create_batch_run(
         status="queued",
         message=f"Queued {len(unique_ids)} row(s)"
         + (" — login only" if login_only else "")
-        + (" — cart test" if cart_test else ""),
+        + (" — dry run" if cart_test else ""),
     )
     db.add(run)
     db.commit()

@@ -313,7 +313,7 @@ def test_create_run_cart_test(client) -> None:
     assert created.status_code == 201
     assert created.json()["cart_test"] is True
     assert created.json()["place_order"] is False
-    assert "cart test" in created.json()["message"]
+    assert "dry run" in created.json()["message"]
 
 
 def test_cart_test_cannot_be_combined_with_place_order(client) -> None:

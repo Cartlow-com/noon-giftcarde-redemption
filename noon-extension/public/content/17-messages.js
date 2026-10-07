@@ -79,8 +79,34 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
     return true;
   }
 
+  if (message.type === "RUN_BATCH_REDEEM_DRYRUN") {
+    // Dry run: fill gift card + PIN on the open Credits page, never submit.
+    if (flow().running) {
+      sendResponse({ ok: false, error: "Another step is running in this page" });
+      return true;
+    }
+    (async function () {
+      try {
+        sendResponse(
+          await runRedeemFormDryRun({
+            email: message.email,
+            giftCardNumber: message.giftCardNumber,
+            giftCardPin: message.giftCardPin,
+          }),
+        );
+      } catch (error) {
+        if (error && error.name === "LoginCancelledError") {
+          sendResponse({ ok: false, cancelled: true, error: error.message });
+          return;
+        }
+        sendResponse({ ok: false, error: (error && error.message) || "Dry-run redeem form failed" });
+      }
+    })();
+    return true;
+  }
+
   if (message.type === "RUN_BATCH_EMPTY_CART") {
-    // Cart test clean-up: remove every item from the Noon cart page.
+    // Dry run clean-up: remove every item from the Noon cart page.
     (async function () {
       try {
         sendResponse(await emptyNoonCart());

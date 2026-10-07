@@ -1,6 +1,6 @@
 /**
  * Classic content script (shared isolated world) — loaded after 13-cart-nav.js.
- * Part: 13a-cart-empty.js — empty the Noon cart (Cart test mode clean-up).
+ * Part: 13a-cart-empty.js — empty the Noon cart (Dry run clean-up).
  */
 
 function isCouponControl(el) {

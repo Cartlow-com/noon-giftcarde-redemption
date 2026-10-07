@@ -25,7 +25,7 @@
 | Gmail OTP | Poll every 2s: backend Gmail API, else this Chrome's Gmail Atom feed (base address, newest Noon OTP issued ≥ request−20s); Click Here link only via API | Fixed waits were slow; Gmail DOM reading showed stale views |
 | Noon emails | Sent to the account's **base** address (`+tag` stripped) | Seen live 2026-10-05 |
 | Add to cart confirmation | Header `[data-qa=btn_cart_count]` must rise (or cart page reached); never trust "Added to cart"/VIEW CART text unless on screen | Hidden quick-cart drawer is always in the DOM |
-| Cart test mode | Never redeems or orders; stops before Place order; empties the cart; purchase_status `cart_ok` (redeem/order stay pending for a real run) | Test the cart path without spending |
+| Dry run mode (`cart_test`) | Fills gift card + PIN on Credits but never clicks Redeem (`content/07a-redeem-dryrun.js`: no `fillAndRedeemGiftCard`, no `persistFlow`, no navigation); never orders; stops before Place order; empties the cart; purchase_status `cart_ok` (redeem/order stay pending for a real run) | Exercise every step without spending |
 | Order confirmation | Not seen within 45s → purchase `unconfirmed`, row `partial`, treated as done (no auto re-order); human resets to pending | Click already happened — retry could double-order |
 | End of run | Always sign out the last account (best effort, never fails the run) | No Noon session left logged in |
 | Ghost mouse | Exactly one click per press | Double click sent 2 OTPs / double submits |

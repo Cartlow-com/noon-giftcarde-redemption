@@ -108,7 +108,7 @@ class BatchRun(Base):
     send_order_emails: Mapped[int] = mapped_column(Integer, default=0)
     hide_window: Mapped[int] = mapped_column(Integer, default=0)
     login_only: Mapped[int] = mapped_column(Integer, default=0)
-    # Cart test: login → add to cart → coupon → checkout, stop before Place order,
+    # Dry run (cart_test): login → fill redeem form (not submitted) → add to cart → coupon → checkout, stop before Place order,
     # empty the cart. No gift-card redeem, no order (nothing is spent).
     cart_test: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(32), default="queued", index=True)

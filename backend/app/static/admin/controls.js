@@ -14,7 +14,7 @@
   const optRedeem = document.getElementById("opt-redeem-email");
   const optOrder = document.getElementById("opt-order-email");
 
-  // Login only / Cart test are test modes: they never redeem, order or email.
+  // Login only / Dry run (cart_test) are test modes: they never redeem, order or email.
   // Turning one on unchecks + disables the options that don't apply to it.
   function setTestMode() {
     const loginOn = optLoginOnly.checked;
@@ -141,7 +141,7 @@
       } catch (_) {}
       const modeBits = [];
       if (optLoginOnly.checked) modeBits.push("login only");
-      if (cartTest) modeBits.push("cart test — no redeem, no order");
+      if (cartTest) modeBits.push("dry run — no redeem, no order");
       if (optHideWindow.checked) modeBits.push("hidden window");
       ui().showOk(
         `Queued ${rowIds.length} row(s)` +
