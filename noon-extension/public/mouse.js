@@ -187,11 +187,32 @@
       durationMs ?? Math.min(900, Math.max(350, Math.hypot(x - from.x, y - from.y) * 1.2));
     const start = performance.now();
 
+    // requestAnimationFrame never fires while the tab is in the background, which
+    // froze the bot mid-login whenever the Noon tab was not the visible tab.
+    if (document.hidden) {
+      checkAbort();
+      setPosition(x, y);
+      return;
+    }
+
     return new Promise(function (resolve, reject) {
+      let done = false;
+      const finish = function () {
+        if (done) return;
+        done = true;
+        clearTimeout(backstop);
+        setPosition(x, y);
+        resolve();
+      };
+      // Time-based backstop: completes the move even if frames stop arriving.
+      const backstop = setTimeout(finish, duration + 300);
       function frame(now) {
+        if (done) return;
         try {
           checkAbort();
         } catch (err) {
+          done = true;
+          clearTimeout(backstop);
           reject(err);
           return;
         }
@@ -199,7 +220,7 @@
         const eased = easeOutCubic(t);
         setPosition(from.x + (x - from.x) * eased, from.y + (y - from.y) * eased);
         if (t < 1) requestAnimationFrame(frame);
-        else resolve();
+        else finish();
       }
       requestAnimationFrame(frame);
     });

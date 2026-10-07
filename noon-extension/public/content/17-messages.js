@@ -79,6 +79,18 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
     return true;
   }
 
+  if (message.type === "RUN_BATCH_EMPTY_CART") {
+    // Cart test clean-up: remove every item from the Noon cart page.
+    (async function () {
+      try {
+        sendResponse(await emptyNoonCart());
+      } catch (error) {
+        sendResponse({ ok: false, error: (error && error.message) || "Could not empty cart" });
+      }
+    })();
+    return true;
+  }
+
   if (message.type === "RUN_BATCH_LOGOUT") {
     // End of run: sign the last account out (no-op when already signed out).
     (async function () {

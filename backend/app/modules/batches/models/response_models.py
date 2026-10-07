@@ -105,6 +105,7 @@ class BatchRunResponse(BaseModel):
     send_order_emails: bool
     hide_window: bool = False
     login_only: bool = False
+    cart_test: bool = False
     status: str
     message: str | None
     stop_requested: bool

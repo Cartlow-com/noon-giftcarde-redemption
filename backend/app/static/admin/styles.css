@@ -184,7 +184,7 @@ html, body {
   color: var(--muted);
 }
 
-.badge.success, .badge.completed {
+.badge.success, .badge.completed, .badge.cart_ok {
   background: color-mix(in srgb, var(--ok) 18%, transparent);
   color: var(--ok);
 }

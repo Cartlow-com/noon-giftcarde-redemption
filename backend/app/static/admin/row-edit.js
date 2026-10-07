@@ -10,6 +10,7 @@
     "already_redeemed",
     "payment_issue",
     "unconfirmed",
+    "cart_ok",
   ];
   const ROW_OPTIONS = ["pending", "in_progress", "completed", "partial", "failed"];
 

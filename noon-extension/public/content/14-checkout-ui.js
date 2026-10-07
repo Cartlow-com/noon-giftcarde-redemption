@@ -29,7 +29,7 @@ function isAddedToCartDrawerOpen() {
   const dialogs = document.querySelectorAll('[role="dialog"], [aria-modal="true"]');
   for (let i = 0; i < dialogs.length; i++) {
     const el = dialogs[i];
-    if (!isVisible(el)) continue;
+    if (!isOnScreen(el)) continue;
     const t = normalizeText(el.textContent).toLowerCase();
     if (t.indexOf("added to cart") !== -1 && t.indexOf("view cart") !== -1) return true;
   }

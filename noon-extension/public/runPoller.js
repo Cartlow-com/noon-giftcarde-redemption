@@ -55,6 +55,7 @@ async function startDashboardRun(run) {
       sendOrderEmails: claimed.send_order_emails,
       hideWindow: !!claimed.hide_window,
       loginOnly: !!claimed.login_only,
+      cartTest: !!claimed.cart_test,
       runId: claimed.id,
     });
     await patchBatchRun(claimed.id, {

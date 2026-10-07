@@ -227,6 +227,21 @@ function findCartNavElement() {
   return null;
 }
 
+/** Really on screen (Noon keeps a collapsed quick-cart drawer with VIEW CART in the DOM). */
+function isOnScreen(el) {
+  if (!el || !el.getBoundingClientRect) return false;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight;
+}
+
+/** Header cart badge ([data-qa="btn_cart_count"]); 0 when absent. */
+function getCartBadgeCount() {
+  const badge = document.querySelector("[data-qa='btn_cart_count']");
+  if (!badge) return 0;
+  const n = parseInt(normalizeText(badge.textContent).replace(/\D/g, ""), 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function getHeaderCartCount() {
   const cartEl = findCartNavElement();
   if (!cartEl) return 0;

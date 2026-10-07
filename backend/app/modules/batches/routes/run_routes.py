@@ -99,6 +99,7 @@ def create_run_route(
             send_order_emails=payload.send_order_emails,
             hide_window=payload.hide_window,
             login_only=payload.login_only,
+            cart_test=payload.cart_test,
             db=db,
             user_id=user_id,
         )

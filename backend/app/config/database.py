@@ -54,6 +54,7 @@ def _ensure_sqlite_columns() -> None:
         run_alters = {
             "hide_window": "ALTER TABLE batch_runs ADD COLUMN hide_window INTEGER DEFAULT 0",
             "login_only": "ALTER TABLE batch_runs ADD COLUMN login_only INTEGER DEFAULT 0",
+            "cart_test": "ALTER TABLE batch_runs ADD COLUMN cart_test INTEGER DEFAULT 0",
             "user_id": "ALTER TABLE batch_runs ADD COLUMN user_id VARCHAR(36) DEFAULT ''",
         }
         with engine.begin() as conn:

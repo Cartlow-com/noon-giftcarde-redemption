@@ -19,6 +19,12 @@ async function handleProductPageStep(productUrl) {
     logStep("Item already added — skipping Add to Cart (click once only)");
     if (findViewCartButton() && phase !== "viewed_cart") {
       await clickViewCartButton();
+      return false;
+    }
+    // No on-screen VIEW CART (the drawer closed): go to the cart via header / URL.
+    if (!isOnCartPage()) {
+      const opened = await openCartFromProductPage();
+      return !!(opened && opened.navigated);
     }
     return false;
   }
@@ -33,15 +39,33 @@ async function handleProductPageStep(productUrl) {
   if (addBtn) {
     // Mark added BEFORE click so a loop resume cannot click a second time.
     await setCartPhase("added");
-    logStep("Add to Cart visible — clicking once…");
-    await mouse().click(addBtn, { fast: true, once: true });
-    await waitFor(
-      function () {
-        return findViewCartButton() || isOnCartPage() || isAddedToCartDrawerOpen();
-      },
-      6000,
-      50,
-    );
+    const countBefore = getCartBadgeCount();
+    // Only the cart count (or landing on the cart page) proves the item is in the
+    // main cart. The "added" drawer alone is not enough: some products (e.g.
+    // grocery / quick delivery) open it but go to a separate cart.
+    const addRegistered = function () {
+      return getCartBadgeCount() > countBefore || isOnCartPage() ? true : null;
+    };
+    logStep("Add to Cart visible — clicking once… (cart count " + countBefore + ")");
+    // Full pointer/mouse sequence (exactly one click): a bare element.click()
+    // ("once") was ignored by Noon's Add to Cart on some products.
+    await mouse().click(addBtn, { fast: true });
+    let added = await waitFor(addRegistered, 8000, 100);
+    if (!added && getCartBadgeCount() <= countBefore) {
+      // Nothing was added (count unchanged), so one more click cannot double-add.
+      logStep("Add to Cart did not register — clicking once more…");
+      const again = findAddToCartButton() || addBtn;
+      await mouse().click(again, { fast: true });
+      added = await waitFor(addRegistered, 8000, 100);
+    }
+    if (!added) {
+      await setCartPhase("");
+      throw new Error(
+        "Item not added to the main cart (cart count stayed " + countBefore +
+          ") — the product may be unavailable for this address or use a separate Noon cart",
+      );
+    }
+    logStep("Added to cart (cart count " + getCartBadgeCount() + ")");
     return false;
   }
 
@@ -52,20 +76,16 @@ async function handleProductPageStep(productUrl) {
 }
 
 function findViewCartButton() {
-  const dialogScopes = document.querySelectorAll(
-    '[role="dialog"], [aria-modal="true"], [class*="modal" i], [class*="Modal" i], [class*="drawer" i], [class*="Drawer" i]',
-  );
-  for (let i = 0; i < dialogScopes.length; i++) {
-    const scope = dialogScopes[i];
-    if (!isVisible(scope)) continue;
-    const btn = findButtonByTextMatch(["view cart"], scope);
-    if (btn && isVisible(btn)) return btn;
+  // Only a VIEW CART that is really on screen: Noon keeps a collapsed (0-height)
+  // quick-cart drawer with "Added to cart" + VIEW CART in every product page,
+  // which made the bot think the item was added when the click had not registered.
+  const nodes = document.querySelectorAll("button, a, [role='button']");
+  for (let i = 0; i < nodes.length; i++) {
+    const el = nodes[i];
+    if (normalizeText(el.textContent).toLowerCase() !== "view cart") continue;
+    if (isOnScreen(el)) return el;
   }
-  return (
-    findButtonByTextMatch(["view cart"]) ||
-    findClickableByText("VIEW CART") ||
-    queryByRole("button", { name: "VIEW CART" })
-  );
+  return null;
 }
 
 async function clickViewCartButton() {

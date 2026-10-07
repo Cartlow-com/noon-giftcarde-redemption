@@ -8,27 +8,31 @@
   const btnStop = document.getElementById("btn-stop");
   const btnDelete = document.getElementById("btn-delete-batch");
   const optLoginOnly = document.getElementById("opt-login-only");
+  const optCartTest = document.getElementById("opt-cart-test");
   const optPlace = document.getElementById("opt-place-order");
   const optHideWindow = document.getElementById("opt-hide-window");
   const optRedeem = document.getElementById("opt-redeem-email");
   const optOrder = document.getElementById("opt-order-email");
 
-  // When Login only is toggled on, disable/uncheck the options that are
-  // irrelevant for a login test. Re-enable them when it is unchecked.
-  const LOGIN_ONLY_INCOMPATIBLE = [optPlace, optRedeem, optOrder];
-  optLoginOnly.addEventListener("change", () => {
-    const on = optLoginOnly.checked;
-    for (const el of LOGIN_ONLY_INCOMPATIBLE) {
-      if (on) {
-        el.checked = false;
-        el.disabled = true;
-        el.closest("label").style.opacity = "0.4";
-      } else {
-        el.disabled = false;
-        el.closest("label").style.opacity = "";
-      }
+  // Login only / Cart test are test modes: they never redeem, order or email.
+  // Turning one on unchecks + disables the options that don't apply to it.
+  function setTestMode() {
+    const loginOn = optLoginOnly.checked;
+    const cartOn = !!(optCartTest && optCartTest.checked);
+    const blocked = new Set();
+    if (loginOn || cartOn) [optPlace, optRedeem, optOrder].forEach((el) => blocked.add(el));
+    if (loginOn && optCartTest) blocked.add(optCartTest);
+    if (cartOn) blocked.add(optLoginOnly);
+    for (const el of [optPlace, optRedeem, optOrder, optLoginOnly, optCartTest]) {
+      if (!el) continue;
+      const off = blocked.has(el);
+      if (off) el.checked = false;
+      el.disabled = off;
+      el.closest("label").style.opacity = off ? "0.4" : "";
     }
-  });
+  }
+  optLoginOnly.addEventListener("change", setTestMode);
+  if (optCartTest) optCartTest.addEventListener("change", setTestMode);
 
   async function refreshActiveRun() {
     if (window.AdminAuth && !window.AdminAuth.isAuthenticated()) {
@@ -114,17 +118,20 @@
         await U.api("/runs/extension/heartbeat", { method: "POST" });
         ui().setExtensionOnline(true);
       }
+      const cartTest = !!(optCartTest && optCartTest.checked);
+      const testMode = optLoginOnly.checked || cartTest;
       const run = await U.api("/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           batch_id: s.selectedBatchId,
           row_ids: rowIds,
-          place_order: optLoginOnly.checked ? false : optPlace.checked,
+          place_order: testMode ? false : optPlace.checked,
           hide_window: optHideWindow.checked,
           login_only: optLoginOnly.checked,
-          send_redeem_emails: optLoginOnly.checked ? false : optRedeem.checked,
-          send_order_emails: optLoginOnly.checked ? false : optOrder.checked,
+          cart_test: cartTest,
+          send_redeem_emails: testMode ? false : optRedeem.checked,
+          send_order_emails: testMode ? false : optOrder.checked,
         }),
       });
       ui().setActiveRun(run);
@@ -134,6 +141,7 @@
       } catch (_) {}
       const modeBits = [];
       if (optLoginOnly.checked) modeBits.push("login only");
+      if (cartTest) modeBits.push("cart test — no redeem, no order");
       if (optHideWindow.checked) modeBits.push("hidden window");
       ui().showOk(
         `Queued ${rowIds.length} row(s)` +

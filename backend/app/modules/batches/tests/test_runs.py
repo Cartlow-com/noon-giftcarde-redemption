@@ -298,3 +298,32 @@ def test_stale_heartbeat_reclaims_active_run_and_in_progress_row(client, db_sess
     )
     assert again.status_code == 201
     assert again.json()["status"] == "queued"
+
+
+def test_create_run_cart_test(client) -> None:
+    headers = login(client)
+    _mark_extension_online(client, headers)
+    batch_id = _upload(client, headers).json()["batch"]["id"]
+    row_id = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"][0]["id"]
+    created = client.post(
+        "/runs",
+        headers=headers,
+        json={"batch_id": batch_id, "row_ids": [row_id], "cart_test": True},
+    )
+    assert created.status_code == 201
+    assert created.json()["cart_test"] is True
+    assert created.json()["place_order"] is False
+    assert "cart test" in created.json()["message"]
+
+
+def test_cart_test_cannot_be_combined_with_place_order(client) -> None:
+    headers = login(client)
+    _mark_extension_online(client, headers)
+    batch_id = _upload(client, headers).json()["batch"]["id"]
+    row_id = client.get(f"/batches/{batch_id}/rows", headers=headers).json()["rows"][0]["id"]
+    resp = client.post(
+        "/runs",
+        headers=headers,
+        json={"batch_id": batch_id, "row_ids": [row_id], "cart_test": True, "place_order": True},
+    )
+    assert resp.status_code in (400, 409, 422)

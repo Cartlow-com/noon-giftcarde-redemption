@@ -69,6 +69,7 @@ class CreateRunRequest(BaseModel):
     send_order_emails: bool = False
     hide_window: bool = False
     login_only: bool = False
+    cart_test: bool = False
 
 
 class UpdateRunRequest(_StatusFieldsMixin, BaseModel):

@@ -529,3 +529,35 @@ test("rows are paced (pause before every row after the first, skipped for the co
   assert.ok(/const ROW_PACING_MS = \d+;/.test(r));
   assert.ok(/\} else if \(i > 0\) \{\s*await paceBeforeNextRow\(batchId\);/.test(r));
 });
+
+test("cart test mode: never redeems or orders, stops before Place order, empties the cart", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "public", "cartTest.js"), "utf8");
+  assert.ok(/placeOrder: false/.test(src));
+  assert.ok(!/RUN_BATCH_REDEEM|sendBatchRedeemToTab|redeem_status:/.test(src));
+  assert.ok(/emptyCartOnTab\(tabId\)/.test(src));
+  assert.ok(/purchase_status: "cart_ok"/.test(src));
+  const runner = fs.readFileSync(path.join(__dirname, "..", "public", "batchRunner.js"), "utf8");
+  assert.ok(/if \(batchCartTest\) batchPlaceOrder = false;/.test(runner));
+  assert.ok(/if \(batchCartTest\) \{\s*await processCartTestRow\(row, tabId, previousEmail\);\s*return;/.test(runner));
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "public", "manifest.json"), "utf8"));
+  const scripts = manifest.content_scripts.flatMap((c) => c.js || []);
+  assert.ok(scripts.indexOf("content/13a-cart-empty.js") > scripts.indexOf("content/13-cart-nav.js"));
+});
+
+test("cart empty: coupon 'Remove' chip is never treated as a cart item", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "public", "content", "13a-cart-empty.js"), "utf8");
+  assert.ok(/function isCouponControl/.test(src) && /isCouponControl\(clickable\)/.test(src));
+});
+
+test("add-to-cart is confirmed by the header cart count / on-screen drawer, not hidden markup", () => {
+  const nav = fs.readFileSync(path.join(__dirname, "..", "public", "content", "13-cart-nav.js"), "utf8");
+  assert.ok(/getCartBadgeCount\(\) > countBefore/.test(nav));
+  assert.ok(/Add to Cart did not register/.test(nav));
+  const fn = nav.slice(nav.indexOf("function findViewCartButton"), nav.indexOf("async function clickViewCartButton"));
+  assert.ok(/isOnScreen\(el\)/.test(fn) && !/findButtonByTextMatch/.test(fn));
+  const prod = fs.readFileSync(path.join(__dirname, "..", "public", "content", "12-cart-product.js"), "utf8");
+  assert.ok(/\[data-qa='btn_cart_count'\]/.test(prod));
+  const empty = fs.readFileSync(path.join(__dirname, "..", "public", "content", "13a-cart-empty.js"), "utf8");
+  assert.ok(/\[data-qa='cart-remove_item'\]/.test(empty));
+  assert.ok(!/querySelector\("main"\)/.test(empty), "cart page has no <main>; never scan the whole page");
+});

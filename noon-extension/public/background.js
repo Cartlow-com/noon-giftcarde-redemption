@@ -5,7 +5,7 @@ chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch((err) => console.error(err));
 
-importScripts("apiConfig.js", "batchApi.js", "noonProxy.js", "batchRunner.js", "runPoller.js");
+importScripts("apiConfig.js", "batchApi.js", "noonProxy.js", "batchRunner.js", "cartTest.js", "runPoller.js");
 
 startDashboardRunPolling();
 

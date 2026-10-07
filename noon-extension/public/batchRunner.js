@@ -9,6 +9,7 @@ let batchSendRedeemEmails = false;
 let batchSendOrderEmails = false;
 let batchHideWindow = false;
 let batchLoginOnly = false;
+let batchCartTest = false;
 let activeBatchRunId = null;
 let pendingAttemptMeta = null;
 let activeAttemptId = null;
@@ -684,6 +685,10 @@ async function processBatchRow(row, tabId, previousEmail) {
     await processLoginOnlyRow(row, tabId);
     return;
   }
+  if (batchCartTest) {
+    await processCartTestRow(row, tabId, previousEmail);
+    return;
+  }
 
   if (
     stageRedeemDone(row.redeem_status) &&
@@ -1083,6 +1088,8 @@ async function runSelectedRows(batchId, rowIds, options) {
   batchSendOrderEmails = !!opts.sendOrderEmails;
   batchHideWindow = !!opts.hideWindow;
   batchLoginOnly = !!opts.loginOnly;
+  batchCartTest = !!opts.cartTest && !batchLoginOnly;
+  if (batchCartTest) batchPlaceOrder = false; // never order in a cart test
   activeBatchRunId = opts.runId || null;
   await chrome.storage.local.set({
     [BATCH_RUN_KEY]: {
@@ -1106,6 +1113,7 @@ async function runSelectedRows(batchId, rowIds, options) {
     message:
       `Starting ${rowIds.length} selected row(s)` +
       (batchLoginOnly ? " — LOGIN ONLY" : "") +
+      (batchCartTest ? " — CART TEST (no redeem, no order)" : "") +
       (batchPlaceOrder ? " — place order on" : " — place order off") +
       (batchHideWindow ? " — Noon tab hidden" : " — Noon tab visible") +
       (batchSendRedeemEmails ? " — redeem emails on" : " — redeem emails off") +

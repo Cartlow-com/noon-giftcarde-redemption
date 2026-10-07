@@ -41,6 +41,7 @@ def _to_response(run: BatchRun) -> BatchRunResponse:
         send_order_emails=bool(run.send_order_emails),
         hide_window=bool(getattr(run, "hide_window", 0)),
         login_only=bool(getattr(run, "login_only", 0)),
+        cart_test=bool(getattr(run, "cart_test", 0)),
         status=run.status,
         message=run.message,
         stop_requested=bool(run.stop_requested),
@@ -58,6 +59,7 @@ def create_batch_run(
     send_order_emails: bool,
     hide_window: bool = False,
     login_only: bool = False,
+    cart_test: bool = False,
     db: Session,
     user_id: str | None = None,
 ) -> BatchRunResponse:
@@ -66,6 +68,8 @@ def create_batch_run(
     batch = get_owned_batch(db, batch_id, owner_id)
     if not row_ids:
         raise ValueError("At least one row_id is required")
+    if cart_test and (login_only or place_order):
+        raise ValueError("Cart test cannot be combined with Login only or Place order")
 
     unique_ids = list(dict.fromkeys(row_ids))
     rows = db.scalars(
@@ -97,8 +101,11 @@ def create_batch_run(
         send_order_emails=1 if send_order_emails else 0,
         hide_window=1 if hide_window else 0,
         login_only=1 if login_only else 0,
+        cart_test=1 if cart_test else 0,
         status="queued",
-        message=f"Queued {len(unique_ids)} row(s)" + (" — login only" if login_only else ""),
+        message=f"Queued {len(unique_ids)} row(s)"
+        + (" — login only" if login_only else "")
+        + (" — cart test" if cart_test else ""),
     )
     db.add(run)
     db.commit()
