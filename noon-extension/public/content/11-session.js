@@ -219,10 +219,14 @@ async function matchOrLoginOnProfile(payload) {
     return { ok: true, skipped: true, switched: false };
   }
 
+  // Trust the live page over the remembered previous account: when the profile
+  // page clearly shows "logged out" there is nothing to sign out of (the stale
+  // previous email made every later row try to open a missing account menu).
+  const clearlyLoggedOut = !!(authState && authState.kind === "logged_out");
   const needsLogout =
     (profileEmail && profileEmail !== required) ||
-    (!profileEmail && isLoggedIn()) ||
-    (previous && previous !== required && profileEmail !== required);
+    (!profileEmail && !clearlyLoggedOut && isLoggedIn()) ||
+    (!clearlyLoggedOut && previous && previous !== required && profileEmail !== required);
 
   let didLogout = false;
   if (needsLogout) {

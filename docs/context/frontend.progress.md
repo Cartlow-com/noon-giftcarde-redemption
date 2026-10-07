@@ -7,6 +7,7 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-10-07 — Account switch: a clearly logged-out profile page is trusted over the remembered previous email (rows after a sign-out failed with "Account menu not found"); sign-out is a no-op when already logged out; runner drops the stale session email when a login fails. Live: rows 12–16 login-only all succeeded, 1 OTP each
 - 2026-10-07 — Server lock + selector: side panel "Server" card (Production / Local / Custom, Pin) via `serverSettings.js`; dashboards can't switch the extension's server during an active run or away from a pinned server; switching server clears the token (reconnect from that dashboard)
 - 2026-10-06 — **First successful live login (row 17, login-only)**: 1 Continue → 1 OTP → read from Gmail feed in ~2s → logged in at +16s
 - 2026-10-06 — Account menu is a toggle: click once, re-click only if not open (old code relied on odd total click count; broke after single-click fix)

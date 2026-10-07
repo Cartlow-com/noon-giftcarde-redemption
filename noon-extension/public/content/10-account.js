@@ -128,6 +128,12 @@ async function clearSessionEmailStorage() {
 }
 
 async function logoutFromNoon() {
+  if (isLoggedOutState() && !readEmailFromProfilePage()) {
+    // Already signed out (e.g. a previous step's sign-out landed) — nothing to do.
+    logStep("Already signed out");
+    await clearSessionEmailStorage();
+    return;
+  }
   const beforeEmail = readEmailFromProfilePage();
   logStep("Logging out" + (beforeEmail ? " (" + beforeEmail + ")" : "") + "…");
   await acceptCookies();

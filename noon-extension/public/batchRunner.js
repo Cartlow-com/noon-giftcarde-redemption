@@ -513,6 +513,9 @@ async function ensureRowAccount(tabId, row, previousEmail) {
   try {
     result = await runLogin();
   } catch (error) {
+    // Whatever happened, the browser is no longer reliably logged in as the
+    // previous row — never hand that stale account to the next row.
+    sessionEmail = null;
     // Noon lockout: open the "Verify my account" email link once, then retry login once.
     if (error.cancelled || !isNoonLockoutError(error.message)) throw error;
     throwIfCancelled();

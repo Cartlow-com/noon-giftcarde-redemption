@@ -472,3 +472,12 @@ test("server: settings messages only accepted from the extension's own page", as
   assert.strictEqual(reply.ok, false);
   assert.strictEqual(reply.error, "Not allowed");
 });
+
+test("account switch trusts a clearly logged-out page over the remembered previous email", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "public", "content", "11-session.js"), "utf8");
+  const block = src.slice(src.indexOf("const clearlyLoggedOut"), src.indexOf("let didLogout"));
+  assert.ok(/authState\.kind === "logged_out"/.test(block));
+  assert.ok(/!clearlyLoggedOut && previous/.test(block));
+  const acct = fs.readFileSync(path.join(__dirname, "..", "public", "content", "10-account.js"), "utf8");
+  assert.ok(/Already signed out/.test(acct));
+});
