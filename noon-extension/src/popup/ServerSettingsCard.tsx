@@ -21,6 +21,10 @@ export default function ServerSettingsCard() {
   const [saving, setSaving] = useState(false);
 
   function apply(next: ServerSettings) {
+    if (!next || !next.ok || !Array.isArray(next.presets)) {
+      setMessage({ kind: "error", text: (next && next.error) || "Could not load server settings" });
+      return;
+    }
     setSettings(next);
     const id = presetIdFor(next, next.apiBaseUrl);
     setChoice(id);

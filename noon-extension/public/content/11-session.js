@@ -1,22 +1,8 @@
 /**
  * Split from content.js — classic content script (shared isolated world).
  * Top-level function/var bindings are shared across content/*.js via manifest order.
- * Part: 11-session.js — Session helpers + ensureLoggedIn
+ * Part: 11-session.js — Login/account switch + ensureLoggedIn (session email helpers: 10-account.js)
  */
-function getSessionEmail() {
-  return new Promise(function (resolve) {
-    chrome.storage.local.get(SESSION_EMAIL_KEY, function (data) {
-      resolve(data[SESSION_EMAIL_KEY] || null);
-    });
-  });
-}
-
-function setSessionEmail(email) {
-  return new Promise(function (resolve) {
-    chrome.storage.local.set({ [SESSION_EMAIL_KEY]: String(email).toLowerCase() }, resolve);
-  });
-}
-
 async function loginOnHomepage(email, password) {
   await loginFromProfilePage(email, password);
 }
@@ -266,6 +252,9 @@ async function matchOrLoginOnProfile(payload) {
   logStep("Logging in as " + required + "…");
   try {
     await loginFromCurrentPage(payload.email, payload.password);
+    // openProfilePage may navigate: save the resume point first so the next page
+    // confirms the login itself (otherwise the background waited ~8s and re-sent).
+    await persistBatchAccountLogin(payload, "login_profile");
     await openProfilePage();
     const afterState = await waitForProfileAuthState(12000);
     const afterEmail =
@@ -278,6 +267,7 @@ async function matchOrLoginOnProfile(payload) {
           required,
       );
     }
+    await clearFlowState(); // no navigation happened — drop the resume point
     await setSessionEmail(required);
     return { ok: true, skipped: false, switched: true };
   } catch (localErr) {

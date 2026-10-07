@@ -71,6 +71,11 @@
       });
     }
 
+    if (data.type === "NOON_POLL_RUNS") {
+      // Dashboard just queued a run: wake the service worker so it claims it now.
+      forwardToBackground({ type: "POLL_DASHBOARD_RUNS_NOW" });
+    }
+
     if (data.type === "NOON_EXT_PING") {
       var pingId = data.requestId || null;
       forwardToBackground({ type: "GET_AUTH_STATUS" }).then(function (result) {
@@ -80,6 +85,7 @@
           installed: true,
           hasToken: !!(result && result.hasToken),
           apiBaseUrl: (result && result.apiBaseUrl) || null,
+          trace: (result && result.trace) || [],
           error: (result && result.error) || null,
         });
       });

@@ -105,26 +105,40 @@ async function pasteOtpIntoNoon(otp) {
   }
 }
 
+const OTP_RATE_LIMIT_COOLDOWN_S = 30;
+
 async function submitNoonOtpAndWait(email) {
-  const button = await waitUntilEnabled(function () {
-    return findOtpSubmitButton();
-  }, 8000);
-  if (button) {
-    logStep("Submitting Noon OTP...");
-    await mouse().click(button, { fast: true });
-  }
-
-  await pause(0.5);
-  throwIfProxyWorthyUi();
-
   const required = String(email || "").trim().toLowerCase();
-  const success = await waitFor(function () {
-    if (getProxyWorthyMessage()) return "proxy";
-    const profileEmail = readEmailFromProfilePage();
-    if (profileEmail) return profileEmail;
-    if (getByText("Hi,")) return required || true;
-    return null;
-  }, 20000, 100);
+  let success = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const button = await waitUntilEnabled(function () {
+      return findOtpSubmitButton();
+    }, 8000);
+    if (button) {
+      logStep(attempt === 1 ? "Submitting Noon OTP..." : "Re-submitting the same OTP after cooldown…");
+      await mouse().click(button, { fast: true });
+    }
+
+    success = await waitFor(function () {
+      if (getProxyWorthyMessage()) return "proxy";
+      const profileEmail = readEmailFromProfilePage();
+      if (profileEmail) return profileEmail;
+      if (getByText("Hi,")) return required || true;
+      return null;
+    }, 20000, 100);
+    if (success !== "proxy") break;
+    // Noon briefly rate-limits the OTP check after many logins. Retrying the SAME
+    // code later does not request a new OTP, so it cannot extend the block.
+    if (attempt === 1 && /too many requests/i.test(String(getProxyWorthyMessage() || ""))) {
+      logStep("Noon rate-limited the OTP check — waiting " + OTP_RATE_LIMIT_COOLDOWN_S + "s, then retrying the same code once");
+      for (let i = 0; i < OTP_RATE_LIMIT_COOLDOWN_S; i++) {
+        flow().check();
+        await pause(1);
+      }
+      continue;
+    }
+    break;
+  }
   if (success === "proxy") throwIfProxyWorthyUi();
   if (!success) throw new Error("OTP login did not complete");
   logStep("OTP login completed");

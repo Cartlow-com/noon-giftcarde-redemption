@@ -495,3 +495,31 @@ test("run ends with a best-effort sign-out; OTP screen is not padded with fixed 
   // the 1s post-sign-out pause is required (Noon's own redirect) — keep it
   assert.ok(/await pause\(1\);\s*logStep\("Opening profile page again…"\)/.test(session));
 });
+
+test("queued run wakes the extension immediately (dashboard → bridge → poll)", () => {
+  const router = fs.readFileSync(path.join(__dirname, "..", "public", "messageRouter.js"), "utf8");
+  assert.ok(/POLL_DASHBOARD_RUNS_NOW[\s\S]{0,250}dashboardSenderOrigin\(sender\)[\s\S]{0,150}pollDashboardRuns\(\)/.test(router));
+  const bridge = fs.readFileSync(path.join(__dirname, "..", "public", "dashboardBridge.js"), "utf8");
+  assert.ok(/NOON_POLL_RUNS[\s\S]{0,200}POLL_DASHBOARD_RUNS_NOW/.test(bridge));
+  const controls = fs.readFileSync(path.join(__dirname, "..", "..", "backend", "app", "static", "admin", "controls.js"), "utf8");
+  assert.ok(/postMessage\(\{ type: "NOON_POLL_RUNS" \}/.test(controls));
+});
+
+test("full-batch fixes: resume tolerates post-logout redirect; resume point saved before profile nav; one OTP cooldown retry", () => {
+  const resume = fs.readFileSync(path.join(__dirname, "..", "public", "content", "18-resume.js"), "utf8");
+  assert.ok(/isLoggedOutState\(\) && findNavbarLogIn\(\)/.test(resume));
+  assert.ok(/profileRetry: true/.test(resume));
+  const session = fs.readFileSync(path.join(__dirname, "..", "public", "content", "11-session.js"), "utf8");
+  assert.ok(/persistBatchAccountLogin\(payload, "login_profile"\);\s*await openProfilePage\(\)/.test(session));
+  const otp = fs.readFileSync(path.join(__dirname, "..", "public", "content", "03a-otp-gmail.js"), "utf8");
+  assert.ok(/attempt <= 2/.test(otp) && /too many requests/i.test(otp));
+  assert.ok(session.split("\n").length <= 350);
+});
+
+test("rate-limited rows are re-queued once after a cooldown; login step has a watchdog", () => {
+  const r = fs.readFileSync(path.join(__dirname, "..", "public", "batchRunner.js"), "utf8");
+  assert.ok(/queue\.push\(\{ id: row\.id, retry: true \}\)/.test(r));
+  assert.ok(/!item\.retry &&[\s\S]{0,120}too many requests/.test(r));
+  assert.ok(/if \(item\.retry && !cooledDown\)/.test(r));
+  assert.ok((r.match(/withLoginTimeout\(runLogin\(\), tabId\)/g) || []).length === 2);
+});

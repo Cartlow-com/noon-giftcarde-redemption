@@ -26,7 +26,21 @@
           ? "On profile after sign out — click Log In, fill email, Continue"
           : "Resuming account login on profile",
       );
-      await waitForProfilePageReady();
+      try {
+        await waitForProfilePageReady();
+      } catch (profileErr) {
+        // Noon's own post-sign-out redirect can land us off the profile page.
+        // A logged-out page with the navbar "Log in" is fine to log in from;
+        // otherwise go to the profile page once more and resume there.
+        if (!(isLoggedOutState() && findNavbarLogIn())) {
+          if (state.profileRetry) throw profileErr;
+          logStep("Profile page not ready — opening it again…");
+          await saveFlowState(Object.assign({}, state, { resumeOnLoad: true, profileRetry: true }));
+          location.href = NOON_PROFILE;
+          return;
+        }
+        logStep("Logged out on " + location.pathname + " — logging in from here");
+      }
       const required = String(state.email || "").trim().toLowerCase();
       const settled = await waitForProfileAuthState(12000);
       if (settled && settled.kind === "email" && settled.email === required) {

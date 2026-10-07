@@ -163,3 +163,17 @@ async function logoutFromNoon() {
   await clearSessionEmailStorage();
   logStep("Logged out");
 }
+
+function getSessionEmail() {
+  return new Promise(function (resolve) {
+    chrome.storage.local.get(SESSION_EMAIL_KEY, function (data) {
+      resolve(data[SESSION_EMAIL_KEY] || null);
+    });
+  });
+}
+
+function setSessionEmail(email) {
+  return new Promise(function (resolve) {
+    chrome.storage.local.set({ [SESSION_EMAIL_KEY]: String(email).toLowerCase() }, resolve);
+  });
+}

@@ -511,7 +511,7 @@ async function ensureRowAccount(tabId, row, previousEmail) {
   };
   let result;
   try {
-    result = await runLogin();
+    result = await withLoginTimeout(runLogin(), tabId);
   } catch (error) {
     // Whatever happened, the browser is no longer reliably logged in as the
     // previous row — never hand that stale account to the next row.
@@ -522,7 +522,7 @@ async function ensureRowAccount(tabId, row, previousEmail) {
     await unlockNoonAccountViaEmail(row);
     throwIfCancelled();
     try {
-      result = await runLogin();
+      result = await withLoginTimeout(runLogin(), tabId);
     } catch (retryError) {
       if (isNoonLockoutError(retryError.message)) {
         retryError.message = "Still locked after opening unlock link — " + retryError.message;
@@ -1015,6 +1015,42 @@ async function logoutAtEndOfRun(tabId) {
   sessionEmail = null;
 }
 
+const RATE_LIMIT_COOLDOWN_MS = 120000;
+
+async function rateLimitCooldown(batchId, count) {
+  emitBatch({
+    type: "BATCH_PROGRESS",
+    batchId: batchId,
+    stage: "system",
+    status: "info",
+    message:
+      "Noon rate-limited " + count + " row(s) — waiting " + RATE_LIMIT_COOLDOWN_MS / 60000 +
+      " min, then retrying them once",
+  });
+  const until = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+  while (Date.now() < until && !batchRunCancelled) {
+    await delay(1000);
+  }
+}
+
+const LOGIN_STEP_TIMEOUT_MS = 240000;
+
+/** Fail a stuck login step (no answer from the page) instead of stalling the whole run. */
+async function withLoginTimeout(promise, tabId) {
+  let timer = null;
+  const timeout = new Promise(function (_, reject) {
+    timer = setTimeout(function () {
+      cancelLoginOnTab(tabId).catch(function () {});
+      reject(new Error("Login step timed out — no response from the Noon page"));
+    }, LOGIN_STEP_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function runSelectedRows(batchId, rowIds, options) {
   if (!rowIds || rowIds.length === 0) {
     throw new Error("No rows selected");
@@ -1062,10 +1098,23 @@ async function runSelectedRows(batchId, rowIds, options) {
   let processed = 0;
   let runTabId = null;
 
+  // Rows Noon rate-limited ("Too many requests") are retried once at the end,
+  // after a single cooldown, so a long batch can still complete.
+  const queue = rowIds.map(function (id) {
+    return { id: id, retry: false };
+  });
+  let cooledDown = false;
+
   try {
-    for (let i = 0; i < rowIds.length; i++) {
+    for (let i = 0; i < queue.length; i++) {
       if (batchRunCancelled) break;
-      const rowId = rowIds[i];
+      const item = queue[i];
+      if (item.retry && !cooledDown) {
+        cooledDown = true;
+        await rateLimitCooldown(batchId, queue.filter((q) => q.retry).length);
+        if (batchRunCancelled) break;
+      }
+      const rowId = item.id;
 
       let row;
       try {
@@ -1105,7 +1154,7 @@ async function runSelectedRows(batchId, rowIds, options) {
         hideWindow: batchHideWindow,
       });
       activeLoginTabId = tabId;
-    runTabId = tabId;
+      runTabId = tabId;
       const previousEmail = sessionEmail;
       if (i > 0) {
         await resetTabForNewRow(tabId, row.row_number);
@@ -1137,6 +1186,13 @@ async function runSelectedRows(batchId, rowIds, options) {
       try {
         const finalRow = await getBatchRow(row.id);
         await finishRowAttempt(finalRow, pendingAttemptMeta || { outcome: finalRow.status });
+        if (
+          !item.retry &&
+          finalRow.login_status !== "success" &&
+          /too many requests/i.test(String(finalRow.login_error || ""))
+        ) {
+          queue.push({ id: row.id, retry: true });
+        }
       } catch (err) {
         console.warn("[noon] finishRowAttempt failed", err);
         emitBatch({

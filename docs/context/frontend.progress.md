@@ -7,6 +7,7 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-10-07 — Full 20-row login-only run: 18/20 OK in ~6 min (~18s/row); rows 9 & 20 blocked by Noon "Too many requests" (client/IP-level limit after ~18–20 logins). Added: dashboard wakes extension on Run (start delay ~30s → 0s); resume tolerates post-logout redirect; resume point saved before post-login profile nav; one same-OTP retry after 30s; rate-limited rows re-queued once after 2-min cooldown; 4-min login-step watchdog; live row trace in NOON_EXT_PING
 - 2026-10-07 — Run ends with a best-effort sign-out (`RUN_BATCH_LOGOUT`, in run teardown, 30s cap); OTP screen detected right after Continue (was fixed ~8s wait) → logins ~13–18s instead of ~20–26s. Kept the 1s post-sign-out pause (Noon redirect race)
 - 2026-10-07 — Account switch: a clearly logged-out profile page is trusted over the remembered previous email (rows after a sign-out failed with "Account menu not found"); sign-out is a no-op when already logged out; runner drops the stale session email when a login fails. Live: rows 12–16 login-only all succeeded, 1 OTP each
 - 2026-10-07 — Server lock + selector: side panel "Server" card (Production / Local / Custom, Pin) via `serverSettings.js`; dashboards can't switch the extension's server during an active run or away from a pinned server; switching server clears the token (reconnect from that dashboard)

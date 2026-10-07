@@ -105,6 +105,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "POLL_DASHBOARD_RUNS_NOW") {
+    // Only our own bridge on an allowed dashboard origin may trigger a poll.
+    if (!dashboardSenderOrigin(sender)) {
+      sendResponse({ ok: false });
+      return false;
+    }
+    pollDashboardRuns();
+    sendResponse({ ok: true });
+    return false;
+  }
+
   if (message.type === "GET_AUTH_STATUS") {
     (async () => {
       try {
@@ -117,6 +128,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           ok: true,
           hasToken: typeof stored.noon_access_token === "string" && !!stored.noon_access_token,
           apiBaseUrl: apiBaseUrl,
+          // Live step trace of the current row (for diagnosing a stuck run).
+          trace: dashboardSenderOrigin(sender) && typeof rowTrace !== "undefined" ? rowTrace.slice(-40) : [],
         });
       } catch (error) {
         sendResponse({

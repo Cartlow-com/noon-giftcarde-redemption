@@ -91,7 +91,6 @@ function isFromOwnExtensionPage(sender) {
   return !!(
     sender &&
     sender.id === chrome.runtime.id &&
-    !sender.tab &&
     String(sender.url || "").indexOf("chrome-extension://" + chrome.runtime.id + "/") === 0
   );
 }

@@ -128,6 +128,10 @@
         }),
       });
       ui().setActiveRun(run);
+      // Wake the extension now instead of waiting for its ~30s background alarm.
+      try {
+        window.postMessage({ type: "NOON_POLL_RUNS" }, window.location.origin);
+      } catch (_) {}
       const modeBits = [];
       if (optLoginOnly.checked) modeBits.push("login only");
       if (optHideWindow.checked) modeBits.push("hidden window");
