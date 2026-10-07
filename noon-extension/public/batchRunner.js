@@ -1016,6 +1016,23 @@ async function logoutAtEndOfRun(tabId) {
 }
 
 const RATE_LIMIT_COOLDOWN_MS = 120000;
+// Space logins out: ~20 back-to-back logins (~1 per 18s) triggered Noon's
+// client/IP-level "Too many requests". With this pause it is ~1 per 30s.
+const ROW_PACING_MS = 12000;
+
+async function paceBeforeNextRow(batchId) {
+  emitBatch({
+    type: "BATCH_PROGRESS",
+    batchId: batchId,
+    stage: "system",
+    status: "info",
+    message: "Pausing " + ROW_PACING_MS / 1000 + "s before the next login (Noon rate limit)",
+  });
+  const until = Date.now() + ROW_PACING_MS;
+  while (Date.now() < until && !batchRunCancelled) {
+    await delay(500);
+  }
+}
 
 async function rateLimitCooldown(batchId, count) {
   emitBatch({
@@ -1112,6 +1129,9 @@ async function runSelectedRows(batchId, rowIds, options) {
       if (item.retry && !cooledDown) {
         cooledDown = true;
         await rateLimitCooldown(batchId, queue.filter((q) => q.retry).length);
+        if (batchRunCancelled) break;
+      } else if (i > 0) {
+        await paceBeforeNextRow(batchId);
         if (batchRunCancelled) break;
       }
       const rowId = item.id;

@@ -523,3 +523,9 @@ test("rate-limited rows are re-queued once after a cooldown; login step has a wa
   assert.ok(/if \(item\.retry && !cooledDown\)/.test(r));
   assert.ok((r.match(/withLoginTimeout\(runLogin\(\), tabId\)/g) || []).length === 2);
 });
+
+test("rows are paced (pause before every row after the first, skipped for the cooldown retry)", () => {
+  const r = fs.readFileSync(path.join(__dirname, "..", "public", "batchRunner.js"), "utf8");
+  assert.ok(/const ROW_PACING_MS = \d+;/.test(r));
+  assert.ok(/\} else if \(i > 0\) \{\s*await paceBeforeNextRow\(batchId\);/.test(r));
+});
