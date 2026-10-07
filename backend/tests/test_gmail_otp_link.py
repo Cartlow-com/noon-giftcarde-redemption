@@ -49,3 +49,14 @@ def test_pick_newest_eligible_prefers_fresh_inline_otp() -> None:
         after_ms=1_500_000,
     ) == ("", "https://new")
     assert _pick_newest_eligible([(1_000_000, "111111", "")], after_ms=1_500_000) is None
+
+
+def test_tight_grace_rejects_previous_attempts_otp() -> None:
+    """Extension sends grace_ms≈5000 (Continue-click time): an OTP from 20s before is stale."""
+    after = 1_000_000
+    items = [(after - 20_000, "111111", ""), (after + 2_000, "222222", "")]
+    assert _pick_newest_eligible(items, after_ms=after, grace_ms=5_000) == ("222222", "")
+    only_old = [(after - 20_000, "111111", "")]
+    assert _pick_newest_eligible(only_old, after_ms=after, grace_ms=5_000) is None
+    # default (30s) behaviour unchanged for other callers
+    assert _pick_newest_eligible(only_old, after_ms=after) == ("111111", "")

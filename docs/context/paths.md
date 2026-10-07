@@ -8,6 +8,8 @@
 | `noon-extension/public/content.js` | Login + gift card automation |
 | `noon-extension/public/mouse.js` | Ghost cursor |
 | `noon-extension/public/background.js` | Service worker |
+| `noon-extension/public/serverSettings.js` | Server choice / pin / run lock (SW) |
+| `noon-extension/src/popup/ServerSettingsCard.tsx` | Side panel Server card |
 | `noon-extension/public/manifest.json` | MV3 manifest |
 | `noon-extension/src/popup/App.tsx` | Side panel React UI |
 | `noon-extension/src/lib/storage.ts` | Credential persistence |

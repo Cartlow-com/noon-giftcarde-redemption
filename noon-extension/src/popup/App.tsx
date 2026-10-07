@@ -1,3 +1,5 @@
+import ServerSettingsCard from "./ServerSettingsCard";
+
 export default function App() {
   return (
     <div className="w-full min-w-[520px] min-h-full p-5 bg-bg text-slate-100">
@@ -11,8 +13,12 @@ export default function App() {
           Go to dashboard to operate.
         </p>
         <p className="mt-2 text-sm text-slate-400">
-          Use http://127.0.0.1:8000/ for uploads, row selection, runs, and stop controls.
+          Use the dashboard of the server below for uploads, row selection, runs, and stop controls.
         </p>
+      </div>
+
+      <div className="mt-4">
+        <ServerSettingsCard />
       </div>
     </div>
   );

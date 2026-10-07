@@ -197,7 +197,7 @@ function extractOrderIdFromPage() {
 
 async function waitForOrderConfirmation() {
   logStep("Waiting for order confirmation…");
-  await waitFor(
+  const seen = await waitFor(
     function () {
       if (/order.*confirmation|thank you|order placed/i.test(document.body.textContent)) {
         return true;
@@ -208,8 +208,12 @@ async function waitForOrderConfirmation() {
     45000,
     50,
   );
+  const orderId = extractOrderIdFromPage();
   return {
-    orderId: extractOrderIdFromPage(),
+    // false = Place order was clicked but no confirmation within 45s. The order
+    // may still exist, so callers must not report success OR retry the order.
+    confirmed: !!seen || !!orderId,
+    orderId: orderId,
     confirmationUrl: location.href,
   };
 }

@@ -26,3 +26,7 @@ Thumbs.db
 
 # Proxy runtime state
 backend/data/proxies_blocked.json
+
+# Local review notes / Claude Code config (not for the repo)
+claude-docs/
+.claude/

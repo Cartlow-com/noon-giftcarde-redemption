@@ -5,6 +5,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config.settings import settings
 from app.modules.login.helpers.passwords import hash_password
 from app.modules.login.models.db_models import ROLE_SUPER_ADMIN, ROLE_USER, User
 
@@ -21,10 +22,9 @@ USERS_CSV = Path(__file__).resolve().parent / "users.csv"
 def _ensure_user(db: Session, email: str, password: str, role: str = ROLE_USER) -> User:
     existing = db.scalar(select(User).where(User.email == email))
     if existing:
+        # Never reset an existing account's password or re-activate it on boot:
+        # a rotated/deactivated super admin must stay that way across restarts.
         existing.role = role
-        if email == SUPER_ADMIN_EMAIL:
-            existing.hashed_password = hash_password(password)
-            existing.is_active = True
         return existing
     user = User(
         id=str(uuid.uuid4()),
@@ -61,7 +61,13 @@ def seed_users(db: Session) -> None:
     legacy = db.scalar(select(User).where(User.email == LEGACY_SUPER_ADMIN_EMAIL))
     if legacy:
         legacy.role = ROLE_USER
-    _ensure_user(db, SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, role=ROLE_SUPER_ADMIN)
+    # Initial password only (used when the account is first created).
+    _ensure_user(
+        db,
+        SUPER_ADMIN_EMAIL,
+        settings.SUPER_ADMIN_INITIAL_PASSWORD or SUPER_ADMIN_PASSWORD,
+        role=ROLE_SUPER_ADMIN,
+    )
     db.commit()
 
 

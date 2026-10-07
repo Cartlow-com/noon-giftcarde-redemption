@@ -1,9 +1,29 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Status/stage values are short snake_case words (pending, in_progress, success, …).
+# Anything else (e.g. HTML) is rejected — it is rendered in the dashboard.
+_STATUS_PATTERN = r"^[a-z][a-z_]{0,31}$"
+_STATUS_FIELDS = ("status", "login_status", "redeem_status", "purchase_status", "outcome")
 
 
-class UpdateRowRequest(BaseModel):
+def _check_status(value):
+    import re
+
+    if value is not None and not re.match(_STATUS_PATTERN, str(value)):
+        raise ValueError("must be a lowercase snake_case status")
+    return value
+
+
+class _StatusFieldsMixin:
+    @field_validator(*_STATUS_FIELDS, mode="after", check_fields=False)
+    @classmethod
+    def _valid_status(cls, value):
+        return _check_status(value)
+
+
+class UpdateRowRequest(_StatusFieldsMixin, BaseModel):
     email: str | None = None
     password: str | None = None
     gift_card_number: str | None = None
@@ -51,12 +71,12 @@ class CreateRunRequest(BaseModel):
     login_only: bool = False
 
 
-class UpdateRunRequest(BaseModel):
+class UpdateRunRequest(_StatusFieldsMixin, BaseModel):
     status: str | None = None
     message: str | None = None
 
 
-class CreateRowAttemptRequest(BaseModel):
+class CreateRowAttemptRequest(_StatusFieldsMixin, BaseModel):
     batch_run_id: str | None = None
     outcome: str = "unknown"
     message: str | None = None
@@ -71,7 +91,7 @@ class CreateRowAttemptRequest(BaseModel):
     duration_ms: int | None = None
 
 
-class UpdateRowAttemptRequest(BaseModel):
+class UpdateRowAttemptRequest(_StatusFieldsMixin, BaseModel):
     outcome: str | None = None
     message: str | None = None
     login_status: str | None = None

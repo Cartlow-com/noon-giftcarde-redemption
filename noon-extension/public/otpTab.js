@@ -255,45 +255,105 @@ async function copyOtpFromTab(tabId) {
   return "";
 }
 
+const OTP_POLL_FIRST_MS = 1500;
+const OTP_POLL_INTERVAL_MS = 2000;
+const OTP_POLL_TIMEOUT_MS = 60000;
+const OTP_FRESH_GRACE_MS = 5000;
+
+function isOtpNotArrivedYetError(error) {
+  return /no recent noon otp email|no fresh otp|no otp code/i.test(
+    String((error && error.message) || error || ""),
+  );
+}
+
 /**
- * Open OTP link → scrape visible code → always return focus to Noon → close OTP tab.
- * If backend already returns a 6-digit OTP from the email body, skip opening the link.
+ * Poll for the OTP email instead of a fixed wait: first check after ~1.5s, then
+ * every 2s, return as soon as it arrives. Backend Gmail API first; if Gmail is
+ * not connected there, read this Chrome's Gmail unread feed (no tab).
  */
-async function fetchNoonOtpFromGmail(noonTabId, email) {
+async function pollForNoonOtpEmail(email, otpRequestedAt, graceMs) {
+  const grace = typeof graceMs === "number" ? graceMs : 30000;
+  const deadline = otpRequestedAt + OTP_POLL_TIMEOUT_MS;
+  let useGmailFeed = false;
+  let checks = 0;
+  await delay(OTP_POLL_FIRST_MS);
+  while (Date.now() < deadline) {
+    checks += 1;
+    if (!useGmailFeed) {
+      try {
+        const data = await batchApiRequest(
+          `/gmail/otp-link?after_ms=${encodeURIComponent(otpRequestedAt)}&grace_ms=${grace}`,
+        );
+        const otp = String((data && data.otp) || "").replace(/\D/g, "");
+        const url = (data && data.url) || "";
+        if (otp.length === 6 || url) return { otp: otp, url: url, checks: checks };
+      } catch (error) {
+        if (isGmailNotConnectedError(error)) {
+          emitBatch({
+            type: "BATCH_PROGRESS",
+            stage: "login",
+            status: "info",
+            message: "Backend Gmail not connected — reading OTP from Gmail in this Chrome…",
+          });
+          useGmailFeed = true;
+          continue;
+        }
+        if (!isOtpNotArrivedYetError(error)) {
+          throw new Error("Gmail API: " + ((error && error.message) || "could not get OTP link"));
+        }
+      }
+    } else {
+      const found = await checkGmailFeedForOtp(email, otpRequestedAt, grace);
+      if (found) return Object.assign({ checks: checks }, found);
+    }
+    throwIfCancelled();
+    await delay(OTP_POLL_INTERVAL_MS);
+  }
+  throw new Error(
+    "Could not fetch OTP — no Noon OTP email within " + OTP_POLL_TIMEOUT_MS / 1000 + "s (" + checks + " checks)",
+  );
+}
+
+/**
+ * Get the Noon OTP from email → if the email only has a Click Here link, open it,
+ * scrape the visible code, return focus to Noon and close the OTP tab.
+ */
+async function fetchNoonOtpFromGmail(noonTabId, email, requestedAt) {
   if (noonTabId == null) throw new Error("No active Noon tab to navigate for OTP");
-  const otpRequestedAt = Date.now();
+  // When the page tells us when Continue was clicked, only accept OTP emails from
+  // ~5s before that (never a previous attempt's code). Otherwise keep the old 30s.
+  const clickedAt = Number(requestedAt) || 0;
+  const precise = clickedAt > 0 && Date.now() - clickedAt < 5 * 60000;
+  const otpRequestedAt = precise ? clickedAt : Date.now();
+  const graceMs = precise ? OTP_FRESH_GRACE_MS : 30000;
 
   emitBatch({
     type: "BATCH_PROGRESS",
     stage: "login",
     status: "info",
-    message: "OTP requested — waiting 10s for email to arrive…",
+    message: "OTP requested — checking email every 2s…",
   });
-  await delay(10000);
 
-  let otpLink = "";
-  let emailOtp = "";
-  try {
-    const data = await batchApiRequest(`/gmail/otp-link?after_ms=${encodeURIComponent(otpRequestedAt)}`);
-    emailOtp = String((data && data.otp) || "").replace(/\D/g, "");
-    otpLink = (data && data.url) || "";
-  } catch (error) {
-    throw new Error(
-      "Gmail API: " + (error instanceof Error ? error.message : "could not get OTP link"),
-    );
-  }
+  const found = await pollForNoonOtpEmail(email, otpRequestedAt, graceMs);
+  const emailOtp = String(found.otp || "");
+  const otpLink = found.url || "";
+  const waitedSec = ((Date.now() - otpRequestedAt) / 1000).toFixed(1);
 
   if (emailOtp.length === 6) {
     emitBatch({
       type: "BATCH_PROGRESS",
       stage: "login",
       status: "info",
-      message: "OTP found in email body — pasting on Noon…",
+      message: "OTP found in email after " + waitedSec + "s — pasting on Noon…",
     });
     return { otp: emailOtp, useClipboard: false };
   }
 
   if (!otpLink) throw new Error("No OTP code or Click Here link in Gmail");
+  // The page is scripted in every frame (MAIN world) — only ever open Noon's OTP page.
+  if (!/^https:\/\/([a-z0-9-]+\.)*noon\.com\//i.test(otpLink) && !/^https?:\/\/url\d+\.noon\.com\//i.test(otpLink)) {
+    throw new Error("OTP link is not a noon.com URL — refusing to open it");
+  }
 
   emitBatch({
     type: "BATCH_PROGRESS",

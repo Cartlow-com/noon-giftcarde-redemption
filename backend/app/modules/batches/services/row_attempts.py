@@ -7,8 +7,8 @@ import uuid
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
-from app.modules.batches.helpers.ownership import get_owned_row
-from app.modules.batches.models.db_models import Batch, BatchRowAttempt
+from app.modules.batches.helpers.ownership import get_owned_attempt, get_owned_row
+from app.modules.batches.models.db_models import BatchRowAttempt
 from app.modules.batches.models.request_models import CreateRowAttemptRequest, UpdateRowAttemptRequest
 from app.modules.batches.models.response_models import RowAttemptListResponse, RowAttemptResponse
 
@@ -84,12 +84,7 @@ def update_row_attempt(
     db: Session,
     user_id: str | None = None,
 ) -> RowAttemptResponse:
-    attempt = db.get(BatchRowAttempt, attempt_id)
-    if not attempt:
-        raise ValueError("Attempt not found")
-    batch = db.get(Batch, attempt.batch_id)
-    if not batch or not user_id or batch.user_id != user_id:
-        raise ValueError("Attempt not found")
+    attempt = get_owned_attempt(db, attempt_id, user_id)
     data = payload.model_dump(exclude_unset=True)
     for field, value in data.items():
         setattr(attempt, field, value)

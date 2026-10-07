@@ -135,9 +135,6 @@ async function preferPasswordLogin(timeoutMs) {
       switchAttempts += 1;
       logStep("OTP + password on same screen — switching to password…");
       await mouse().click(opt, { fast: true });
-      try {
-        opt.click();
-      } catch (_) {}
       const ready = await waitFor(
         function () {
           return findPasswordInput();

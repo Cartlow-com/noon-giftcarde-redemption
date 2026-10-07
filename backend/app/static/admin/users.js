@@ -81,7 +81,7 @@
   }
 
   async function resetPassword(userId) {
-    const password = window.prompt("New password (min 6 chars)");
+    const password = window.prompt("New password (min 8 chars)");
     if (!password) return;
     try {
       await U.api(`/users/${encodeURIComponent(userId)}`, {

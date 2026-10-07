@@ -149,6 +149,8 @@ async function enterEmailAndContinue(email) {
   throwIfManualLoginRequired();
   logStep("Moving to Continue…");
   await mouse().click(continueBtn, { fast: true });
+  // Noon sends the OTP on this click — the OTP lookup uses it as "not older than".
+  window.__noonOtpRequestedAt = Date.now();
   logStep("Clicked Continue");
 
   // Proxy-worthy errors (offline / too many requests) — retry with new IP.

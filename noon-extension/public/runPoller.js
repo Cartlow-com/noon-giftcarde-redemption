@@ -37,16 +37,18 @@ async function startDashboardRun(run) {
   }
 
   dashboardRunId = claimed.id;
-  emitBatch({
-    type: "BATCH_PROGRESS",
-    batchId: claimed.batch_id,
-    stage: "system",
-    status: "info",
-    message: `Dashboard run claimed — using Noon tab (${claimed.row_ids.length} row(s))` +
-      (claimed.hide_window ? " — hidden" : ""),
-  });
 
+  // Everything after a successful claim sits inside try/finally so a malformed
+  // claim response can't leave dashboardStartBusy=true (blocking all later runs).
   try {
+    emitBatch({
+      type: "BATCH_PROGRESS",
+      batchId: claimed.batch_id,
+      stage: "system",
+      status: "info",
+      message: `Dashboard run claimed — using Noon tab (${(claimed.row_ids || []).length} row(s))` +
+        (claimed.hide_window ? " — hidden" : ""),
+    });
     await runSelectedRows(claimed.batch_id, claimed.row_ids || [], {
       placeOrder: claimed.place_order,
       sendRedeemEmails: claimed.send_redeem_emails,

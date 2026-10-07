@@ -26,6 +26,8 @@ def update_user(user_id: str, payload: UpdateUserRequest, db: Session) -> UserRe
 
     if payload.password is not None:
         user.hashed_password = hash_password(payload.password)
+        # Revoke sessions issued under the old password (JWTs carry token_version).
+        user.token_version = int(user.token_version or 0) + 1
     if next_role is not None:
         user.role = next_role
     if payload.is_active is not None:

@@ -28,6 +28,14 @@ FastAPI backend with login + batch modules. Extension connects to backend for CS
 
 ## Recent Changes
 
+- 2026-10-05 — Review fixes: SSE batch ownership; status/stage/outcome regex (blocks XSS); PATCH can't point screenshots outside own row; pw change revokes sessions; user pw min 8; case-insensitive login; super_admin attempt access (`get_owned_attempt`); seeder never resets super admin; SECRET_KEY warning; signed Gmail OAuth state; `/emails/send` super_admin only; tests use temp DB; `unconfirmed` purchase stage
+- 2026-10-05 — Unlock email lookup matches the **base** address (Noon mails `x@` for `x+tag@` rows)
+- 2026-10-05 — **Proxy rotation switched off**: `PROXY_ROTATION_ENABLED=false` (default) → `/proxies/next` 409; `/runs/config.proxy_rotation_enabled`. Real-Chrome test: direct loads Noon, all 7 probe-passing proxies 403/timeout/reset; `proxies.ok.csv` emptied
+- 2026-10-05 — `proxies.ok.csv` regenerated: 7 of ~40k pass (CONNECT + verified TLS handshake); old list was Cloudflare IPs
+- 2026-10-05 — Unlock link: exact To-address match (no substring), strict noon.com host check, email validated; `/proxies/next` returns on first working probe
+- 2026-10-05 — Proxy probe = real CONNECT/SOCKS5 tunnel + verified TLS handshake to account.noon.com:443 (`proxies/services/probe.py`); `/proxies/next` never returns a proxy that failed its probe; empty `proxies.ok.csv` no longer falls back to raw list; `filter_ok_proxies.py` uses the tunnel probe
+- 2026-10-05 — `GET /gmail/unlock-link?email=` returns Noon "Verify my account" link from the lockout email addressed to that row email (+ tests)
+- 2026-10-05 — Full project review on branch `fix/project-review`; findings in `claude-docs/project-review-2026-10-05.md`
 - 2026-10-02 — `/batches/sample.csv` is public (no JWT) so dashboard Download sample CSV link works
 - 2026-10-02 — Filled `couponcode` in `login_test.csv` + `orders.example.csv` (ONE, FIRST20, FIRST15, RAK50, FAB10, STAPLES15)
 - 2026-10-02 — Optional CSV `couponcode` / `coupon_code` stored as `batch_rows.coupon_code`; sample + orders.example updated

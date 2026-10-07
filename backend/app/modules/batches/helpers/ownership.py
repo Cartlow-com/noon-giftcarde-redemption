@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.modules.batches.models.db_models import Batch, BatchRow, BatchRun
+from app.modules.batches.models.db_models import Batch, BatchRow, BatchRowAttempt, BatchRun
 from app.modules.login.models.db_models import ROLE_SUPER_ADMIN, User
 
 
@@ -55,3 +55,24 @@ def get_owned_run(db: Session, run_id: str, user_id: str | None) -> BatchRun:
     if run.user_id != scope:
         raise ValueError("Run not found")
     return run
+
+
+def get_owned_attempt(
+    db: Session,
+    attempt_id: str,
+    user_id: str | None,
+    row_id: str | None = None,
+) -> BatchRowAttempt:
+    """Attempt of a batch the caller owns (super_admin: any). Default-closed."""
+    attempt = db.get(BatchRowAttempt, attempt_id)
+    if not attempt or (row_id is not None and attempt.row_id != row_id):
+        raise ValueError("Attempt not found")
+    batch = db.get(Batch, attempt.batch_id)
+    if not batch:
+        raise ValueError("Attempt not found")
+    if is_super_admin(db, user_id):
+        return attempt
+    scope = _require_scope(user_id)
+    if batch.user_id != scope:
+        raise ValueError("Attempt not found")
+    return attempt

@@ -103,6 +103,20 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
     return true;
   }
 
+  // A step is already running in this page (e.g. resumed after a navigation):
+  // never start a second copy — a duplicate login clicks Continue again (another
+  // OTP → "Too many requests" / lockout) and a duplicate cart can order twice.
+  if (
+    (message.type === "RUN_BATCH_ACCOUNT" ||
+      message.type === "RUN_BATCH_LOGIN" ||
+      message.type === "RUN_BATCH_REDEEM" ||
+      message.type === "RUN_BATCH_CART") &&
+    flow().running
+  ) {
+    sendResponse({ pending: true, duplicate: true });
+    return true;
+  }
+
   if (message.type === "RUN_BATCH_ACCOUNT") {
     (async function () {
       try {

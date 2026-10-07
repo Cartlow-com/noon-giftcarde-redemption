@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.modules.batches.helpers.auth import require_auth
+from app.modules.batches.helpers.auth import require_auth, require_super_admin
 from app.modules.email.controllers.controller import get_history, send_email
 from app.modules.email.models.request_models import SendTemplatedEmailRequest
 from app.modules.email.models.response_models import EmailHistoryListResponse, SendEmailResponse
@@ -14,8 +14,10 @@ router = APIRouter(prefix="/emails", tags=["emails"])
 def send_email_route(
     payload: SendTemplatedEmailRequest,
     db: Session = Depends(get_db),
-    _: str | None = Depends(require_auth),
+    _: str = Depends(require_super_admin),
 ) -> SendEmailResponse:
+    # Arbitrary recipient + template from the company sender: super_admin only
+    # (row reports go through /batches/rows/{id}/notify/*, which check ownership).
     return send_email(payload, db)
 
 

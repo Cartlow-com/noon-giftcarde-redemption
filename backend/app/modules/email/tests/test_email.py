@@ -3,7 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app.modules.email.helpers.templates import render_template
-from conftest import login
+from conftest import login, login_super_admin
 
 
 def test_render_redeem_and_order_templates() -> None:
@@ -51,7 +51,7 @@ def test_send_templated_email_writes_history(client) -> None:
         mocked.return_value = None
         response = client.post(
             "/emails/send",
-            headers=headers,
+            headers=login_super_admin(client),
             json={
                 "template_key": "order_report",
                 "to_email": "user@example.com",
@@ -83,7 +83,7 @@ def test_send_templated_email_failure_still_writes_history(client) -> None:
     ):
         response = client.post(
             "/emails/send",
-            headers=headers,
+            headers=login_super_admin(client),
             json={
                 "template_key": "redeem_report",
                 "to_email": "user@example.com",
@@ -180,3 +180,13 @@ def test_screenshot_upload_and_notify_gates(client, tmp_path) -> None:
             order_mail = client.post(f"/batches/rows/{row_id}/notify/order", headers=headers)
         assert order_mail.status_code == 200
         assert order_mail.json()["history"]["template_key"] == "order_report"
+
+
+def test_send_email_requires_super_admin(client) -> None:
+    headers = login(client)
+    resp = client.post(
+        "/emails/send",
+        headers=headers,
+        json={"template_key": "order_report", "to_email": "victim@example.com", "context": {}},
+    )
+    assert resp.status_code == 403

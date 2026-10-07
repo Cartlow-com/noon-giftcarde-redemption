@@ -208,6 +208,10 @@ function requestRotateNoonProxy() {
   });
 }
 
+function isProxyRotationOffError(error) {
+  return /proxy rotation is switched off/i.test(String((error && error.message) || error || ""));
+}
+
 function requestClearNoonProxy() {
   return new Promise(function (resolve) {
     chrome.runtime.sendMessage({ type: "CLEAR_NOON_PROXY" }, function () {

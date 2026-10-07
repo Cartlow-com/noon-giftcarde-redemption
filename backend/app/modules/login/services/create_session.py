@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.modules.login.helpers.passwords import verify_password
@@ -9,7 +9,9 @@ from app.modules.login.models.response_models import TokenResponse
 
 
 def create_session(payload: LoginRequest, db: Session) -> TokenResponse:
-    user = db.scalar(select(User).where(User.email == payload.email))
+    # Emails are stored lowercased on create; match case-insensitively.
+    email = str(payload.email).strip().lower()
+    user = db.scalar(select(User).where(func.lower(User.email) == email))
     if not user or not user.is_active:
         raise ValueError("Invalid credentials")
     if not verify_password(payload.password, user.hashed_password):

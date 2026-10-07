@@ -135,17 +135,23 @@ async function openProfileDropdown() {
   if (!profileBtn) return false;
 
   logStep("Opening account menu…");
+  // The account menu is a TOGGLE: an even number of clicks leaves it closed.
+  // Click once, wait for it; only if it did not open, click once more.
+  const menuReady = function () {
+    return isUserMenuOpen() || findSignOutButton();
+  };
   await mouse().click(profileBtn);
-  // no fixed wait — Sign out is scanned next
-  dispatchNativeClick(profileBtn);
-
-  const opened = await waitFor(
-    function () {
-      return isUserMenuOpen() || findSignOutButton();
-    },
-    5000,
-    50,
-  );
+  let opened = await waitFor(menuReady, 1500, 50);
+  if (!opened) {
+    logStep("Account menu not open yet — clicking once more…");
+    try {
+      profileBtn.focus();
+    } catch (_) {}
+    try {
+      profileBtn.click();
+    } catch (_) {}
+    opened = await waitFor(menuReady, 3500, 50);
+  }
   return !!opened;
 }
 

@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from sqlalchemy.orm import Session
+
+from app.config.settings import settings
 
 from app.modules.batches.helpers.batch_stats import refresh_batch_counts
 from app.modules.batches.helpers.ownership import get_owned_row
@@ -8,6 +12,25 @@ from app.modules.batches.models.request_models import UpdateRowRequest
 from app.modules.batches.models.response_models import BatchRowResponse
 
 STAGE_FIELDS = frozenset({"login_status", "redeem_status", "purchase_status"})
+SCREENSHOT_FIELDS = (
+    "screenshot_before_redeem",
+    "screenshot_after_redeem",
+    "screenshot_after_order",
+    "screenshot_on_failure",
+)
+
+
+def _drop_foreign_screenshot_paths(row, data: dict) -> None:
+    """Screenshots are set by the upload endpoint. A PATCH may only point at this
+    row's own folder — never another batch's/tenant's file (served + emailed)."""
+    own = (Path(settings.SCREENSHOT_STORAGE_DIR) / row.batch_id / str(row.row_number)).resolve()
+    for field in SCREENSHOT_FIELDS:
+        if field not in data or data[field] is None:
+            continue
+        try:
+            Path(str(data[field])).resolve().relative_to(own)
+        except ValueError:
+            data.pop(field)
 VALUE_TOLERANCE = 0.011
 
 
@@ -39,6 +62,7 @@ def update_batch_row(
     row = get_owned_row(db, row_id, user_id)
 
     data = payload.model_dump(exclude_unset=True)
+    _drop_foreign_screenshot_paths(row, data)
     explicit_status = data.pop("status", None)
     touches_stages = bool(STAGE_FIELDS & data.keys())
 

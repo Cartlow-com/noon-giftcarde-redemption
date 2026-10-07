@@ -9,6 +9,7 @@
     "skipped",
     "already_redeemed",
     "payment_issue",
+    "unconfirmed",
   ];
   const ROW_OPTIONS = ["pending", "in_progress", "completed", "partial", "failed"];
 
@@ -37,6 +38,9 @@
 
   function fillSelect(select, options, current) {
     if (!select) return;
+    // A legacy value the API would now reject (non snake_case) falls back to
+    // "pending" so saving the row still works.
+    if (current && !/^[a-z][a-z_]{0,31}$/.test(current)) current = "pending";
     const values = options.slice();
     if (current && !values.includes(current)) values.unshift(current);
     select.innerHTML = values

@@ -6,11 +6,13 @@ import csv
 import json
 import random
 import re
-import socket
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
+
+from app.modules.proxies.services.probe import tunnel_ok
 
 # pool.py → services → proxies → modules → app → backend → repo root
 _REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -83,8 +85,9 @@ def _save_blocked_file(blocked: set[int]) -> None:
 def _resolve_csv_path(csv_path: Path | None = None) -> Path:
     if csv_path is not None:
         return csv_path
-    # Prefer the filtered "known OK" list when present and non-empty.
-    if _OK_CSV.is_file() and _OK_CSV.stat().st_size > 40:
+    # Prefer the filtered "known OK" list whenever it exists — even if it has no rows.
+    # An empty OK file means "validated, none work"; never fall back to the raw list.
+    if _OK_CSV.is_file():
         return _OK_CSV
     return _DEFAULT_CSV
 
@@ -139,16 +142,16 @@ def _ensure_loaded() -> None:
         load_proxies()
 
 
-def _tcp_alive(host: str, port: int, timeout: float = 1.0) -> bool:
-    try:
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
-    except OSError:
-        return False
+def pick_next_proxy(
+    exclude_ids: set[int] | None = None,
+    probe: bool = True,
+    max_probe: int = 8,
+) -> ProxyEntry:
+    """Return a random unblocked proxy that really tunnels to Noon.
 
-
-def pick_next_proxy(exclude_ids: set[int] | None = None, probe: bool = True) -> ProxyEntry:
-    """Return a random unblocked proxy. Optionally TCP-probe a few candidates."""
+    Probes up to `max_probe` candidates in parallel. Never returns a proxy that
+    just failed its probe — raises instead so the caller can stop rotating.
+    """
     _ensure_loaded()
     exclude = exclude_ids or set()
     with _lock:
@@ -161,11 +164,23 @@ def pick_next_proxy(exclude_ids: set[int] | None = None, probe: bool = True) -> 
         raise ValueError("No unblocked proxies available")
 
     random.shuffle(candidates)
-    tries = candidates[:5] if probe else [candidates[0]]
-    for entry in tries:
-        if not probe or _tcp_alive(entry.host, entry.port):
-            return entry
-    return candidates[0]
+    if not probe:
+        return candidates[0]
+
+    tries = candidates[: max(1, max_probe)]
+    pool = ThreadPoolExecutor(max_workers=len(tries))
+    try:
+        futures = {
+            pool.submit(tunnel_ok, entry.scheme, entry.host, entry.port): entry
+            for entry in tries
+        }
+        for fut in as_completed(futures):
+            if fut.result():
+                return futures[fut]
+    finally:
+        # Return on the first working proxy; don't wait for slow/dead probes.
+        pool.shutdown(wait=False, cancel_futures=True)
+    raise ValueError(f"No working proxy found ({len(tries)} probed could not reach Noon)")
 
 
 def block_proxy(proxy_id: int) -> bool:

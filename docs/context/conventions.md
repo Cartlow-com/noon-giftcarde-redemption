@@ -20,10 +20,14 @@
 | Tenancy | Ownership default-closed; stale presence auto-stops runs; `super_admin` can list/operate across users (+ optional `user_id` filter) | Ops visibility without weakening normal users |
 | Row API secrets | List/SSE omit password+PIN; work payload only on get-row + pull-next | Listing is not a credential dump |
 | Face value | Optional CSV `face_value`; `value_match` vs `balance_delta` | Stored-value reconciliation |
-| Extension auth | Token bridged from dashboard → `chrome.storage.local`; API base follows connected dashboard origin | Live + local both connectable |
+| Extension auth | Token bridged from dashboard → `chrome.storage.local`; API base follows connected dashboard origin — **except** during an active run or when pinned in the side panel (`noon_api_base_pinned`) | Live + local both connectable; open prod+local dashboards used to steal the extension mid-run |
 | Dashboard origins | Always allow `https://redeem.innovidio.com` + localhost in `externally_connectable` + `dashboardBridge` | Build used to wipe live when `.env` was localhost |
-| Gmail OTP | Prefer 6-digit code from email subject/body; else open Click Here / get-otp link and scrape | Noon now sends OTP inline in many emails |
-| Noon proxy | Direct first; rotate on offline/too many requests; pool prefers `proxies.ok.csv` if present else `proxies.csv` | Filter dead free-list entries |
+| Gmail OTP | Poll every 2s: backend Gmail API, else this Chrome's Gmail Atom feed (base address, newest Noon OTP issued ≥ request−20s); Click Here link only via API | Fixed waits were slow; Gmail DOM reading showed stale views |
+| Noon emails | Sent to the account's **base** address (`+tag` stripped) | Seen live 2026-10-05 |
+| Order confirmation | Not seen within 45s → purchase `unconfirmed`, row `partial`, treated as done (no auto re-order); human resets to pending | Click already happened — retry could double-order |
+| Ghost mouse | Exactly one click per press | Double click sent 2 OTPs / double submits |
+| Noon lockout | On "Too many failed attempts": `/gmail/unlock-link?email=` (To-header must equal row email) → open link in inactive tab → retry login once | Lockout is per account; never use another alias's link |
+| Noon proxy | **Off by default** (`PROXY_ROTATION_ENABLED`); when on: Direct first; rotate on offline/too many requests; PAC has no DIRECT fallback for Noon hosts (dead proxy → `onProxyError` → rotate/clear + reload); proxies validated by CONNECT tunnel + verified TLS handshake to account.noon.com:443 (TCP-connect is not enough — CDN IPs; HTTP-level checks impossible: Noon bot protection rejects non-browser clients); pool uses `proxies.ok.csv` whenever it exists (empty = none) else `proxies.csv` | Filter dead free-list entries |
 
 ## Code Patterns
 

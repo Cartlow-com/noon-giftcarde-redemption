@@ -1,3 +1,5 @@
+from urllib.parse import urlencode
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -10,8 +12,10 @@ from app.modules.gmail.controllers.controller import (
     gmail_fetch_emails,
     gmail_fetch_full_email,
     gmail_get_otp_from_email,
+    gmail_get_unlock_link,
     gmail_handle_callback,
     gmail_status,
+    user_id_from_oauth_state,
 )
 from app.modules.gmail.models.response_models import (
     GmailEmailsResponse,
@@ -56,12 +60,13 @@ async def gmail_oauth_callback_route(
     state: str = Query(...),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
-    """Google redirects here after user approves. state = user_id."""
+    """Google redirects here after user approves. state = signed user token."""
     try:
-        await gmail_handle_callback(code=code, user_id=state, db=db)
+        user_id = user_id_from_oauth_state(state)
+        await gmail_handle_callback(code=code, user_id=user_id, db=db)
     except ValueError as exc:
         # Redirect to dashboard with error param
-        return RedirectResponse(url=f"/?gmail_error={exc}", status_code=302)
+        return RedirectResponse(url="/?" + urlencode({"gmail_error": str(exc)}), status_code=302)
     return RedirectResponse(url="/?gmail_connected=1", status_code=302)
 
 
@@ -105,6 +110,9 @@ async def gmail_email_detail_route(
 @router.get("/otp-link")
 async def gmail_otp_link_route(
     after_ms: int | None = Query(default=None),
+    # How far before after_ms an email may be. Default keeps the old 30s window;
+    # the extension sends ~5s when it knows exactly when Continue was clicked.
+    grace_ms: int = Query(default=30_000, ge=0, le=300_000),
     db: Session = Depends(get_db),
     user_id: str | None = Depends(require_auth),
 ) -> dict:
@@ -112,7 +120,24 @@ async def gmail_otp_link_route(
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     try:
-        otp, url = await gmail_get_otp_from_email(user_id, db, after_ms=after_ms)
+        otp, url = await gmail_get_otp_from_email(user_id, db, after_ms=after_ms, grace_ms=grace_ms)
         return {"url": url or "", "otp": otp or ""}
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/unlock-link")
+async def gmail_unlock_link_route(
+    email: str = Query(min_length=3),
+    after_ms: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user_id: str | None = Depends(require_auth),
+) -> dict:
+    """Return the Noon "Verify my account" link from the lockout email sent to `email`."""
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+    try:
+        url = await gmail_get_unlock_link(user_id, db, email, after_ms=after_ms)
+        return {"url": url}
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

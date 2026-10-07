@@ -42,6 +42,7 @@ def config_route() -> AppConfigResponse:
     return AppConfigResponse(
         expected_row_seconds=settings.EXPECTED_ROW_SECONDS,
         auth_required=settings.AUTH_REQUIRED,
+        proxy_rotation_enabled=settings.PROXY_ROTATION_ENABLED,
     )
 
 

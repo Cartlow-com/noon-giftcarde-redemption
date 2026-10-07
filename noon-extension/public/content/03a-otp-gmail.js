@@ -50,7 +50,11 @@ function readOtpInputValue(input) {
 function requestNoonOtpFromGmail(email) {
   return new Promise(function (resolve, reject) {
     chrome.runtime.sendMessage(
-      { type: "FETCH_NOON_OTP_FROM_GMAIL", email: email || "" },
+      {
+        type: "FETCH_NOON_OTP_FROM_GMAIL",
+        email: email || "",
+        requestedAt: window.__noonOtpRequestedAt || 0,
+      },
       function (response) {
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message || "Could not reach extension background"));

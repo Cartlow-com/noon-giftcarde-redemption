@@ -1,12 +1,19 @@
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+import os
+import tempfile
 
-from app.app import app
-from app.config.database import Base, get_db
-from seeders.seed_users import seed_users
+# Must run before `app` is imported: the app's startup (init_db + seed_users +
+# backfill) uses settings.DATABASE_URL, which defaulted to the real ./app.db.
+os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(tempfile.mkdtemp(prefix="noon-tests-"), "test.db")
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from app.app import app  # noqa: E402
+from app.config.database import Base, get_db  # noqa: E402
+from seeders.seed_users import seed_users  # noqa: E402
 
 
 @pytest.fixture

@@ -6,12 +6,13 @@ import asyncio
 from collections.abc import AsyncIterator
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config.database import SessionLocal
 from app.modules.batches.helpers.auth import require_auth, resolve_batch_list_scope, resolve_owner_user_id
+from app.modules.batches.helpers.ownership import get_owned_batch
 from app.modules.batches.services.dashboard_events import (
     build_dashboard_delta,
     build_dashboard_snapshot,
@@ -52,6 +53,17 @@ async def _dashboard_event_stream(
     last_key: str | None = None
     last_revision: dict | None = None
     last_watermark: datetime | None = None
+
+    if batch_id:
+        # Only stream rows of a batch the caller may see (super_admin: any). The
+        # delta path queries rows by batch_id directly, so check once up front.
+        check_db = factory()
+        try:
+            get_owned_batch(check_db, batch_id, resolve_owner_user_id(user_id, check_db))
+        except (ValueError, HTTPException):
+            batch_id = None
+        finally:
+            check_db.close()
 
     while True:
         if await request.is_disconnected():

@@ -69,8 +69,16 @@ window.AdminUtil = {
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
   },
 
+  // Class name only ever [a-z0-9_-]: status is user/extension data (XSS).
+  badgeClass(status) {
+    return String(status || "pending")
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_-]/g, "");
+  },
+
   badge(status) {
-    const key = String(status || "pending").replace(/\s+/g, "_");
+    const key = this.badgeClass(status);
     return `<span class="badge ${key}">${this.escapeHtml(this.formatStatus(status))}</span>`;
   },
 
@@ -153,7 +161,7 @@ window.AdminUtil = {
   },
 
   stageBadge(label, status) {
-    const key = String(status || "pending").replace(/\s+/g, "_");
+    const key = this.badgeClass(status);
     return `<span class="badge ${key}">${this.escapeHtml(label)}: ${this.escapeHtml(this.formatStatus(status))}</span>`;
   },
 

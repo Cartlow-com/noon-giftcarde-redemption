@@ -122,6 +122,15 @@ async function loginFromCurrentPage(email, password) {
       } catch (_) {}
       return;
     } catch (err) {
+      if (isProxyRotationOffError(err)) {
+        // No proxies configured: report Noon's real error instead of cycling.
+        try {
+          await requestClearNoonProxy();
+        } catch (_) {}
+        const pageError =
+          (lastError && lastError.message) || getProxyWorthyMessage() || "Noon blocked the login";
+        throw new Error(pageError + " — proxy rotation is switched off, not retrying");
+      }
       lastError = err;
       if (isTerminalLoginError(err)) {
         try {
@@ -268,6 +277,12 @@ async function matchOrLoginOnProfile(payload) {
   } catch (localErr) {
     // Never reload/retry login for lockout / OTP / manual-login failures.
     if (isTerminalLoginError(localErr)) throw localErr;
+    // Rate-limited by Noon (any proxy retries already happened inside
+    // loginFromCurrentPage): a fresh login would only request another OTP and
+    // extend the block. Stop here.
+    if (/too many requests|proxy rotation is switched off/i.test(String((localErr && localErr.message) || ""))) {
+      throw localErr;
+    }
     logStep(
       "In-place login failed (" +
         (localErr instanceof Error ? localErr.message : "error") +

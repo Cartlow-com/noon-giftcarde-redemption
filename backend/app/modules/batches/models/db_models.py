@@ -12,6 +12,8 @@ STAGE_FAILED = "failed"
 STAGE_SKIPPED = "skipped"
 STAGE_ALREADY_REDEEMED = "already_redeemed"
 STAGE_PAYMENT_ISSUE = "payment_issue"
+# Place order clicked, confirmation not seen: may exist on Noon — never auto-retried.
+STAGE_UNCONFIRMED = "unconfirmed"
 
 ROW_PENDING = "pending"
 ROW_IN_PROGRESS = "in_progress"

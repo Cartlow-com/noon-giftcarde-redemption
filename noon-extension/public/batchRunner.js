@@ -186,7 +186,26 @@ function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+// Per-row step trace (timestamped) saved into the attempt record, so a failed
+// row shows exactly what the bot did (e.g. when each OTP was requested).
+const ROW_TRACE_MAX = 120;
+let rowTrace = [];
+let rowTraceStartedAt = 0;
+
+function resetRowTrace() {
+  rowTrace = [];
+  rowTraceStartedAt = Date.now();
+}
+
+function traceRow(text) {
+  if (!batchRunActive || !text) return;
+  const secs = ((Date.now() - rowTraceStartedAt) / 1000).toFixed(1);
+  rowTrace.push("+" + secs + "s " + String(text).slice(0, 200));
+  if (rowTrace.length > ROW_TRACE_MAX) rowTrace.shift();
+}
+
 function emitBatch(message) {
+  if (message && message.type === "BATCH_PROGRESS") traceRow(message.message);
   chrome.runtime.sendMessage(message).catch(function () {});
 }
 
@@ -279,9 +298,22 @@ async function runFlowStep(tabId, runFn) {
   throwIfCancelled();
   await prepareRowStage(tabId);
   await recoverNoonTab(tabId);
-  const result = await runFn();
+  let result = await runFn();
   if (result && result.pending) {
-    const done = await waitForFlowDone(120000);
+    let done = await waitForFlowDone(120000);
+    if (!done) {
+      // The resumed flow was lost (state still active but nothing will resume it).
+      // Re-send the step once — the page's running-guard blocks a real duplicate.
+      const saved = await chrome.storage.local.get("noon_flow_state");
+      const state = saved && saved.noon_flow_state;
+      if (state && state.active && state.resumeOnLoad === false) {
+        throwIfCancelled();
+        await chrome.storage.local.remove(["noon_flow_state", "noon_flow_done"]);
+        result = await runFn();
+        if (result && result.pending) done = await waitForFlowDone(120000);
+        else done = result;
+      }
+    }
     if (done && done.cancelled) {
       const err = new Error("Stopped by user");
       err.cancelled = true;
@@ -467,14 +499,34 @@ async function ensureRowAccount(tabId, row, previousEmail) {
     row.email,
   );
   await patchStage(row.id, { login_status: "running", status: "in_progress" });
-  await navigateTabToProfile(tabId);
-  const result = await runFlowStep(tabId, function () {
-    return sendBatchAccountToTab(tabId, {
-      email: row.email,
-      password: row.password,
-      previousEmail: previousEmail || null,
+  const runLogin = async function () {
+    await navigateTabToProfile(tabId);
+    return runFlowStep(tabId, function () {
+      return sendBatchAccountToTab(tabId, {
+        email: row.email,
+        password: row.password,
+        previousEmail: previousEmail || null,
+      });
     });
-  });
+  };
+  let result;
+  try {
+    result = await runLogin();
+  } catch (error) {
+    // Noon lockout: open the "Verify my account" email link once, then retry login once.
+    if (error.cancelled || !isNoonLockoutError(error.message)) throw error;
+    throwIfCancelled();
+    await unlockNoonAccountViaEmail(row);
+    throwIfCancelled();
+    try {
+      result = await runLogin();
+    } catch (retryError) {
+      if (isNoonLockoutError(retryError.message)) {
+        retryError.message = "Still locked after opening unlock link — " + retryError.message;
+      }
+      throw retryError;
+    }
+  }
   if (result && result.ok === false) {
     const err = new Error(result.error || "Account switch failed");
     if (result.cancelled) err.cancelled = true;
@@ -543,10 +595,13 @@ function stageRedeemDone(status) {
 }
 
 function stageOrderDone(status) {
-  return status === "success";
+  // "unconfirmed" = Place order clicked but no confirmation seen: never auto
+  // re-order (could double-order). A human verifies and resets it to pending.
+  return status === "success" || status === "unconfirmed";
 }
 
 async function beginRowAttempt(row) {
+  resetRowTrace();
   if (!row || !row.id) return null;
   const created = await batchApiRequest(`/batches/rows/${encodeURIComponent(row.id)}/attempts`, {
     method: "POST",
@@ -568,9 +623,10 @@ async function beginRowAttempt(row) {
 async function finishRowAttempt(row, meta) {
   if (!row || !row.id) return null;
   const info = meta || {};
+  const trace = rowTrace.length ? "--- steps ---\n" + rowTrace.join("\n") : "";
   const body = {
     outcome: info.outcome || row.status || "unknown",
-    message: info.message || null,
+    message: [info.message || "", trace].filter(Boolean).join("\n").slice(0, 12000) || null,
     login_status: row.login_status,
     redeem_status: row.redeem_status,
     purchase_status: row.purchase_status,
@@ -840,6 +896,31 @@ async function processBatchRow(row, tabId, previousEmail) {
         (result && result.orderId) ||
         orderIdFromUrl(result && result.confirmationUrl) ||
         null;
+      if (result && result.confirmed === false && !orderId) {
+        const msg =
+          "Order confirmation not detected within 45s — check Noon orders before re-running " +
+          "(reset purchase status to pending to retry)";
+        await patchStage(row.id, {
+          purchase_status: "unconfirmed",
+          purchased_at: now,
+          purchase_error: msg,
+          status: "partial",
+        });
+        await safeCaptureScreenshot(tabId, row, "after_order");
+        row = await getBatchRow(row.id);
+        noteAttempt({ message: msg, outcome: "partial" });
+        emitBatch({
+          type: "BATCH_ROW_DONE",
+          batchId: row.batch_id,
+          rowId: row.id,
+          rowNumber: rowNum,
+          success: false,
+          stage: "order",
+          detail: product,
+          message: `Row ${rowNum} — order NOT confirmed, verify on Noon`,
+        });
+        return;
+      }
       await patchStage(row.id, {
         purchase_status: "success",
         purchased_at: now,
@@ -948,92 +1029,111 @@ async function runSelectedRows(batchId, rowIds, options) {
 
   let processed = 0;
 
-  for (let i = 0; i < rowIds.length; i++) {
-    if (batchRunCancelled) break;
-    const rowId = rowIds[i];
+  try {
+    for (let i = 0; i < rowIds.length; i++) {
+      if (batchRunCancelled) break;
+      const rowId = rowIds[i];
 
-    let row;
-    try {
-      row = await getBatchRow(rowId);
-    } catch (error) {
-      emitBatch({
-        type: "BATCH_ERROR",
-        batchId: batchId,
-        error: error instanceof Error ? error.message : "Failed to load row",
+      let row;
+      try {
+        row = await getBatchRow(rowId);
+      } catch (error) {
+        emitBatch({
+          type: "BATCH_ERROR",
+          batchId: batchId,
+          error: error instanceof Error ? error.message : "Failed to load row",
+        });
+        break;
+      }
+
+      if (row.batch_id !== batchId) continue;
+
+      const startedAt = isoNow();
+      await patchStage(row.id, {
+        status: "in_progress",
+        run_started_at: startedAt,
+        run_finished_at: null,
+        duration_ms: null,
       });
-      break;
-    }
 
-    if (row.batch_id !== batchId) continue;
+      try {
+        await beginRowAttempt(row);
+      } catch (err) {
+        console.warn("[noon] beginRowAttempt failed", err);
+        emitBatch({
+          type: "BATCH_ERROR",
+          batchId: batchId,
+          rowId: row.id,
+          error: err instanceof Error ? err.message : "Failed to record attempt start",
+        });
+      }
 
-    const startedAt = isoNow();
-    await patchStage(row.id, {
-      status: "in_progress",
-      run_started_at: startedAt,
-      run_finished_at: null,
-      duration_ms: null,
-    });
-
-    try {
-      await beginRowAttempt(row);
-    } catch (err) {
-      console.warn("[noon] beginRowAttempt failed", err);
-      emitBatch({
-        type: "BATCH_ERROR",
-        batchId: batchId,
-        rowId: row.id,
-        error: err instanceof Error ? err.message : "Failed to record attempt start",
+      const tabId = await getOrCreateNoonTab({
+        hideWindow: batchHideWindow,
       });
+      activeLoginTabId = tabId;
+      const previousEmail = sessionEmail;
+      if (i > 0) {
+        await resetTabForNewRow(tabId, row.row_number);
+      } else {
+        await recoverNoonTab(tabId);
+      }
+      try {
+        await processBatchRow(row, tabId, previousEmail);
+      } catch (error) {
+        // An unexpected throw fails this row only: still close its attempt and continue.
+        if (!error || !error.cancelled) {
+          const errMsg = error instanceof Error ? error.message : "Row failed unexpectedly";
+          emitBatch({ type: "BATCH_ERROR", batchId: batchId, rowId: row.id, error: errMsg });
+          await patchStage(row.id, { status: "failed" }).catch(function () {});
+          noteAttempt({ outcome: "failed", message: errMsg });
+        }
+      } finally {
+        // Never leave a Noon proxy applied after a row — even if the row threw.
+        try {
+          await clearNoonProxy();
+        } catch (_) {}
+      }
+      const finishedAt = isoNow();
+      const durationMs = Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt));
+      await patchStage(row.id, {
+        run_finished_at: finishedAt,
+        duration_ms: durationMs,
+      }).catch(function () {});
+      try {
+        const finalRow = await getBatchRow(row.id);
+        await finishRowAttempt(finalRow, pendingAttemptMeta || { outcome: finalRow.status });
+      } catch (err) {
+        console.warn("[noon] finishRowAttempt failed", err);
+        emitBatch({
+          type: "BATCH_ERROR",
+          batchId: batchId,
+          rowId: row.id,
+          error: err instanceof Error ? err.message : "Failed to record attempt finish",
+        });
+      }
+      pendingAttemptMeta = null;
+      activeAttemptId = null;
+      activeLoginTabId = null;
+      currentBatchRow = null;
+      processed += 1;
     }
-
-    const tabId = await getOrCreateNoonTab({
-      hideWindow: batchHideWindow,
-    });
-    activeLoginTabId = tabId;
-    const previousEmail = sessionEmail;
-    if (i > 0) {
-      await resetTabForNewRow(tabId, row.row_number);
-    } else {
-      await recoverNoonTab(tabId);
-    }
-    await processBatchRow(row, tabId, previousEmail);
+  } finally {
+    // Teardown always runs: a thrown row must not leave the runner "active"
+    // (which blocks every later run) or a proxy applied in Chrome.
+    batchRunActive = false;
+    currentBatchRow = null;
+    activeBatchRunId = null;
+    activeLoginTabId = null;
+    pendingAttemptMeta = null;
+    activeAttemptId = null;
     try {
       await clearNoonProxy();
     } catch (_) {}
-    const finishedAt = isoNow();
-    const durationMs = Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt));
-    await patchStage(row.id, {
-      run_finished_at: finishedAt,
-      duration_ms: durationMs,
-    }).catch(function () {});
     try {
-      const finalRow = await getBatchRow(row.id);
-      await finishRowAttempt(finalRow, pendingAttemptMeta || { outcome: finalRow.status });
-    } catch (err) {
-      console.warn("[noon] finishRowAttempt failed", err);
-      emitBatch({
-        type: "BATCH_ERROR",
-        batchId: batchId,
-        rowId: row.id,
-        error: err instanceof Error ? err.message : "Failed to record attempt finish",
-      });
-    }
-    pendingAttemptMeta = null;
-    activeAttemptId = null;
-    activeLoginTabId = null;
-    currentBatchRow = null;
-    processed += 1;
+      await chrome.storage.local.remove(BATCH_RUN_KEY);
+    } catch (_) {}
   }
-
-  batchRunActive = false;
-  currentBatchRow = null;
-  activeBatchRunId = null;
-  pendingAttemptMeta = null;
-  activeAttemptId = null;
-  try {
-    await clearNoonProxy();
-  } catch (_) {}
-  await chrome.storage.local.remove(BATCH_RUN_KEY);
 
   emitBatch({
     type: "BATCH_COMPLETE",
@@ -1049,9 +1149,7 @@ async function runSelectedRows(batchId, rowIds, options) {
 function stopBatchRun() {
   batchRunCancelled = true;
   chrome.storage.local.remove(BATCH_RUN_KEY);
-  try {
-    clearNoonProxy();
-  } catch (_) {}
+  clearNoonProxy().catch(function () {});
   if (activeLoginTabId != null) {
     cancelLoginOnTab(activeLoginTabId).catch(function () {});
   }

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.config.settings import settings
 from app.modules.batches.helpers.auth import require_auth
 from app.modules.proxies.services.pool import (
     block_proxy,
@@ -16,6 +17,11 @@ def proxies_next_route(
 ) -> dict:
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+    if not settings.PROXY_ROTATION_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Proxy rotation is switched off (PROXY_ROTATION_ENABLED=false)",
+        )
     try:
         entry = pick_next_proxy(probe=True)
     except ValueError as exc:

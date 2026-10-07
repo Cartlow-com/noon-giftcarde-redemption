@@ -39,6 +39,10 @@
       }
       throwIfManualLoginRequired();
       await loginFromCurrentPage(state.email, state.password);
+      // openProfilePage may navigate (Noon often lands elsewhere after login).
+      // Re-arm resume first so the next page finishes this step instead of the
+      // background waiting for a flow that will never report back.
+      await saveFlowState(Object.assign({}, state, { resumeOnLoad: true, step: "login_profile" }));
       await openProfilePage();
       const profileEmail = await waitForReadableProfileEmail(8000);
       if (profileEmail !== required) {

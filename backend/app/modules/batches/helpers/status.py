@@ -10,6 +10,7 @@ from app.modules.batches.models.db_models import (
     STAGE_SKIPPED,
     STAGE_SUCCESS,
     STAGE_PAYMENT_ISSUE,
+    STAGE_UNCONFIRMED,
 )
 
 
@@ -27,7 +28,7 @@ def compute_row_status(
     if redeem_status == STAGE_ALREADY_REDEEMED:
         if purchase_status == STAGE_SUCCESS:
             return ROW_COMPLETED
-        if purchase_status in (STAGE_FAILED, STAGE_SKIPPED, STAGE_PAYMENT_ISSUE):
+        if purchase_status in (STAGE_FAILED, STAGE_SKIPPED, STAGE_PAYMENT_ISSUE, STAGE_UNCONFIRMED):
             return ROW_PARTIAL
         return ROW_IN_PROGRESS
 
@@ -36,7 +37,7 @@ def compute_row_status(
             return ROW_PARTIAL
         return ROW_FAILED
 
-    if purchase_status == STAGE_FAILED:
+    if purchase_status in (STAGE_FAILED, STAGE_UNCONFIRMED):
         return ROW_PARTIAL
 
     if purchase_status in (STAGE_SKIPPED, STAGE_PAYMENT_ISSUE):

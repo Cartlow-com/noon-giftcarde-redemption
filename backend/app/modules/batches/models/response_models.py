@@ -115,6 +115,7 @@ class BatchRunResponse(BaseModel):
 class AppConfigResponse(BaseModel):
     expected_row_seconds: int = Field(description="Expected seconds per row")
     auth_required: bool = False
+    proxy_rotation_enabled: bool = False
 
 
 class ExtensionStatusResponse(BaseModel):

@@ -3,19 +3,13 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.config.settings import settings
-from app.modules.batches.helpers.ownership import get_owned_row
-from app.modules.batches.models.db_models import Batch, BatchRowAttempt
+from app.modules.batches.helpers.ownership import get_owned_attempt, get_owned_row
+from app.modules.batches.models.db_models import BatchRowAttempt
 from app.modules.batches.services.save_screenshot import SCREENSHOT_KINDS
 
 
 def _owned_attempt(db: Session, attempt_id: str, user_id: str | None, row_id: str) -> BatchRowAttempt:
-    attempt = db.get(BatchRowAttempt, attempt_id)
-    if not attempt or attempt.row_id != row_id:
-        raise ValueError("Attempt not found")
-    batch = db.get(Batch, attempt.batch_id)
-    if not batch or not user_id or batch.user_id != user_id:
-        raise ValueError("Attempt not found")
-    return attempt
+    return get_owned_attempt(db, attempt_id, user_id, row_id=row_id)
 
 
 def resolve_row_screenshot_path(

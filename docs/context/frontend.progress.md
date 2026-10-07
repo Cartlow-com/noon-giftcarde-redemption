@@ -7,6 +7,22 @@
 | FE-1 | — | — | — | — | idle |
 
 ## Recent Changes
+- 2026-10-07 — Server lock + selector: side panel "Server" card (Production / Local / Custom, Pin) via `serverSettings.js`; dashboards can't switch the extension's server during an active run or away from a pinned server; switching server clears the token (reconnect from that dashboard)
+- 2026-10-06 — **First successful live login (row 17, login-only)**: 1 Continue → 1 OTP → read from Gmail feed in ~2s → logged in at +16s
+- 2026-10-06 — Account menu is a toggle: click once, re-click only if not open (old code relied on odd total click count; broke after single-click fix)
+- 2026-10-06 — Unlock: wait for an unlock email newer than the lockout (feed) before searching; rate-limited login not retried from profile
+- 2026-10-06 — Regression-review fixes: OTP freshness measured from the Continue click (5s grace; backend `grace_ms`, default 30s unchanged); resumed login re-arms resume before profile navigation + runFlowStep re-sends a lost step once; account check clears stale flow-done marker; dashboard legacy-status fallback + `unconfirmed` badge style
+- 2026-10-05 — Review fixes: session-email assert fails closed; order without confirmation → `unconfirmed` (never auto re-ordered); waitForTabComplete bounded/rejects on closed tab; OTP link must be noon.com; auth bridge trusts sender origin only; runPoller busy flag can't stick; dashboard badge class sanitised
+- 2026-10-05 — Per-row step trace (timestamped LOGIN_PROGRESS/BATCH_PROGRESS) saved into the attempt `message` for diagnosis
+- 2026-10-05 — **Ghost-mouse click fired twice** (synthetic click + target.click()) → every Continue sent 2 OTPs (root cause of "Too many requests"/lockouts), submits doubled; now exactly one click
+- 2026-10-05 — Duplicate step guard: background never re-sends RUN_BATCH_* while a flow state is active (returns pending); content ignores RUN_BATCH_* while flow running
+- 2026-10-05 — OTP: polls every 2s (first check 1.5s) instead of fixed 10s wait; backend Gmail API first, else Gmail unread Atom feed (`/mail/u/<base>/feed/atom`, exact timestamps, no tab). Unlock link fallback: Gmail search tab opened directly on results (`gmailTab.js`)
+- 2026-10-05 — Rotation switched off → login stops with Noon's real error ("… — proxy rotation is switched off, not retrying") instead of cycling proxies
+- 2026-10-05 — Proxy-error handler: claims synchronously (burst = one rotation), stays claimed until reloaded tab settles, re-arms `noon_flow_state.resumeOnLoad`; unexpected row throw → row failed + attempt closed, run continues
+- 2026-10-05 — `chrome.proxy.onProxyError` (ERR_TUNNEL_CONNECTION_FAILED etc.): block dead proxy, rotate (max 3/row) or go DIRECT, reload Noon tab; proxy cleared on SW start, after every row (finally) and at run teardown (finally)
+- 2026-10-05 — Fixed PAC syntax error (proxy rotation was a silent no-op); no DIRECT fallback for Noon; SOCKS5 support; `tests/noonProxyUnlock.test.cjs`
+- 2026-10-05 — Noon lockout ("Too many failed attempts"): fetch unlock link via Gmail API, open in background tab (`unlockTab.js`), retry login once
+- 2026-10-05 — Full project review on branch `fix/project-review`; findings in `claude-docs/project-review-2026-10-05.md`
 - 2026-10-03 — Add to Cart: prefer `[data-qa="pdp-add-to-cart-revamp"]` (buy-box first), text match fallback
 - 2026-10-02 — Cart: type `coupon_code` → APPLY → then Checkout (before place-order)
 - 2026-10-02 — BatchRow type includes optional `coupon_code`

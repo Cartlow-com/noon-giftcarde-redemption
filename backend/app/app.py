@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -23,6 +24,11 @@ ADMIN_DIR = Path(__file__).resolve().parent / "static" / "admin"
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if settings.SECRET_KEY == "change-me-in-production" or len(settings.SECRET_KEY) < 32:
+        # Warn (don't refuse to boot): anyone knowing the default key can forge JWTs.
+        logging.getLogger("uvicorn.error").warning(
+            "SECRET_KEY is the default or shorter than 32 chars — set a strong SECRET_KEY in backend/.env"
+        )
     init_db()
     db = SessionLocal()
     try:

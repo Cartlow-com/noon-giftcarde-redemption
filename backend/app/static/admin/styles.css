@@ -194,7 +194,7 @@ html, body {
   color: var(--danger);
 }
 
-.badge.partial, .badge.already_redeemed, .badge.payment_issue {
+.badge.partial, .badge.already_redeemed, .badge.payment_issue, .badge.unconfirmed {
   background: color-mix(in srgb, var(--warn) 16%, transparent);
   color: var(--warn);
 }

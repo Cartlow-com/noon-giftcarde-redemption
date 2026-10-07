@@ -88,12 +88,16 @@ def _pick_best_otp_link(links: list[str], body_text: str) -> str | None:
     return noon_links[0] if noon_links else None
 
 
+DEFAULT_GRACE_MS = 30_000
+
+
 def _pick_newest_eligible(
     items: list[tuple[int, str, str]],
     after_ms: int | None = None,
+    grace_ms: int = DEFAULT_GRACE_MS,
 ) -> tuple[str, str] | None:
     """items: (internal_date, otp, url) — prefer newest with otp or url."""
-    min_internal_date = (after_ms or 0) - 30_000
+    min_internal_date = (after_ms or 0) - grace_ms
     eligible = [
         item for item in items
         if (min_internal_date <= 0 or item[0] >= min_internal_date) and (item[1] or item[2])
@@ -130,6 +134,7 @@ async def fetch_otp_from_email(
     user_id: str,
     db: Session,
     after_ms: int | None = None,
+    grace_ms: int = DEFAULT_GRACE_MS,
 ) -> tuple[str, str]:
     """
     Return (otp, url) from the newest eligible Noon OTP email.
@@ -157,7 +162,7 @@ async def fetch_otp_from_email(
         if not messages:
             raise ValueError("No recent Noon OTP email found in Gmail inbox")
 
-        min_internal_date = (after_ms or 0) - 30_000
+        min_internal_date = (after_ms or 0) - grace_ms
         found: list[tuple[int, str, str]] = []
 
         for msg in messages:
@@ -188,7 +193,7 @@ async def fetch_otp_from_email(
             elif url:
                 found.append((internal_date, "", url))
 
-        picked = _pick_newest_eligible(found, after_ms=after_ms)
+        picked = _pick_newest_eligible(found, after_ms=after_ms, grace_ms=grace_ms)
         if picked:
             return picked
 

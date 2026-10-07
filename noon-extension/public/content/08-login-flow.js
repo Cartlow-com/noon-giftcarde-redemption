@@ -126,6 +126,7 @@ async function runFromStep(state) {
     await disableCursor();
     await markFlowComplete({
       ok: true,
+      confirmed: !confirmation || confirmation.confirmed !== false,
       orderId: orderId || null,
       confirmationUrl: confirmation && confirmation.confirmationUrl,
     });

@@ -307,10 +307,14 @@
       }
     } catch (_) {}
     target.dispatchEvent(new MouseEvent("mouseup", Object.assign({}, opts, { buttons: 0 })));
-    target.dispatchEvent(new MouseEvent("click", Object.assign({}, opts, { buttons: 0 })));
+    // Exactly ONE click. Dispatching a synthetic "click" AND calling target.click()
+    // pressed every button twice: Continue sent 2 OTP emails (→ "Too many requests"
+    // / lockout) and submit buttons (redeem, place order) fired twice.
     try {
       target.click();
-    } catch (_) {}
+    } catch (_) {
+      target.dispatchEvent(new MouseEvent("click", Object.assign({}, opts, { buttons: 0 })));
+    }
   }
 
   async function humanClick(el, options) {

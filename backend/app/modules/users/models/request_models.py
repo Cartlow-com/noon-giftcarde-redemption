@@ -20,11 +20,11 @@ class UserListResponse(BaseModel):
 
 class CreateUserRequest(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=6)
+    password: str = Field(min_length=8)  # same minimum as LoginRequest
     role: str = "user"
 
 
 class UpdateUserRequest(BaseModel):
-    password: str | None = Field(default=None, min_length=6)
+    password: str | None = Field(default=None, min_length=8)  # same minimum as LoginRequest
     role: str | None = None
     is_active: bool | None = None

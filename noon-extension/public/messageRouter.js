@@ -1,3 +1,32 @@
+/** Origins where dashboardBridge.js is injected (from the built manifest). */
+function allowedDashboardOrigins() {
+  const scripts = (chrome.runtime.getManifest().content_scripts || []).filter(
+    (cs) => (cs.js || []).includes("dashboardBridge.js"),
+  );
+  const origins = new Set();
+  for (const cs of scripts) {
+    for (const match of cs.matches || []) {
+      try {
+        origins.add(new URL(match.replace(/\/\*$/, "/")).origin);
+      } catch (_) {}
+    }
+  }
+  return origins;
+}
+
+function dashboardSenderOrigin(sender) {
+  if (!sender || sender.id !== chrome.runtime.id) return "";
+  let origin = sender.origin || "";
+  if (!origin && sender.url) {
+    try {
+      origin = new URL(sender.url).origin;
+    } catch (_) {
+      origin = "";
+    }
+  }
+  return origin && allowedDashboardOrigins().has(origin) ? origin : "";
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SET_AUTH_TOKENS") {
     (async () => {
@@ -9,11 +38,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         const refresh =
           typeof message.refreshToken === "string" ? message.refreshToken.trim() : "";
-        const apiBaseUrl =
-          typeof message.apiBaseUrl === "string" ? message.apiBaseUrl.trim() : "";
-        if (apiBaseUrl) {
-          await setApiBaseUrl(apiBaseUrl);
+        // Trust only our own dashboard bridge, on a dashboard origin from the
+        // manifest; take the API base from the sender's real origin, never from
+        // the message body (a page could otherwise redirect runs to its server).
+        const senderOrigin = dashboardSenderOrigin(sender);
+        if (!senderOrigin) {
+          sendResponse({ ok: false, error: "Not an allowed dashboard origin" });
+          return;
         }
+        // Never switch server mid-run, or away from a pinned server (serverSettings.js).
+        const blocked = await checkDashboardConnectAllowed(senderOrigin);
+        if (blocked) {
+          sendResponse({ ok: false, error: blocked });
+          return;
+        }
+        await setApiBaseUrl(senderOrigin);
         const configuredBase = await getApiBaseUrl();
         await chrome.storage.local.set({
           noon_access_token: access,
@@ -93,7 +132,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "FETCH_NOON_OTP_FROM_GMAIL") {
     (async () => {
       try {
-        const result = await fetchNoonOtpFromGmail(sender.tab && sender.tab.id, message.email);
+        const result = await fetchNoonOtpFromGmail(
+          sender.tab && sender.tab.id,
+          message.email,
+          message.requestedAt,
+        );
         if (typeof result === "string") {
           sendResponse({ ok: true, otp: result });
         } else {
@@ -244,6 +287,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: true, cancelled });
     })();
     return true;
+  }
+
+  if (message.type === "LOGIN_PROGRESS" || message.type === "LOGIN_ERROR") {
+    if (typeof traceRow === "function") traceRow(message.message || message.error);
   }
 
   if (

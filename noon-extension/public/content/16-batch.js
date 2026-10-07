@@ -160,14 +160,17 @@ async function runBatchCart(payload) {
     const confirmation = await waitForOrderConfirmation();
     const orderId = confirmation && confirmation.orderId;
     await disableCursor();
+    const confirmed = !confirmation || confirmation.confirmed !== false;
     await markFlowComplete({
       ok: true,
+      confirmed: confirmed,
       orderId: orderId || null,
       confirmationUrl: confirmation && confirmation.confirmationUrl,
     });
     await clearFlowState();
     return {
       ok: true,
+      confirmed: confirmed,
       orderId: orderId || null,
       confirmationUrl: confirmation && confirmation.confirmationUrl,
     };
