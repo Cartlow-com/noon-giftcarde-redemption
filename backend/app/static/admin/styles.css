@@ -240,7 +240,9 @@ body.auth-locked .shell {
   user-select: none;
 }
 
+/* Shares .auth-overlay styling but must not appear with the login screen. */
 .pw-overlay { z-index: 45; }
+.pw-overlay:not(.is-open) { display: none !important; }
 .pw-overlay.is-open { display: flex; }
 
 .auth-panel {

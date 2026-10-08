@@ -205,6 +205,7 @@ Homepage → click Orders in header → account dashboard → click noon Credits
 
 ## Recent Changes
 
+- 2026-10-08 — Split `auth.js` (391 → 294 lines): profile menu + extension connect status moved to `auth-profile.js` (`NoonAuthProfile.attach`); fixed change-password dialog showing over the login screen
 - 2026-09-01 — Session detection: checkout/cart/product pages count as logged in; redeem navigates to credits from checkout
 - 2026-09-01 — Fixed Add Credits modal detection + Giftcards & Vouchers click
 - 2026-09-01 — Fixed Redeem Giftcards finder (main content scope)
