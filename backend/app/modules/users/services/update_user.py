@@ -23,6 +23,9 @@ def update_user(
         if next_role not in VALID_ROLES:
             raise ValueError("Invalid role")
 
+    if payload.must_change_password and user.id == actor_id:
+        raise ValueError("Use Change password in the profile menu for your own account")
+
     assert_not_last_super_admin(
         db,
         user,
@@ -36,6 +39,11 @@ def update_user(
         user.token_version = int(user.token_version or 0) + 1
         # An admin-chosen password is temporary; resetting your own is not.
         user.must_change_password = user.id != actor_id
+    if payload.must_change_password is not None and payload.password is None:
+        if payload.must_change_password and not user.must_change_password:
+            # Sign them out now so the next sign-in lands on the change-password screen.
+            user.token_version = int(user.token_version or 0) + 1
+        user.must_change_password = payload.must_change_password
     if next_role is not None:
         user.role = next_role
     if payload.is_active is not None:

@@ -26,9 +26,17 @@
       return;
     }
     if (el.empty) el.empty.classList.add("hidden");
+    const selfEmail = (document.getElementById("profile-email")?.textContent || "").toLowerCase();
     el.list.innerHTML = state.users
       .map((user) => {
         const active = user.is_active;
+        const forced = !!user.must_change_password;
+        const forceBtn =
+          active && user.email.toLowerCase() !== selfEmail
+            ? `<button type="button" class="btn-text" data-force="${U.escapeHtml(user.id)}" data-forced="${forced ? "1" : "0"}" data-email="${U.escapeHtml(user.email)}">${
+                forced ? "Cancel forced change" : "Force password change"
+              }</button>`
+            : "";
         return `<tr data-user-id="${U.escapeHtml(user.id)}">
           <td>
             <button type="button" class="linkish" data-open-user="${U.escapeHtml(user.id)}" data-email="${U.escapeHtml(user.email)}">${U.escapeHtml(user.email)}</button>
@@ -42,6 +50,7 @@
           <td class="users-actions-cell">
             <button type="button" class="btn-text" data-open-user="${U.escapeHtml(user.id)}" data-email="${U.escapeHtml(user.email)}">View data</button>
             <button type="button" class="btn-text" data-reset="${U.escapeHtml(user.id)}">Reset password</button>
+            ${forceBtn}
             <button type="button" class="btn-text" data-toggle="${U.escapeHtml(user.id)}" data-active="${active ? "1" : "0"}">${
               active ? "Deactivate" : "Activate"
             }</button>
@@ -100,6 +109,31 @@
     }
   }
 
+  async function setForcedChange(userId, email, force) {
+    if (force) {
+      const ask = window.AdminConfirm?.ask;
+      const ok = ask
+        ? await ask({
+            title: "Force password change?",
+            message: `${email} is signed out now and must choose a new password at next sign-in.`,
+            okLabel: "Force change",
+          })
+        : false;
+      if (!ok) return;
+    }
+    try {
+      await U.api(`/users/${encodeURIComponent(userId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ must_change_password: force }),
+      });
+      showMsg(true, force ? "User must change password at next sign-in" : "Forced change cancelled");
+      await loadUsers();
+    } catch (err) {
+      showMsg(false, err.message);
+    }
+  }
+
   async function toggleActive(userId, currentlyActive) {
     try {
       if (currentlyActive) {
@@ -132,6 +166,15 @@
       const resetBtn = event.target.closest("[data-reset]");
       if (resetBtn) {
         resetPassword(resetBtn.getAttribute("data-reset"));
+        return;
+      }
+      const forceBtn = event.target.closest("[data-force]");
+      if (forceBtn) {
+        setForcedChange(
+          forceBtn.getAttribute("data-force"),
+          forceBtn.getAttribute("data-email") || "",
+          forceBtn.getAttribute("data-forced") !== "1",
+        );
         return;
       }
       const toggleBtn = event.target.closest("[data-toggle]");

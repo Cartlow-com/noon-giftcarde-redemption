@@ -99,3 +99,32 @@ def test_admin_reset_forces_change_but_own_reset_does_not(client) -> None:
     own = client.patch(f"/users/{admin_id}", headers=super_headers, json={"password": "admin@456"})
     assert own.status_code == 200
     assert own.json()["must_change_password"] is False
+
+
+def test_admin_can_force_and_cancel_password_change(client) -> None:
+    super_headers = login_super_admin(client)
+    users = client.get("/users", headers=super_headers).json()["users"]
+    user_id = next(u["id"] for u in users if u["email"] == "user@example.com")
+    admin_id = next(u["id"] for u in users if u["email"] == "admin@innovidio.com")
+    headers = login(client)
+
+    forced = client.patch(
+        f"/users/{user_id}", headers=super_headers, json={"must_change_password": True}
+    )
+    assert forced.status_code == 200
+    assert forced.json()["must_change_password"] is True
+    # Existing session is revoked; the next sign-in is limited to changing the password.
+    assert client.get("/login/me", headers=headers).status_code == 401
+    headers = login(client)
+    assert client.get("/batches", headers=headers).status_code == 403
+
+    cancelled = client.patch(
+        f"/users/{user_id}", headers=super_headers, json={"must_change_password": False}
+    )
+    assert cancelled.json()["must_change_password"] is False
+    assert client.get("/batches", headers=headers).status_code == 200
+
+    own = client.patch(
+        f"/users/{admin_id}", headers=super_headers, json={"must_change_password": True}
+    )
+    assert own.status_code == 400
