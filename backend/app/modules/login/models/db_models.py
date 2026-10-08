@@ -20,4 +20,8 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     # Bumped on each login — JWTs with an older version are rejected.
     token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Set when an admin creates the user or resets their password; cleared on self-change.
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))

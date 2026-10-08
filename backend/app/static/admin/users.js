@@ -34,7 +34,11 @@
             <button type="button" class="linkish" data-open-user="${U.escapeHtml(user.id)}" data-email="${U.escapeHtml(user.email)}">${U.escapeHtml(user.email)}</button>
           </td>
           <td>${U.badge(user.role)}</td>
-          <td>${U.badge(active ? "active" : "inactive")}</td>
+          <td>${U.badge(active ? "active" : "inactive")}${
+            active && user.must_change_password
+              ? ` <span class="badge pending" title="Signs in with an admin-set password and must change it">Must change password</span>`
+              : ""
+          }</td>
           <td class="users-actions-cell">
             <button type="button" class="btn-text" data-open-user="${U.escapeHtml(user.id)}" data-email="${U.escapeHtml(user.email)}">View data</button>
             <button type="button" class="btn-text" data-reset="${U.escapeHtml(user.id)}">Reset password</button>
@@ -89,7 +93,8 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
-      showMsg(true, "Password updated");
+      showMsg(true, "Password reset — the user must change it at next sign-in");
+      await loadUsers();
     } catch (err) {
       showMsg(false, err.message);
     }

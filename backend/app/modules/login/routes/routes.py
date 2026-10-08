@@ -7,8 +7,13 @@ from app.modules.login.controllers.controller import (
     login,
     logout,
     refresh_session,
+    update_password,
 )
-from app.modules.login.models.request_models import LoginRequest, RefreshSessionRequest
+from app.modules.login.models.request_models import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RefreshSessionRequest,
+)
 from app.modules.login.models.response_models import SessionResponse, TokenResponse
 
 router = APIRouter(prefix="/login", tags=["login"])
@@ -48,6 +53,28 @@ def me_route(
         return current_session(authorization.removeprefix("Bearer "), db)
     except ValueError as exc:
         raise _auth_error(exc) from exc
+
+
+@router.post("/password", response_model=TokenResponse)
+def change_password_route(
+    payload: ChangePasswordRequest,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    """Self-service change; returns fresh tokens (all other sessions are revoked)."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
+    # Not require_auth: that dependency rejects users who still must change it.
+    try:
+        session = current_session(authorization.removeprefix("Bearer "), db)
+    except ValueError as exc:
+        raise _auth_error(exc) from exc
+    try:
+        return update_password(session.user_id, payload, db)
+    except PermissionError as exc:
+        raise _auth_error(exc) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.delete("/session", status_code=status.HTTP_204_NO_CONTENT)

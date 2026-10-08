@@ -33,6 +33,7 @@ def get_session(access_token: str, db: Session | None = None) -> SessionResponse
             email=user.email,
             role=user.role or ROLE_USER,
             is_active=user.is_active,
+            must_change_password=bool(user.must_change_password),
         )
 
     return SessionResponse(

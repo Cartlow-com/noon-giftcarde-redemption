@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/assets/styles.css?v=20261008-cart-ok" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20261008-change-pw" />
     <link rel="stylesheet" href="/assets/sidebar.css?v=20260907-ext-status" />
     <link rel="stylesheet" href="/assets/detail.css?v=20260907-run-select" />
     <link rel="stylesheet" href="/assets/controls.css?v=20260911-gmail-detail" />
@@ -39,6 +39,7 @@
               </div>
               <p id="connect-pill" class="profile-ext-status" role="status">Extension not connected</p>
               <button type="button" id="btn-connect-ext" class="profile-menu-item" role="menuitem" disabled>Connect extension</button>
+              <button type="button" id="btn-change-password" class="profile-menu-item" role="menuitem">Change password</button>
               <button type="button" id="btn-signout" class="profile-menu-item profile-menu-item-danger" role="menuitem">Sign out</button>
             </div>
           </div>
@@ -322,6 +323,33 @@
         <p id="auth-error" class="auth-error hidden" role="alert"></p>
       </section>
     </div>
+    <div id="pw-overlay" class="auth-overlay pw-overlay" aria-hidden="true">
+      <section class="auth-panel" role="dialog" aria-modal="true" aria-labelledby="pw-title">
+        <p class="auth-kicker">Account</p>
+        <h1 id="pw-title">Change password</h1>
+        <p id="pw-copy" class="auth-copy">Other signed-in sessions (and the extension) are refreshed with the new password.</p>
+        <form id="pw-form" class="auth-form">
+          <input type="email" id="pw-username" autocomplete="username" class="hidden" tabindex="-1" aria-hidden="true" />
+          <label>
+            <span>Current password</span>
+            <input id="pw-current" type="password" autocomplete="current-password" required />
+          </label>
+          <label>
+            <span>New password (min 8)</span>
+            <input id="pw-new" type="password" autocomplete="new-password" minlength="8" required />
+          </label>
+          <label>
+            <span>Confirm new password</span>
+            <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" required />
+          </label>
+          <button type="submit" id="pw-submit" class="btn-primary auth-submit">Change password</button>
+          <button type="button" id="pw-cancel" class="btn-secondary auth-submit">Cancel</button>
+          <button type="button" id="pw-signout" class="btn-text hidden">Sign out instead</button>
+        </form>
+        <p id="pw-error" class="auth-error hidden" role="alert"></p>
+      </section>
+    </div>
+
     <div id="gmail-inbox-modal" class="confirm-modal hidden" aria-hidden="true">
       <div class="confirm-dialog gmail-inbox-dialog" role="dialog" aria-modal="true" aria-labelledby="gmail-inbox-title">
         <header class="row-runs-bar">
@@ -358,9 +386,10 @@
     <script src="/assets/util.js?v=20261005-badge"></script>
     <script src="/assets/confirm-modal.js?v=20260907-row-edit"></script>
     <script src="/assets/auth-extension.js?v=20260911-ping-exposed"></script>
-    <script src="/assets/auth.js?v=20260911-ping-exposed"></script>
+    <script src="/assets/password.js?v=20261008-change-pw"></script>
+    <script src="/assets/auth.js?v=20261008-change-pw"></script>
     <script src="/assets/nav.js?v=20260907-confirm-modal"></script>
-    <script src="/assets/users.js?v=20261005-pw8"></script>
+    <script src="/assets/users.js?v=20261008-change-pw"></script>
     <script src="/assets/row-modal.js?v=20260907-run-select"></script>
     <script src="/assets/detail-panel.js?v=20260907-run-select"></script>
     <script src="/assets/row-edit.js?v=20261008-cart-ok"></script>

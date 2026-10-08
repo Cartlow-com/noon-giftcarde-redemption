@@ -87,6 +87,11 @@ def _ensure_sqlite_columns() -> None:
                 conn.execute(
                     text("UPDATE users SET token_version = 0 WHERE token_version IS NULL")
                 )
+        if "must_change_password" not in user_cols:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT 0")
+                )
 
     if "gmail_tokens" in tables:
         gmail_cols = {col["name"] for col in inspector.get_columns("gmail_tokens")}

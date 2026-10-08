@@ -118,6 +118,7 @@
   function showLogin(message) {
     setBodyLocked(true);
     if (el.overlay) el.overlay.classList.remove("hidden");
+    if (window.AdminPassword) window.AdminPassword.close();
     renderSession("", "user");
     setError(message || "");
     if (el.email && !el.email.value) {
@@ -130,6 +131,7 @@
   function hideLogin() {
     setBodyLocked(false);
     if (el.overlay) el.overlay.classList.add("hidden");
+    if (window.AdminPassword) window.AdminPassword.close();
     setError("");
   }
 
@@ -188,6 +190,13 @@
     }
 
     renderSession(me.email, me.role || "user");
+    if (me.must_change_password && window.AdminPassword) {
+      // Admin-set password: nothing else works until the user picks their own.
+      setBodyLocked(true);
+      if (el.overlay) el.overlay.classList.add("hidden");
+      window.AdminPassword.open({ forced: true, email: me.email });
+      return false;
+    }
     hideLogin();
     emitAuthChange(true, me.email, me.role || "user");
 
@@ -270,6 +279,17 @@
     await clearExtensionTokens();
     emitAuthChange(false, "", "user");
     showLogin("Signed out.");
+  }
+
+  // After a password change: the server revoked every older token, so swap in the
+  // new pair and re-hand it to the extension if it is installed here.
+  async function applyTokens(body) {
+    persistTokens({ accessToken: body.access_token, refreshToken: body.refresh_token });
+    const ok = await loadSession();
+    if (ok && state.role !== "super_admin" && state.extensionInstalled) {
+      await autoConnect();
+    }
+    return ok;
   }
 
   async function handleUnauthorized() {
@@ -361,6 +381,8 @@
       return state.extensionConnected;
     },
     handleUnauthorized: handleUnauthorized,
+    applyTokens: applyTokens,
+    signOut: signOut,
     connectExtension: connectExtension,
     autoConnect: autoConnect,
     connectWithReload: connectWithReload,

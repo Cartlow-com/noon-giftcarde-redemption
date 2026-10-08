@@ -21,6 +21,7 @@ def create_user(payload: CreateUserRequest, db: Session) -> UserResponse:
         hashed_password=hash_password(payload.password),
         role=role,
         is_active=True,
+        must_change_password=True,
     )
     db.add(user)
     db.commit()

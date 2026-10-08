@@ -20,8 +20,10 @@ def create_user(payload: CreateUserRequest, db: Session) -> UserResponse:
     return create_user_svc(payload, db)
 
 
-def update_user(user_id: str, payload: UpdateUserRequest, db: Session) -> UserResponse:
-    return update_user_svc(user_id, payload, db)
+def update_user(
+    user_id: str, payload: UpdateUserRequest, db: Session, actor_id: str | None = None
+) -> UserResponse:
+    return update_user_svc(user_id, payload, db, actor_id=actor_id)
 
 
 def delete_user(user_id: str, db: Session) -> UserResponse:

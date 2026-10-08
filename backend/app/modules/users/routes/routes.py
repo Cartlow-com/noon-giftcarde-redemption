@@ -49,10 +49,10 @@ def update_user_route(
     user_id: str,
     payload: UpdateUserRequest,
     db: Session = Depends(get_db),
-    _: str = Depends(require_super_admin),
+    actor_id: str = Depends(require_super_admin),
 ) -> UserResponse:
     try:
-        return users_controller.update_user(user_id, payload, db)
+        return users_controller.update_user(user_id, payload, db, actor_id=actor_id)
     except ValueError as exc:
         detail = str(exc)
         if detail == "User not found":

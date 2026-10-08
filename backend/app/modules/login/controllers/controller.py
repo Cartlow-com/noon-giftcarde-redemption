@@ -1,7 +1,12 @@
 from sqlalchemy.orm import Session
 
-from app.modules.login.models.request_models import LoginRequest, RefreshSessionRequest
+from app.modules.login.models.request_models import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RefreshSessionRequest,
+)
 from app.modules.login.models.response_models import SessionResponse, TokenResponse
+from app.modules.login.services.change_password import change_password
 from app.modules.login.services.create_session import create_session
 from app.modules.login.services.delete_session import delete_session
 from app.modules.login.services.get_session import get_session
@@ -22,3 +27,7 @@ def current_session(access_token: str, db: Session) -> SessionResponse:
 
 def refresh_session(payload: RefreshSessionRequest, db: Session) -> TokenResponse:
     return update_session(payload.refresh_token, db)
+
+
+def update_password(user_id: str, payload: ChangePasswordRequest, db: Session) -> TokenResponse:
+    return change_password(user_id, payload, db)

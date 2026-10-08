@@ -72,7 +72,14 @@ def test_deactivated_user_token_rejected(client) -> None:
     assert created.status_code == 201
     user_id = created.json()["id"]
 
-    user_headers = login(client, email="temp@example.com", password="secret12")
+    temp_headers = login(client, email="temp@example.com", password="secret12")
+    changed = client.post(
+        "/login/password",
+        headers=temp_headers,
+        json={"current_password": "secret12", "new_password": "secret34"},
+    )
+    assert changed.status_code == 200
+    user_headers = {"Authorization": f"Bearer {changed.json()['access_token']}"}
     assert client.get("/batches", headers=user_headers).status_code == 200
 
     assert client.delete(f"/users/{user_id}", headers=super_headers).status_code == 200

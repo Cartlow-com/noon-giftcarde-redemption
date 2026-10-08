@@ -28,6 +28,7 @@ FastAPI backend with login + batch modules. Extension connects to backend for CS
 
 ## Recent Changes
 
+- 2026-10-08 — **Self-service password**: `POST /login/password` (current + new, min 8; returns fresh tokens, revokes other sessions); `users.must_change_password` set on admin create/reset (not own reset) → `require_auth`/`require_super_admin` 403 `Password change required` until changed; dashboard forced dialog + profile menu **Change password** (`password.js`), users list badge
 - 2026-10-05 — Review fixes: SSE batch ownership; status/stage/outcome regex (blocks XSS); PATCH can't point screenshots outside own row; pw change revokes sessions; user pw min 8; case-insensitive login; super_admin attempt access (`get_owned_attempt`); seeder never resets super admin; SECRET_KEY warning; signed Gmail OAuth state; `/emails/send` super_admin only; tests use temp DB; `unconfirmed` purchase stage
 - 2026-10-05 — Unlock email lookup matches the **base** address (Noon mails `x@` for `x+tag@` rows)
 - 2026-10-05 — **Proxy rotation switched off**: `PROXY_ROTATION_ENABLED=false` (default) → `/proxies/next` 409; `/runs/config.proxy_rotation_enabled`. Real-Chrome test: direct loads Noon, all 7 probe-passing proxies 403/timeout/reset; `proxies.ok.csv` emptied

@@ -6,7 +6,13 @@ from app.modules.users.helpers.guards import assert_not_last_super_admin
 from app.modules.users.models.request_models import UpdateUserRequest, UserResponse
 
 
-def update_user(user_id: str, payload: UpdateUserRequest, db: Session) -> UserResponse:
+def update_user(
+    user_id: str,
+    payload: UpdateUserRequest,
+    db: Session,
+    *,
+    actor_id: str | None = None,
+) -> UserResponse:
     user = db.get(User, user_id)
     if not user:
         raise ValueError("User not found")
@@ -28,6 +34,8 @@ def update_user(user_id: str, payload: UpdateUserRequest, db: Session) -> UserRe
         user.hashed_password = hash_password(payload.password)
         # Revoke sessions issued under the old password (JWTs carry token_version).
         user.token_version = int(user.token_version or 0) + 1
+        # An admin-chosen password is temporary; resetting your own is not.
+        user.must_change_password = user.id != actor_id
     if next_role is not None:
         user.role = next_role
     if payload.is_active is not None:

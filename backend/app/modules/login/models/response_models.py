@@ -12,3 +12,4 @@ class SessionResponse(BaseModel):
     email: EmailStr
     role: str = "user"
     is_active: bool = True
+    must_change_password: bool = False

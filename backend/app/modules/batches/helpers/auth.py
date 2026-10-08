@@ -7,6 +7,17 @@ from app.modules.batches.helpers.ownership import is_super_admin
 from app.modules.login.models.db_models import ROLE_SUPER_ADMIN
 from app.modules.login.services.get_session import get_session
 
+PASSWORD_CHANGE_REQUIRED = "Password change required"
+
+
+def _reject_pending_password_change(session) -> None:
+    """Admin-set passwords must be replaced before anything else is allowed."""
+    if session.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=PASSWORD_CHANGE_REQUIRED,
+        )
+
 
 def require_auth(
     authorization: str | None = Header(default=None),
@@ -45,6 +56,7 @@ def require_auth(
             detail=str(exc),
         ) from exc
 
+    _reject_pending_password_change(session)
     return session.user_id
 
 
@@ -99,6 +111,7 @@ def require_super_admin(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(exc),
         ) from exc
+    _reject_pending_password_change(session)
     if session.role != ROLE_SUPER_ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
