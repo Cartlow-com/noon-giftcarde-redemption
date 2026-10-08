@@ -614,3 +614,24 @@ test("add-to-cart is confirmed by the header cart count / on-screen drawer, not 
   assert.ok(/\[data-qa='cart-remove_item'\]/.test(empty));
   assert.ok(!/querySelector\("main"\)/.test(empty), "cart page has no <main>; never scan the whole page");
 });
+
+test("Gmail search tab: accepts Gmail's rewritten hash (%20 → +) instead of bailing as wrong view", async () => {
+  const query = 'from:noon.com subject:"Unlock more sign in attempts" to:y.w.aly808@gmail.com newer_than:1d';
+  const row = { offsetParent: {}, textContent: "noon  Unlock more sign in attempts" };
+  const ctx = {
+    console, setTimeout, clearTimeout, URL,
+    location: { host: "mail.google.com", hash: "#search/" + encodeURIComponent(query).replace(/%20/g, "+") },
+    document: {
+      querySelector: () => null,
+      querySelectorAll: (sel) => (sel === "tr.zA" ? [row] : []),
+    },
+  };
+  ctx.chrome = {};
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "public", "gmailTab.js"), "utf8"), ctx);
+  const result = await ctx.gmailPageSearchFirstResult(query, false);
+  assert.ok(!result.wrongView, "rewritten hash must still count as the search view");
+  assert.strictEqual(result.rowText, "noon Unlock more sign in attempts");
+  ctx.location.hash = "#inbox";
+  assert.ok((await ctx.gmailPageSearchFirstResult(query, false)).wrongView);
+});

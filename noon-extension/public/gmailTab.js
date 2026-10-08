@@ -65,8 +65,16 @@ async function gmailPageSearchFirstResult(query, openFirst) {
 
   // The tab is opened directly on the search URL, so no other view (e.g. the
   // inbox list) can be on screen and be mistaken for results.
+  // Gmail rewrites the hash after load (%20 → "+"), so compare decoded forms.
+  const normHash = (h) => {
+    try {
+      return decodeURIComponent(String(h || "").replace(/\+/g, " "));
+    } catch (_) {
+      return String(h || "");
+    }
+  };
   const target = "#search/" + encodeURIComponent(query);
-  if (location.hash !== target) return { empty: true, wrongView: true };
+  if (normHash(location.hash) !== normHash(target)) return { empty: true, wrongView: true };
 
   let row = null;
   for (let i = 0; i < 40 && !row; i++) {
