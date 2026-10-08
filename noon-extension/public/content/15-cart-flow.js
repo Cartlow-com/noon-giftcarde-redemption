@@ -151,7 +151,12 @@ async function runCartFlow(productUrl) {
       }
       logStep("Clicking Checkout…");
       const btn = findCheckoutButton();
-      if (!btn) throw new Error("Checkout button not found");
+      if (!btn) {
+        if (!findCartRemoveButtons().length) {
+          throw new Error("Cart is empty — the product was never added, so there is no Checkout");
+        }
+        throw new Error("Checkout button not found");
+      }
       try {
         btn.scrollIntoView({ block: "center", inline: "nearest" });
       } catch (_) {}

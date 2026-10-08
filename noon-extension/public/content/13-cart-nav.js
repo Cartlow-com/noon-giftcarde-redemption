@@ -5,9 +5,16 @@
  */
 async function handleProductPageStep(productUrl) {
   logStep("Waiting for product page…");
-  await waitFor(function () {
+  const onPdp = await waitFor(function () {
     return isOnProductPage();
   }, 15000, 50);
+  if (!onPdp) {
+    // Noon redirects a dead / undeliverable product link (e.g. to the home page).
+    throw new Error(
+      "Product page did not open — Noon showed " + location.href +
+        " (check the row's product link)",
+    );
+  }
 
   const phase = await getCartPhase();
   if (
@@ -69,7 +76,15 @@ async function handleProductPageStep(productUrl) {
     return false;
   }
 
-  logStep("Add to Cart not on page — item already in cart, opening cart…");
+  // No Add to Cart only means "already in cart" when the cart really has items;
+  // with an empty cart the product is out of stock / not deliverable here.
+  const inCart = getCartBadgeCount();
+  if (!inCart) {
+    throw new Error(
+      "Add to Cart not on the product page and the cart is empty — product may be out of stock or not deliverable to this address",
+    );
+  }
+  logStep("Add to Cart not on page — cart has " + inCart + " item(s), opening cart…");
   if (isOnCartPage()) return false;
   const opened = await openCartFromProductPage();
   return !!(opened && opened.navigated);
