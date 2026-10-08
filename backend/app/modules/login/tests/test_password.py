@@ -128,3 +128,18 @@ def test_admin_can_force_and_cancel_password_change(client) -> None:
         f"/users/{admin_id}", headers=super_headers, json={"must_change_password": True}
     )
     assert own.status_code == 400
+
+
+def test_reset_can_opt_out_of_forced_change(client) -> None:
+    super_headers = login_super_admin(client)
+    users = client.get("/users", headers=super_headers).json()["users"]
+    user_id = next(u["id"] for u in users if u["email"] == "user@example.com")
+    reset = client.patch(
+        f"/users/{user_id}",
+        headers=super_headers,
+        json={"password": "Gen3rated!pw", "must_change_password": False},
+    )
+    assert reset.status_code == 200
+    assert reset.json()["must_change_password"] is False
+    headers = login(client, password="Gen3rated!pw")
+    assert client.get("/batches", headers=headers).status_code == 200

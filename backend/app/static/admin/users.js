@@ -49,7 +49,7 @@
           }</td>
           <td class="users-actions-cell">
             <button type="button" class="btn-text" data-open-user="${U.escapeHtml(user.id)}" data-email="${U.escapeHtml(user.email)}">View data</button>
-            <button type="button" class="btn-text" data-reset="${U.escapeHtml(user.id)}">Reset password</button>
+            <button type="button" class="btn-text" data-reset="${U.escapeHtml(user.id)}" data-email="${U.escapeHtml(user.email)}">Reset password</button>
             ${forceBtn}
             <button type="button" class="btn-text" data-toggle="${U.escapeHtml(user.id)}" data-active="${active ? "1" : "0"}">${
               active ? "Deactivate" : "Activate"
@@ -93,20 +93,14 @@
     }
   }
 
-  async function resetPassword(userId) {
-    const password = window.prompt("New password (min 8 chars)");
-    if (!password) return;
-    try {
-      await U.api(`/users/${encodeURIComponent(userId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      showMsg(true, "Password reset — the user must change it at next sign-in");
-      await loadUsers();
-    } catch (err) {
-      showMsg(false, err.message);
-    }
+  function resetPassword(userId, email) {
+    const selfEmail = (document.getElementById("profile-email")?.textContent || "").toLowerCase();
+    window.AdminResetPassword.open({
+      id: userId,
+      email,
+      isSelf: email.toLowerCase() === selfEmail,
+      onDone: loadUsers,
+    });
   }
 
   async function setForcedChange(userId, email, force) {
@@ -165,7 +159,7 @@
       }
       const resetBtn = event.target.closest("[data-reset]");
       if (resetBtn) {
-        resetPassword(resetBtn.getAttribute("data-reset"));
+        resetPassword(resetBtn.getAttribute("data-reset"), resetBtn.getAttribute("data-email") || "");
         return;
       }
       const forceBtn = event.target.closest("[data-force]");

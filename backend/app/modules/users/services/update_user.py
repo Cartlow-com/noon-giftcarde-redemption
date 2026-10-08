@@ -37,8 +37,11 @@ def update_user(
         user.hashed_password = hash_password(payload.password)
         # Revoke sessions issued under the old password (JWTs carry token_version).
         user.token_version = int(user.token_version or 0) + 1
-        # An admin-chosen password is temporary; resetting your own is not.
-        user.must_change_password = user.id != actor_id
+        # An admin-chosen password is temporary by default; resetting your own is not.
+        if payload.must_change_password is None:
+            user.must_change_password = user.id != actor_id
+        else:
+            user.must_change_password = payload.must_change_password
     if payload.must_change_password is not None and payload.password is None:
         if payload.must_change_password and not user.must_change_password:
             # Sign them out now so the next sign-in lands on the change-password screen.

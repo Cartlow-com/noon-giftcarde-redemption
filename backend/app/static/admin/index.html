@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="/assets/styles.css?v=20261008-split" />
     <link rel="stylesheet" href="/assets/sidebar.css?v=20260907-ext-status" />
     <link rel="stylesheet" href="/assets/detail.css?v=20260907-run-select" />
-    <link rel="stylesheet" href="/assets/controls.css?v=20260911-gmail-detail" />
+    <link rel="stylesheet" href="/assets/controls.css?v=20261008-reset-dialog" />
     <link rel="stylesheet" href="/assets/profile.css?v=20260907-profile-menu" />
   </head>
   <body>
@@ -242,6 +242,31 @@
       </div>
     </div>
 
+    <div id="reset-pw-modal" class="confirm-modal hidden" aria-hidden="true">
+      <div class="confirm-dialog reset-pw-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-pw-title">
+        <h2 id="reset-pw-title">Reset password</h2>
+        <p id="reset-pw-email" class="confirm-message"></p>
+        <label class="reset-pw-label" for="reset-pw-value">New password</label>
+        <div class="reset-pw-field">
+          <input id="reset-pw-value" type="text" autocomplete="new-password" minlength="8" spellcheck="false" />
+          <button type="button" id="reset-pw-toggle" class="btn-text">Hide</button>
+          <button type="button" id="reset-pw-generate" class="btn-text">Regenerate</button>
+          <button type="button" id="reset-pw-copy" class="btn-text">Copy</button>
+        </div>
+        <p id="reset-pw-hint" class="reset-pw-hint">Strong password generated. You can edit it (min 8 characters).</p>
+        <label class="check reset-pw-force">
+          <input id="reset-pw-force" type="checkbox" checked />
+          Require change at next sign-in
+        </label>
+        <p id="reset-pw-error" class="auth-error hidden" role="alert"></p>
+        <p id="reset-pw-done" class="reset-pw-done hidden" role="status"></p>
+        <div class="confirm-actions">
+          <button type="button" id="reset-pw-cancel" class="btn-secondary">Cancel</button>
+          <button type="button" id="reset-pw-ok" class="btn-primary">Reset password</button>
+        </div>
+      </div>
+    </div>
+
     <div id="row-edit-modal" class="confirm-modal hidden" aria-hidden="true">
       <div class="confirm-dialog row-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="row-edit-title">
         <h2 id="row-edit-title">Edit row</h2>
@@ -390,7 +415,8 @@
     <script src="/assets/password.js?v=20261008-change-pw"></script>
     <script src="/assets/auth.js?v=20261008-split"></script>
     <script src="/assets/nav.js?v=20260907-confirm-modal"></script>
-    <script src="/assets/users.js?v=20261008-force-pw"></script>
+    <script src="/assets/reset-password.js?v=20261008-reset-dialog"></script>
+    <script src="/assets/users.js?v=20261008-reset-dialog"></script>
     <script src="/assets/row-modal.js?v=20260907-run-select"></script>
     <script src="/assets/detail-panel.js?v=20260907-run-select"></script>
     <script src="/assets/row-edit.js?v=20261008-cart-ok"></script>

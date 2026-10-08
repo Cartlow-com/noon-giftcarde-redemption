@@ -410,3 +410,69 @@
   padding: 0.2rem 0.5rem;
   white-space: nowrap;
 }
+
+.reset-pw-dialog {
+  width: min(100%, 460px);
+}
+
+.reset-pw-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--muted, #94a3b8);
+  font-size: 0.78rem;
+}
+
+.reset-pw-field {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0.6rem 0.25rem 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0b1220;
+}
+
+.reset-pw-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0.55rem 0.5rem;
+  font: 600 0.95rem/1.2 var(--mono);
+  letter-spacing: 0.03em;
+}
+
+.reset-pw-field input:focus {
+  outline: none;
+}
+
+.reset-pw-field:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--noon) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.reset-pw-hint {
+  margin: 0.45rem 0 0.9rem;
+  color: var(--muted, #94a3b8);
+  font-size: 0.78rem;
+}
+
+.reset-pw-force {
+  margin-bottom: 1rem;
+}
+
+.reset-pw-done {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--ok) 40%, var(--border));
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.reset-pw-dialog .auth-error {
+  margin: 0 0 1rem;
+}
